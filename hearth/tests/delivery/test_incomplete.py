@@ -92,6 +92,27 @@ class RenderIncompleteTests(unittest.TestCase):
         man["hold_for_review"] = True
         self.assertTrue(any("hold_for_review" in e for e in contract.validate_manifest(man)))
 
+    def test_quote_only_cut_has_pinned_boundary_evidence(self) -> None:
+        sm = SourceMap("fixture", COMMIT, [file_map("source.txt", b'bash "$S/bin/lane.sh" send "$brief"\n')])
+        out = output("The lane sends the brief.")
+        out["sections"][0]["paragraphs"][0]["quotes"] = ["bash "]
+        _, man, _ = render_with_findings(out, brief_bytes(), sm)
+        self.assertEqual(man["suspected_incomplete"],
+                         [{"id": "s0.p0.q0", "signal": "quote_before_string", "tail": "bash "}])
+        self.assertTrue(man["hold_for_review"])
+        self.assertEqual(man["verification"]["deterministic"]["state"], "pass")
+        self.assertEqual(contract.validate_manifest(man), [])
+
+    def test_valid_partial_quote_is_not_judged_as_incomplete_prose(self) -> None:
+        sm = SourceMap("fixture", COMMIT, [file_map("source.txt", b'return (1 + 2)\nbash "$script"\n'
+                                                   b'out = {\n "a": "b", "c": "d"\n}\n')])
+        for quote in ("return (", "return (1 + 2)\n", 'bash "$script"', '"a": "b",', 'out = {'):
+            with self.subTest(quote=quote):
+                out = output("A complete description.")
+                out["sections"][0]["paragraphs"][0]["quotes"] = [quote]
+                _, man, _ = render_with_findings(out, brief_bytes(), sm)
+                self.assertEqual(man["suspected_incomplete"], [])
+
 
 class ReplayIncompleteTests(unittest.TestCase):
     EXPECT = {"a83187bb": "trailing_space", "25fd75d0": "open_token", "921d1a59": "open_token"}

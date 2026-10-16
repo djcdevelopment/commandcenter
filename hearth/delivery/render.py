@@ -96,6 +96,38 @@ def suspected_incomplete(text: str) -> Optional[dict]:
     return None
 
 
+def suspected_quote_cut(quote: str, sm: SourceMap) -> Optional[dict]:
+    """Flag the observed decoder boundary: an open fragment just before a source double quote.
+
+    Quotes are excerpts, so prose punctuation/whitespace rules alone do not apply. Require
+    both an open tail and pinned-source evidence of the double-quote boundary. This is a
+    review signal, never proof of truncation, a repair, or a deterministic failure.
+    """
+    decoded = html.unescape(quote)
+    # The observed schema cut occurs at the first literal double quote. Complete
+    # quoted literals and excerpts ending at a later dictionary comma are valid.
+    if '"' in decoded:
+        return None
+    hit = suspected_incomplete(decoded)
+    if not hit or hit["signal"] not in {"trailing_space", "open_token"}:
+        return None
+    needle = " ".join(decoded.split())
+    if not needle:
+        return None
+    for fm in sm.files:
+        # Do not cross a newline: a dictionary opener before its first key on the
+        # next line is an ordinary intentional excerpt, not this decoder boundary.
+        for line in fm.lines:
+            source = " ".join(line.split())
+            pos = source.find(needle)
+            while pos >= 0:
+                after = source[pos + len(needle):].lstrip()
+                if after.startswith('"'):
+                    return {"signal": "quote_before_string", "tail": quote[-SUSPECT_TAIL_CHARS:]}
+                pos = source.find(needle, pos + 1)
+    return None
+
+
 
 def _brief_bytes(brief: Union[bytes, str, Mapping[str, Any], None]) -> tuple:
     """(bytes hashed, parsed brief dict or None). JSON text, or markdown with a CCMETA block; else ContractError."""
@@ -318,6 +350,10 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
             rows = []
             for k, q in enumerate(para["quotes"]):
                 loc = locate_line_reference(reference_map, q) if line_reference else locs[k]
+                if not line_reference:
+                    hit = suspected_quote_cut(q, sm)
+                    if hit:
+                        suspected.append({"id": f"s{i}.p{j}.q{k}", **hit})
                 echoed = sm.get(loc.path).lines[loc.start - 1] if line_reference and loc.match != "missing" else q
                 row = _claim_row(f"s{i}.p{j}.q{k}", text, echoed, loc)
                 if line_reference:

@@ -79,7 +79,7 @@ MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1
 # Repair counts the contract knows and cross-checks against claims; the renderer (task 3) may add other
 # snake_case keys (line_reference_stripped, quotes_beyond_cap_dropped, json_unescaped_quote from the carry procedure: counts of code edits, no claim carries them, so they stay out of this tuple; empty_quote_dropped: the door drops blank quote strings before validation; heading_added, trailing_prose_removed, citation_syntax_stripped, ...).
 REPAIR_KEYS = ("normalized_quote", "fuzzy_quote", "ambiguous_quote", "short_ambiguous_quote", "truncated_quote")
-SUSPECT_SIGNALS = ("trailing_space", "open_token", "dangling_word")  # suspected-incomplete text findings (audit 2026-10-16)
+SUSPECT_SIGNALS = ("trailing_space", "open_token", "dangling_word", "quote_before_string")
 VERIFY_RUNGS = ("deterministic", "judge", "reviewer", "human")
 VERIFY_STATES = ("pass", "fail", "unverified", "not_run")  # unrun = not_run, judge unavailable = unverified; never pass
 DEVIATION_KINDS = ("words", "sections", "other")

@@ -116,6 +116,45 @@ class Fixture(unittest.TestCase):
 
 
 class Scope(Fixture):
+    def test_reviewed_quote_repair_is_counted_and_preserves_original(self):
+        out = output_with("The alpha function sets the flag.", ["flag(true);"])
+        original = copy.deepcopy(out)
+        patch = {"claim_id": "s0.p0.q0", "old_quote": "flag(true);",
+                 "new_quote": "fn alpha() {\n    flag(true);"}
+        result = sc.derive(out, self.brief, self.sm, reviewed_repairs=[patch])
+        self.assertEqual(out, original)
+        self.assertEqual(result["after"]["unsupported"], [])
+        self.assertEqual(result["manifest"]["repairs"][sc.REVIEWED_KEY], 1)
+        self.assertTrue(result["prose_unchanged"])
+        for bad in ({**patch, "old_quote": "wrong"}, {**patch, "new_quote": "flag(false!!!);"},
+                    {**patch, "new_quote": "flag(true);\n}"}, {**patch, "repair_prose": "yes"}):
+            with self.subTest(bad=bad), self.assertRaises(sc.SidecarError):
+                sc.derive(out, self.brief, self.sm, reviewed_repairs=[bad])
+
+    def test_reviewed_prose_edit_is_only_the_same_erroneous_quotation(self):
+        out = output_with("It calls fn gama() to proceed.", ["fn gama()"])
+        patch = {"claim_id": "s0.p0.q0", "old_quote": "fn gama()", "new_quote": "fn gamma()",
+                 "repair_prose": True}
+        result = sc.derive(out, self.brief, self.sm, reviewed_repairs=[patch])
+        self.assertEqual(result["output"]["sections"][0]["paragraphs"][0]["text"],
+                         "It calls fn gamma() to proceed.")
+        self.assertEqual(result["manifest"]["repairs"][sc.PROSE_KEY], 1)
+        self.assertFalse(result["prose_unchanged"])
+        self.assertTrue(result["headings_unchanged"] and result["paragraph_order_unchanged"])
+        out["sections"][0]["paragraphs"][0]["text"] = "It calls the function."
+        with self.assertRaises(sc.SidecarError):
+            sc.derive(out, self.brief, self.sm, reviewed_repairs=[patch])
+
+    def test_reviewed_file_requires_original_work_id_and_raw_hash(self):
+        run = self.make_run(output_with("It calls fn gama().", ["fn gama()"]))
+        patch_file = self.root / "repairs.json"
+        patch_file.write_text(json.dumps({"schema": "amux-quote-repairs.v1", "work_id": "work_fixture",
+                                         "output_sha256": "wrong", "repairs": []}))
+        dest = self.root / "derivative"
+        with self.assertRaises(sc.SidecarError):
+            sc.run(run, dest, quote_repairs=patch_file)
+        self.assertFalse(dest.exists())
+
     def test_unique_named_owner_resolves_and_counts(self):
         r = self.derive("The alpha function sets the flag.", ["flag(true);"])
         self.assertEqual(len(r["changes"]), 1)

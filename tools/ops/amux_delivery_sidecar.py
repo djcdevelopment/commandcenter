@@ -8,13 +8,18 @@ its rendered markdown and renderer manifest, a copy of the original output, and 
 The original is never modified; the derivative is never an official verdict (semantic_review_required is
 true, official_verdict is null) and mechanical success is not semantic acceptance.
 
-The one repair of this slice, `symbol_scoped_quote`: a short quote that occurs more than once in the pinned
+The automatic repair, `symbol_scoped_quote`: a short quote that occurs more than once in the pinned
 source (the renderer refuses it as short_ambiguous) is replaced by the smallest unique contiguous excerpt of
 the one Rust function that (a) is named in the quote's paragraph and (b) is the only such function whose own
 body contains the quote exactly once. Anything else stays unresolved and is reported. Prose, headings and
 order are never changed. No trimming, no budget change, no inference, no dispatch.
 
-Usage: amux_delivery_sidecar.py RUN_DIR NEW_OUT_DIR
+An optional --quote-repairs file carries explicit frontier-reviewed replacements bound to the original
+work id and output hash. Every replacement must resolve exactly and uniquely in the pinned source;
+repair_prose may repair only that same quotation once in its own paragraph. Those changes are counted
+as reviewed_quote_replaced / citation_text_repaired and still require semantic review.
+
+Usage: amux_delivery_sidecar.py RUN_DIR NEW_OUT_DIR [--quote-repairs FILE]
 """
 from __future__ import annotations
 
@@ -39,6 +44,8 @@ from hearth.delivery import contract, render, revision, sourcemap, verify  # noq
 REPORT_SCHEMA = "amux-delivery-sidecar.v1"
 REPAIR_KEY = "symbol_scoped_quote"
 DROP_KEY = "punctuation_quote_dropped"
+REVIEWED_KEY = "reviewed_quote_replaced"
+PROSE_KEY = "citation_text_repaired"
 PUNCTUATION = frozenset("{}[]();,")
 IMMUTABLE_PARTS = ("runs", "hybrid-context-trial", "omen-c-read", "omen-e-read")
 _FN = re.compile(r"(?<![A-Za-z0-9_])fn\s+([A-Za-z_][A-Za-z0-9_]*)")
@@ -360,6 +367,54 @@ def repair_quotes(output: dict, sm, claims: list, origin: Optional[dict] = None)
 
 # ---------------------------------------------------------------- measurement and orchestration
 
+def reviewed_quote_repairs(output: dict, sm, claims: list, repairs: list) -> tuple:
+    """Apply explicit frontier-reviewed replacements; every replacement is exact unique pinned evidence.
+
+    No fuzzy choice or source discovery is delegated to the patch file. A requested prose
+    repair may replace only that same erroneous quotation once inside its own paragraph.
+    Original quote indices include blank entries, unlike renderer claim ids.
+    """
+    derived, changes, seen = copy.deepcopy(output), [], set()
+    by_id = {c["id"]: c for c in claims}
+    if not isinstance(repairs, list):
+        raise SidecarError("reviewed repairs must be a list")
+    for patch in repairs:
+        if not isinstance(patch, dict) or set(patch) - {"claim_id", "old_quote", "new_quote", "repair_prose"} or \
+                not {"claim_id", "old_quote", "new_quote"} <= set(patch):
+            raise SidecarError("repair needs claim_id, old_quote, new_quote and optional repair_prose")
+        cid = patch["claim_id"]
+        if not isinstance(cid, str) or cid in seen or cid not in by_id:
+            raise SidecarError("repair claim id is absent or duplicated")
+        seen.add(cid)
+        row = by_id[cid]
+        old, new = patch["old_quote"], patch["new_quote"]
+        if not isinstance(old, str) or old != row["quote"] or not old.strip() or \
+                not isinstance(new, str) or not new.strip() or new == old:
+            raise SidecarError(f"{cid}: old quote must match; replacement must differ and be nonempty")
+        if type(patch.get("repair_prose", False)) is not bool:
+            raise SidecarError(f"{cid}: repair_prose must be boolean")
+        loc = sourcemap.locate(sm, new)
+        if loc.match != "exact" or loc.occurrences != 1 or loc.truncated:
+            raise SidecarError(f"{cid}: replacement must resolve exactly and uniquely to pinned source")
+        i, j, k = (int(x[1:]) for x in cid.split("."))
+        para = derived["sections"][i]["paragraphs"][j]
+        kept = [x for x, q in enumerate(para["quotes"]) if q.strip()]
+        index = kept[k]
+        if para["quotes"][index] != old:
+            raise SidecarError(f"{cid}: quote index mismatch")
+        para["quotes"][index] = new
+        change = {**patch, "repair": REVIEWED_KEY, "original_quote_index": index,
+                  "path": loc.path, "resolved_range": [loc.start, loc.end],
+                  "source_sha256": sm.get(loc.path).sha256}
+        if patch.get("repair_prose"):
+            if para["text"].count(old) != 1:
+                raise SidecarError(f"{cid}: erroneous quotation must occur exactly once in paragraph text")
+            change["old_text"] = para["text"]
+            para["text"] = para["text"].replace(old, new, 1)
+            change["new_text"] = para["text"]
+        changes.append(change)
+    return derived, changes
+
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -372,7 +427,9 @@ def _measure(manifest: dict, rung0: dict) -> dict:
             "word_deviations": dev, "sections": manifest["measures"]["sections"],
             "unsupported": list(manifest["unsupported"]), "repairs": dict(manifest["repairs"]),
             "deterministic": manifest["verification"]["deterministic"],
-            "rung0": rung0["rung0"]["state"], "rung0_findings": rung0["rung0"]["findings"]}
+            "rung0": rung0["rung0"]["state"], "rung0_findings": rung0["rung0"]["findings"],
+            "suspected_incomplete": list(manifest.get("suspected_incomplete") or []),
+            "hold_for_review": bool(manifest.get("hold_for_review"))}
 
 
 def _render(output: dict, brief: dict, sm, meta: dict) -> tuple:
@@ -381,26 +438,35 @@ def _render(output: dict, brief: dict, sm, meta: dict) -> tuple:
     return md, man, verify.verify(man, brief, output)
 
 
-def derive(output: dict, brief: dict, sm, meta: Optional[dict] = None) -> dict:
+def derive(output: dict, brief: dict, sm, meta: Optional[dict] = None, reviewed_repairs: Optional[list] = None) -> dict:
     """Pure core: everything the sidecar writes, computed from a verified output/brief/source map."""
     meta = {**(meta or {})}
     base_md, base_man, base_v = _render(output, brief, sm, meta)
-    stage, drops, origin = drop_punctuation_quotes(output, sm, base_man["claims"])
-    claims = _render(stage, brief, sm, meta)[1]["claims"] if drops else base_man["claims"]
+    stage, reviewed = reviewed_quote_repairs(output, sm, base_man["claims"],
+                                            [] if reviewed_repairs is None else reviewed_repairs)
+    claims = _render(stage, brief, sm, meta)[1]["claims"] if reviewed else base_man["claims"]
+    stage, drops, origin = drop_punctuation_quotes(stage, sm, claims)
+    claims = _render(stage, brief, sm, meta)[1]["claims"] if drops else claims
     derived, changes, unresolved = repair_quotes(stage, sm, claims, origin)
-    if changes or drops:
+    if changes or drops or reviewed:
         meta["aids_used"] = list(dict.fromkeys([*meta.get("aids_used", []), "sidecar"]))
     md, man, v = _render(derived, brief, sm, meta)
-    if changes or drops:
+    if changes or drops or reviewed:
         if changes:
             man["repairs"][REPAIR_KEY] = len(changes)
         if drops:
             man["repairs"][DROP_KEY] = len(drops)
+        if reviewed:
+            man["repairs"][REVIEWED_KEY] = len(reviewed)
+            prose_count = sum(bool(p.get("repair_prose")) for p in reviewed)
+            if prose_count:
+                man["repairs"][PROSE_KEY] = prose_count
         contract.check_manifest(man)
     index_map = {f"s{i}.p{j}": [o.index(x) if x in o else None
                                 for x in range(len(output["sections"][i]["paragraphs"][j]["quotes"]))]
                  for (i, j), o in origin.items()}
     return {"output": derived, "markdown": md, "manifest": man, "changes": changes, "unresolved": unresolved,
+            "reviewed_changes": reviewed,
             "drops": drops, "quote_index_map": index_map,
             "before": _measure(base_man, base_v), "after": _measure(man, v),
             "prose_unchanged": revision.same_prose(output, derived),
@@ -427,7 +493,7 @@ def check_destination(run: Path, out: Path) -> Path:
     return out
 
 
-def run(run_dir: Path, out_dir: Path) -> dict:
+def run(run_dir: Path, out_dir: Path, quote_repairs: Optional[Path] = None) -> dict:
     run_dir = run_dir.resolve()
     out = check_destination(run_dir, out_dir)
     raw_manifest = _read(run_dir, "work-manifest.json")
@@ -460,7 +526,16 @@ def run(run_dir: Path, out_dir: Path) -> dict:
     stored = json.loads(raw_delivery)
     meta = {k: stored.get(k) for k in ("model", "backend", "configuration", "environment", "aids_used")
             if stored.get(k)}
-    result = derive(original, brief, sm, meta)
+    reviewed, patch_sha = [], None
+    if quote_repairs is not None:
+        patch_raw = Path(quote_repairs).read_bytes()
+        patch = json.loads(patch_raw)
+        if not isinstance(patch, dict) or set(patch) != {"schema", "work_id", "output_sha256", "repairs"} or \
+                patch.get("schema") != "amux-quote-repairs.v1" or patch.get("work_id") != manifest.get("work_id") or \
+                patch.get("output_sha256") != _sha(raw_output) or not isinstance(patch.get("repairs"), list):
+            raise SidecarError("reviewed repair file must match work id and original output hash")
+        reviewed, patch_sha = patch["repairs"], _sha(patch_raw)
+    result = derive(original, brief, sm, meta, reviewed_repairs=reviewed)
 
     out.parent.mkdir(parents=True, exist_ok=True)
     os.mkdir(out)   # exclusive: an existing destination raises
@@ -486,7 +561,11 @@ def run(run_dir: Path, out_dir: Path) -> dict:
                   "sources": [{"path": f.path, "sha256": f.sha256} for f in sm.files]},
         "output": {"dir": str(out), "files": {n: _sha(d) for n, d in files.items() if n != "original/delivery-output.json"},
                    "original_copy_sha256": _sha(raw_output)},
-        "repairs": {REPAIR_KEY: len(result["changes"]), **({DROP_KEY: len(result["drops"])} if result["drops"] else {})},
+        "repairs": {REPAIR_KEY: len(result["changes"]), **({DROP_KEY: len(result["drops"])} if result["drops"] else {}),
+                    **({REVIEWED_KEY: len(result["reviewed_changes"]),
+                        PROSE_KEY: sum(bool(p.get("repair_prose")) for p in result["reviewed_changes"])}
+                       if result["reviewed_changes"] else {})},
+        "reviewed_changes": result["reviewed_changes"], "reviewed_repairs_sha256": patch_sha,
         "drops": result["drops"], "quote_index_map": result["quote_index_map"],
         "changes": result["changes"], "unresolved": result["unresolved"],
         "before": result["before"], "after": result["after"],
@@ -501,9 +580,11 @@ def main(argv: Optional[list] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("run_dir", type=Path)
     ap.add_argument("out_dir", type=Path, help="must not exist; created exclusively")
+    ap.add_argument("--quote-repairs", type=Path,
+                    help="explicit reviewed amux-quote-repairs.v1 file bound to original work id/output hash")
     ns = ap.parse_args(argv)
     try:
-        report = run(ns.run_dir, ns.out_dir)
+        report = run(ns.run_dir, ns.out_dir, quote_repairs=ns.quote_repairs)
     except (SidecarError, contract.ContractError, FileExistsError, ValueError, OSError) as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
         return 2

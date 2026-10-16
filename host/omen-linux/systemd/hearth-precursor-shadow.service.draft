@@ -1,0 +1,25 @@
+# DRAFT (Track D1, ADR-0070 proposed). NOT installed, NOT enabled. Rename without .draft only after
+# ADR-0070 is accepted and Gate 1 of the precursor plan reads "proceed". The README's
+# `cp host/omen-linux/systemd/*.{service,timer}` step skips this file on purpose.
+#
+# Off the door's request path: a user oneshot that rebuilds knowledge/precursor_index.json, writes
+# precursor/advice.json for runs without one, and joins advice to verdicts. HEARTH_PRECURSOR defaults
+# to off; the unit sets shadow explicitly so the env file cannot silently turn it on elsewhere.
+[Unit]
+Description=HEARTH precursor shadow materializer (index, advice, accuracy join; nothing displayed)
+After=hearth-production.service
+# Never while the night backlog has dispatched > 0 (CONTRACT.md binding rule): the drain's own
+# oneshot must not overlap it.
+Conflicts=bankedfire-drain.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/derek/work/commandcenter-linux-flash
+EnvironmentFile=-/home/derek/.config/hearth/hearth-ops.env
+Environment=HEARTH_PRECURSOR=shadow
+Environment=HEARTH_PRECURSOR_CORPUS=/home/derek/work/lab-rnd/research/precursor/corpus/v1/runs.jsonl
+Environment=PYTHONPATH=/home/derek/work/commandcenter-linux-flash
+Nice=10
+MemoryMax=2G
+ExecStart=/home/derek/.venvs/hearth-private/bin/python tools/workflow/project_precursor.py --build-index --advise --join
+TimeoutStartSec=300

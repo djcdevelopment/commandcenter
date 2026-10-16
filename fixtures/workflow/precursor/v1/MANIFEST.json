@@ -1,0 +1,30 @@
+{
+  "corpus_version": "fixture-v1",
+  "built_at": "2026-10-16T08:00:00Z",
+  "flash_head": null,
+  "labrnd_head": null,
+  "extraction_rules_version": "fixture",
+  "rows": 11,
+  "rows_binary": 10,
+  "groups": 9,
+  "status_class_counts": {},
+  "exclusion_counts": {},
+  "field_coverage": {},
+  "field_availability": {
+    "backend": "pre_outcome",
+    "task_family": "pre_outcome",
+    "serving_profile_sha": "pre_outcome"
+  },
+  "periods": {
+    "dev": {
+      "from": "2026-09-01T00:00:00Z",
+      "to": "2026-09-25T23:59:59Z"
+    },
+    "eval": {
+      "from": "2026-09-26T00:00:00Z",
+      "to": "2026-10-31T23:59:59Z"
+    }
+  },
+  "sha256": "d24e8f71f27c0b305ae64a90c887454de2a73481558483dd2d8553019443d4ef",
+  "note": "synthetic fixture written by Track D1 in the precursor-run.v2 schema; replaced by Track A+B's corpus/v1"
+}

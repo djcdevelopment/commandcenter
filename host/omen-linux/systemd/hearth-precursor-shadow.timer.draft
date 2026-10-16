@@ -1,0 +1,12 @@
+# DRAFT (Track D1, ADR-0070 proposed). NOT installed, NOT enabled. See the .service.draft header.
+[Unit]
+Description=HEARTH precursor shadow sweep every 30 minutes (stage 1: unexposed)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=30min
+RandomizedDelaySec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

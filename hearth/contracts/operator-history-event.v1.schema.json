@@ -52,6 +52,7 @@
         "attempt.recorded",
         "tool.called",
         "artifact.produced",
+        "artifact.fetched",
         "verification.recorded",
         "resources.released",
         "outcome.final",

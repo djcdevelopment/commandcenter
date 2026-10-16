@@ -87,6 +87,7 @@ EVENT_TYPES = (
     "attempt.recorded",
     "tool.called",
     "artifact.produced",
+    "artifact.fetched",         # a caller read a review candidate (labels contract, ADR-0071); once per caller
     "verification.recorded",
     "resources.released",
     "outcome.final",

@@ -96,6 +96,14 @@ class ChooseTests(unittest.TestCase):
         more = {"carry": counts(6, 2, 2), "one_call": counts(3, 1, 2)}   # equal share 0.75: the larger count
         self.assertEqual(procedures.choose(table({"b": {"all": more}}), "b", None)[0], "carry")
 
+    def test_a_superseded_count_is_outside_the_accepted_share_denominator(self) -> None:
+        # ADR-0071 amendment: superseded is a neutral lifecycle outcome. The share is accepted / (accepted + rejected);
+        # a `superseded` count beside the four count keys is carried by the table and never enters the denominator.
+        level = {"carry": {**counts(2, 2, 2), "superseded": 6}, "one_call": counts(1, 1, 2)}
+        picked, basis = procedures.choose(table({"b": {"all": level}}), "b", "code_fix")
+        self.assertEqual(picked, "carry")   # 0.5 share ties 0.5, then more accepted wins; 6 superseded moved nothing
+        self.assertEqual(basis["counts"]["carry"], counts(2, 2, 2))
+
     def test_an_exact_tie_goes_to_one_call(self) -> None:
         """docs/delivery.md: among qualifying procedures the door takes the higher accepted share, then more accepted
         verdicts, then one_call; ADR-0061: ties do not move a backend onto the thinking turn."""

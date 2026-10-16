@@ -2185,12 +2185,19 @@ class LocalWorkService:
         if task_id is not None and (not isinstance(task_id, str) or not task_id.strip()):
             raise LocalWorkError("task_id must be a nonempty string when given")
         if attended is None:
-            # ADR-0069: the caller class sets the default; the caller may state it on the call.
+            # ADR-0069: the caller class sets the default; an attended caller may state it on the call.
             attended = caller_id not in UNATTENDED_CALLERS
+        # ADR-0071 amendment (2026-10-16): an unattended class is unattended whatever the call says. A self-declared
+        # `attended=True` is recorded as `attended_declared` so the attempt is visible, and carries no authority.
+        attended_declared = bool(attended) and caller_id in UNATTENDED_CALLERS
+        if caller_id in UNATTENDED_CALLERS:
+            attended = False
         if not attended and decision != "rejected":
             raise LocalWorkError(
                 f"an unattended caller records a rejection only, never {decision} (ADR-0069); "
-                "write a wait for a person or an attended lane to record it")
+                "write a wait for a person or an attended lane to record it"
+                + ("; attended=true from the unattended class "
+                   f"{caller_id!r} is recorded, not honoured (ADR-0071)" if attended_declared else ""))
         with self._lock:
             manifest = self.reconcile(work_id)
             if manifest["status"] != "awaiting_review":
@@ -2212,11 +2219,15 @@ class LocalWorkService:
                        "caller_id": caller_id, "attended": attended, "task_id": task_id}
             if bucket is not None:
                 verdict["bucket"] = bucket
+            if attended_declared:
+                verdict["attended_declared"] = True
             manifest["verdict"] = verdict
             manifest["status"] = decision
             manifest["caller"]["validated_by"] = caller_id
             # The labels a record needs (ADR-0071) travel on both events, so a reader of history alone has them.
             labels = {"bucket": bucket, "attended": attended, "task_id": task_id, "validator": caller_id}
+            if attended_declared:
+                labels["attended_declared"] = True
             self._event(manifest, "verification.recorded", {"passed": decision == "accepted",
                         "decision": decision, "criteria_count": len(criteria),
                         "evidence_count": len(evidence), **labels},

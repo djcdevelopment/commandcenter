@@ -114,7 +114,8 @@ def record_local_work_verdict(work_id: str, decision: str,
     "substance" (HEARTH method section 3); required when ``decision`` is "rejected" (ADR-0071), optional otherwise;
     stored as ``verdict.bucket``. ``attended`` says whether a person or an attended frontier lane stands behind the
     verdict; absent, it defaults by caller class (``codex-cli`` is unattended, every other caller attended; ADR-0069).
-    An unattended caller may record a rejection only and never on a candidate it submitted. ``task_id`` is the
+    An unattended caller may record a rejection only and never on a candidate it submitted; ``attended=True`` from an
+    unattended class is recorded as ``attended_declared`` and carries no authority (ADR-0071 amendment). ``task_id`` is the
     reviewing session's id (``cc-...`` or ``cx-...``) so the record can be joined to its transcript. ``bucket``,
     ``attended``, ``task_id`` and the validator are copied onto the ``verification.recorded`` and ``outcome.final``
     events."""

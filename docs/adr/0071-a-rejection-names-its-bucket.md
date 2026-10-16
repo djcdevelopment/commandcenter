@@ -1,6 +1,6 @@
 # 0071 — A rejection names its bucket
 
-**Status:** Proposed (Track B of the "better labels" slice, 2026-10-16, filed by Claude Fable 5.1 under cc-c657d41c on
+**Status:** Accepted (2026-10-16, Derek). History: Proposed (Track B of the "better labels" slice, 2026-10-16, filed by Claude Fable 5.1 under cc-c657d41c on
 the plan `tender-gathering-fox` Lap 1 and `~/work/lab-rnd/research/labels/CONTRACT.md` section 2). The code is on the
 flash branch `labels-door-20261016` and is not live until the door restarts after cap night 1, with preflight and
 sole lease. Goal tag G-harness under G-lab. Extends ADR-0048 and enforces ADR-0069; nothing in ADR-0053 changes.
@@ -37,7 +37,7 @@ a. **A rejection names its bucket.** `record_local_work_verdict(decision="reject
    `superseded` keep the bucket optional (ADR-0069 item 5). The bucket stays the three-value enumeration.
 b. **Every verdict records `attended`.** Absent on the call, the caller class sets it: `codex-cli` is unattended
    (`UNATTENDED_CALLERS`, ADR-0069 item 4); `claude-frontier`, `derek-human` and every other caller are attended. A
-   caller may state `attended` itself and is recorded as it said.
+   caller may state `attended` itself and is recorded as it said; for an unattended class the amendment below applies.
 c. **An unattended caller records a rejection only, and never on its own candidate.** `attended: false` with
    `accepted` or `superseded` is refused citing ADR-0069; so is any unattended verdict on a candidate whose
    `manifest.caller.submitted_by` equals the verdict's caller. Both refusals happen before anything is written.
@@ -74,7 +74,7 @@ Two more events:
 - Callers that reject through other paths (`fleet/bankedfire_linux.py`, AMUX hand-off scripts, the local-work skills)
   must send a bucket; Track D updates the skill text. Until the door restarts nothing changes on the wire.
 - Not decided here: which bucket a reviewer picks when two apply (the method says name the one that would change the
-  next run), and whether `superseded` should also name a bucket.
+  next run). Whether `superseded` names a bucket is settled by the amendment below.
 
 ## References
 
@@ -83,3 +83,20 @@ Two more events:
 - ADR-0070 and `~/work/lab-rnd/research/precursor/CONTRACT.md` — the precursor plan that found labels, not models,
   to be the bottleneck.
 - `~/.claude/plans/tender-gathering-fox.md` (Lap 1) and `~/work/lab-rnd/research/labels/CONTRACT.md` (section 2).
+
+## Amendment 2026-10-16 (Derek, items 7a and 7b)
+
+**7a. Codex CLI stays reject-only, enforced at the verdict handler.** For a caller whose class is unattended
+(`UNATTENDED_CALLERS`, today `codex-cli`) `attended` is forced to false whatever the call says; decision b above no
+longer lets that class record itself as attended. A call that passed `attended=True` has the attempt recorded as
+`attended_declared: true` on `manifest.verdict` and on both the `verification.recorded` and `outcome.final` payloads,
+so it is visible, not silent, and the ADR-0069 refusal of `accepted` and `superseded` then applies unchanged. The key
+is absent when nothing was declared. Attended callers keep decision b: they may pass `attended=False` to record an
+unattended verdict.
+
+**7b. Superseded is a neutral lifecycle outcome, not a model miss.** It names no bucket (decision a stands). A model
+success or failure rate computed over verdicts takes `accepted` and `rejected` only: `superseded` (and `failed`) stay
+out of the denominator and are counted separately in operational reporting. In the door and its projections this was
+already so (`hearth/delivery/procedures.py` shares `accepted / (accepted + rejected)`; the labels rollup counts each
+decision by name; the precursor index puts `superseded` and `failed` in `nonbinary_excluded`); the test
+`test_a_superseded_count_is_outside_the_accepted_share_denominator` pins it for the procedure table.

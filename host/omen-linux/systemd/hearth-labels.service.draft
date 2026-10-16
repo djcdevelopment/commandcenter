@@ -1,0 +1,29 @@
+# DRAFT (Track C, plan tender-gathering-fox Lap 2; CONTRACT.md §1). NOT installed, NOT enabled. Rename without
+# .draft only after the owner merges Track B and C and the post-restart proof of Lap 1 reads green. The README's
+# `cp host/omen-linux/systemd/*.{service,timer}` step skips this file on purpose.
+#
+# Off the door's request path: a user oneshot that writes runs/operator/work_<id>/labels.json for runs whose
+# labels are missing or older than their inputs (a late verdict), then rolls them up to knowledge/labels.json.
+# HEARTH_LABELS defaults to off; the unit sets on explicitly so the env file cannot silently turn it on elsewhere.
+# Reads the door's ledger and the Claude transcripts read-only (timestamps, record types, tool names and work_id
+# arguments only; never prompt or output text). Never records a verdict, never reads or changes a routing decision.
+[Unit]
+Description=HEARTH labels materializer (labels.json per run, knowledge/labels.json rollup)
+After=hearth-production.service
+# No Conflicts= on the drain: systemd's Conflicts= STOPS the other unit when this one starts, which would kill a
+# drain tick. The sweep is CPU-only metadata work at nice 10 and may run beside the drain.
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/derek/work/commandcenter-linux-flash
+EnvironmentFile=-/home/derek/.config/hearth/hearth-ops.env
+Environment=HEARTH_LABELS=on
+Environment=HEARTH_LEDGER_DIR=/home/derek/hearth-production/var/ledger
+Environment=HEARTH_LABELS_TRANSCRIPTS=/home/derek/.claude/projects
+Environment=HEARTH_LABELS_CONTINUITY_CONFIG=/home/derek/.continuity/config.toml
+Environment=HEARTH_LABELS_CORPUS=/home/derek/work/lab-rnd/research/precursor/corpus/v1/runs.jsonl
+Environment=PYTHONPATH=/home/derek/work/commandcenter-linux-flash
+Nice=10
+MemoryMax=2G
+ExecStart=/home/derek/.venvs/hearth-private/bin/python tools/workflow/project_labels.py --sweep --rollup
+TimeoutStartSec=600

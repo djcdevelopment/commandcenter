@@ -1,0 +1,15 @@
+{
+  "acceptance_criteria": [
+    "states every REQUIRED field"
+  ],
+  "classification": "code",
+  "constraints": {},
+  "contract_version": "task-envelope.v1",
+  "envelope_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "inputs": {},
+  "intent": "night brief: streams row contract report",
+  "submission_source": "mcp",
+  "submitted_at": "2026-10-01T07:00:00Z",
+  "submitted_by": "bankedfire-drain",
+  "supersedes": null
+}

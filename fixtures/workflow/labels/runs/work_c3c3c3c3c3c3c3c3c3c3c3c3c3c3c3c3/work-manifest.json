@@ -1,0 +1,57 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "job_id": "job_r3",
+      "ok": true
+    }
+  ],
+  "caller": {
+    "submitted_by": "claude-frontier",
+    "validated_by": "codex-cli"
+  },
+  "conditions": {
+    "environment": "dev",
+    "lab_configuration": "three-dense",
+    "lab_configuration_source": "profiles",
+    "temperature": null
+  },
+  "envelope_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "route": {
+    "backend": "am4-vllm",
+    "duration_ms": 9000,
+    "model": "qwen3.8-27b",
+    "procedure": "one_call",
+    "profile_sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "profile_version": "local-work-routes.v2",
+    "provider": "am4-vllm",
+    "requested_lane": "auto",
+    "routed_by": "lane:deep",
+    "selected_lane": "deep",
+    "selected_model": "qwen3.8-27b",
+    "serving_profile_schema": "serving-profile.v2",
+    "serving_profile_sha256": "abababababababababababababababababababababababababababababababab",
+    "task_family": "code_fix",
+    "tokens_in": 1800,
+    "tokens_out": 400
+  },
+  "schema": "work-manifest.v1",
+  "status": "rejected",
+  "verdict": {
+    "caller_id": "codex-cli",
+    "criteria": [
+      {
+        "id": "c1",
+        "note": "cleared=3 expected 4",
+        "state": "failed"
+      }
+    ],
+    "decision": "rejected",
+    "evidence": [
+      "streams/test_panel.py: 1 failed"
+    ],
+    "receipt_id": null,
+    "summary": "the cleared count is still off by one."
+  },
+  "work_id": "work_c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+}

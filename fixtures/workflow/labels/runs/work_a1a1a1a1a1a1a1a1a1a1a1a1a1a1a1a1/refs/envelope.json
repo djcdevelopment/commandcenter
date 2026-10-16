@@ -1,0 +1,16 @@
+{
+  "acceptance_criteria": [
+    "prints one JSON object",
+    "existing text output unchanged"
+  ],
+  "classification": "code",
+  "constraints": {},
+  "contract_version": "task-envelope.v1",
+  "envelope_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "inputs": {},
+  "intent": "add a --json flag to ct stats",
+  "submission_source": "mcp",
+  "submitted_at": "2026-10-16T10:00:00Z",
+  "submitted_by": "claude-frontier",
+  "supersedes": null
+}

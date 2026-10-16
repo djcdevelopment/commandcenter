@@ -1,0 +1,72 @@
+{
+  "artifact": {
+    "artifact_id": "art_r1",
+    "sha256": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+    "size": 1234
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "job_id": "job_r1",
+      "ok": true,
+      "structured_output_repairs": [
+        "control_char_in_string"
+      ]
+    }
+  ],
+  "caller": {
+    "submitted_by": "claude-frontier",
+    "validated_by": "claude-frontier"
+  },
+  "conditions": {
+    "environment": "dev",
+    "lab_configuration": "three-dense",
+    "lab_configuration_source": "profiles",
+    "temperature": 0.0
+  },
+  "envelope_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "route": {
+    "backend": "omen-dense-27b",
+    "duration_ms": 15000,
+    "model": "qwen3.8-27b",
+    "procedure": "one_call",
+    "profile_sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "profile_version": "local-work-routes.v2",
+    "provider": "omen-dense-27b",
+    "requested_lane": "auto",
+    "routed_by": "lane:deep",
+    "selected_lane": "deep",
+    "selected_model": "qwen3.8-27b",
+    "serving_profile_schema": "serving-profile.v2",
+    "serving_profile_sha256": "abababababababababababababababababababababababababababababababab",
+    "task_family": "code_fix",
+    "tokens_in": 3000,
+    "tokens_out": 900
+  },
+  "schema": "work-manifest.v1",
+  "status": "accepted",
+  "verdict": {
+    "bucket": "form",
+    "caller_id": "claude-frontier",
+    "criteria": [
+      {
+        "criterion": "prints one JSON object",
+        "evidence": "python ct.py stats --json | jq . ok",
+        "status": "passed"
+      },
+      {
+        "criterion": "existing text output unchanged",
+        "evidence": "diff of text output empty",
+        "status": "passed"
+      }
+    ],
+    "decision": "accepted",
+    "evidence": [
+      "review_minutes_active=6",
+      "tests/test_ct.py: 3 passed"
+    ],
+    "receipt_id": null,
+    "summary": "one call, compiled first try; one quote repaired (form)."
+  },
+  "work_id": "work_a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+}

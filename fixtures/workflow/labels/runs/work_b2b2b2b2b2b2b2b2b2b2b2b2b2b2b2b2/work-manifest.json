@@ -1,0 +1,57 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "job_id": "job_r2",
+      "ok": true
+    }
+  ],
+  "caller": {
+    "submitted_by": "bankedfire-drain",
+    "validated_by": "claude-frontier"
+  },
+  "conditions": {
+    "environment": "dev",
+    "lab_configuration": "three-dense",
+    "lab_configuration_source": "profiles",
+    "temperature": null
+  },
+  "envelope_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "route": {
+    "backend": "omen-dense-27b-b",
+    "duration_ms": 14000,
+    "model": "qwen3.8-27b",
+    "procedure": "one_call",
+    "profile_sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "profile_version": "local-work-routes.v2",
+    "provider": "omen-dense-27b-b",
+    "requested_lane": "auto",
+    "routed_by": "lane:deep",
+    "selected_lane": "deep",
+    "selected_model": "qwen3.8-27b",
+    "serving_profile_schema": "serving-profile.v2",
+    "serving_profile_sha256": "abababababababababababababababababababababababababababababababab",
+    "task_family": "quote_retrieval",
+    "tokens_in": 2500,
+    "tokens_out": 700
+  },
+  "schema": "work-manifest.v1",
+  "status": "accepted",
+  "verdict": {
+    "caller_id": "claude-frontier",
+    "criteria": [
+      {
+        "id": "c1",
+        "note": "REQUIRED tuple listed",
+        "state": "passed"
+      }
+    ],
+    "decision": "accepted",
+    "evidence": [
+      "streams/lib/receipt.py@aa85a801"
+    ],
+    "receipt_id": null,
+    "summary": "substance holds on the one criterion."
+  },
+  "work_id": "work_b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+}

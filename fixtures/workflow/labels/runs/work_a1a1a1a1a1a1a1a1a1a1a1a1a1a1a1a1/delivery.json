@@ -1,0 +1,55 @@
+{
+  "aids_used": [
+    "source_map",
+    "quote_renderer"
+  ],
+  "backend": "omen-dense-27b",
+  "brief_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "claims": [
+    {
+      "id": "s0.p0.q0",
+      "match": "exact",
+      "resolved": {
+        "line": 10,
+        "path": "ct/ct.py"
+      }
+    },
+    {
+      "id": "s0.p0.q1",
+      "match": "exact",
+      "resolved": {
+        "line": 12,
+        "path": "ct/ct.py"
+      }
+    },
+    {
+      "id": "s0.p0.q2",
+      "match": "missing",
+      "resolved": null
+    }
+  ],
+  "deviations": [],
+  "environment": "dev",
+  "items": [],
+  "measures": {
+    "words": 120
+  },
+  "model": "qwen3.8-27b",
+  "procedure": "one_call",
+  "repairs": {
+    "ambiguous_quote": 1
+  },
+  "schema": "delivery.v1",
+  "suspected_incomplete": false,
+  "unsupported": [
+    "s0.p0.q2"
+  ],
+  "verification": {
+    "deterministic": {
+      "state": "pass"
+    },
+    "human": {
+      "state": "not_run"
+    }
+  }
+}

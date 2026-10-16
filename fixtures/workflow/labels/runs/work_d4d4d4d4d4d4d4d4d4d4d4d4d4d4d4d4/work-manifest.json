@@ -1,0 +1,57 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "job_id": "job_r4",
+      "ok": true
+    }
+  ],
+  "caller": {
+    "submitted_by": "claude-frontier",
+    "validated_by": "claude-frontier"
+  },
+  "conditions": {
+    "environment": "dev",
+    "lab_configuration": "three-dense",
+    "lab_configuration_source": "profiles",
+    "temperature": null
+  },
+  "envelope_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "route": {
+    "backend": "omen-dense-27b",
+    "duration_ms": 13000,
+    "model": "qwen3.8-27b",
+    "procedure": "one_call",
+    "profile_sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "profile_version": "local-work-routes.v2",
+    "provider": "omen-dense-27b",
+    "requested_lane": "auto",
+    "routed_by": "lane:deep",
+    "selected_lane": "deep",
+    "selected_model": "qwen3.8-27b",
+    "serving_profile_schema": "serving-profile.v2",
+    "serving_profile_sha256": "abababababababababababababababababababababababababababababababab",
+    "task_family": "quote_retrieval",
+    "tokens_in": 2600,
+    "tokens_out": 650
+  },
+  "schema": "work-manifest.v1",
+  "status": "accepted",
+  "verdict": {
+    "caller_id": "claude-frontier",
+    "criteria": [
+      {
+        "criterion": "states every REQUIRED field",
+        "evidence": "ten fields quoted",
+        "status": "passed"
+      }
+    ],
+    "decision": "accepted",
+    "evidence": [
+      "streams/lib/receipt.py@aa85a801 REQUIRED tuple"
+    ],
+    "receipt_id": null,
+    "summary": "rerun of the streams brief. Review minutes: 3 (source check). 200 words under cap."
+  },
+  "work_id": "work_d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+}

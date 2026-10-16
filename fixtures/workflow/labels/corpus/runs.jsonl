@@ -1,0 +1,3 @@
+{"group_id": "g_streams_brief", "intent_sha256": "3333333333333333333333333333333333333333333333333333333333333333", "intent_text": "night brief: streams row contract report", "run_id": "work_b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2", "schema": "precursor-run.v2"}
+{"group_id": "g_streams_brief", "intent_sha256": "5555555555555555555555555555555555555555555555555555555555555555", "intent_text": "night brief: streams row contract report (rerun)", "run_id": "work_d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4", "schema": "precursor-run.v2"}
+{"group_id": "g_ignored_v1", "run_id": "work_a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1", "schema": "precursor-run.v1"}

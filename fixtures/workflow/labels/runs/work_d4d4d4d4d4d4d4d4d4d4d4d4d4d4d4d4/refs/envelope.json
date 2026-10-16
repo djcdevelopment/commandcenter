@@ -1,0 +1,15 @@
+{
+  "acceptance_criteria": [
+    "states every REQUIRED field"
+  ],
+  "classification": "code",
+  "constraints": {},
+  "contract_version": "task-envelope.v1",
+  "envelope_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "inputs": {},
+  "intent": "night brief: streams row contract report (rerun)",
+  "submission_source": "mcp",
+  "submitted_at": "2026-10-16T09:50:00Z",
+  "submitted_by": "claude-frontier",
+  "supersedes": null
+}

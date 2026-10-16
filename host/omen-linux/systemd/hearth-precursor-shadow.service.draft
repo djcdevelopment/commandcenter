@@ -8,9 +8,9 @@
 [Unit]
 Description=HEARTH precursor shadow materializer (index, advice, accuracy join; nothing displayed)
 After=hearth-production.service
-# Never while the night backlog has dispatched > 0 (CONTRACT.md binding rule): the drain's own
-# oneshot must not overlap it.
-Conflicts=bankedfire-drain.service
+# Owner's correction (cc-c657d41c): no Conflicts= on the drain. systemd's Conflicts= STOPS the other unit
+# when this one starts, which would kill a drain tick. The sweep costs ~1 s of CPU at nice 10 and reads only
+# metadata, so no scheduling guard is needed; it may run beside the drain.
 
 [Service]
 Type=oneshot

@@ -1,0 +1,24 @@
+{
+  "sections": [
+    {
+      "heading": "Decision and Refusals",
+      "paragraphs": [
+        {
+          "quotes": [
+            "A lane table in the local-work route profile may declare",
+            "it must name one of the lane's backends (else",
+            "The tracked Linux profile declares [lane.deep] code_backend = "
+          ],
+          "text": "ADR-0066 defines the lane code backend decision: 'A lane table in the local-work route profile may declare' a backend, 'it must name one of the lane's backends (else' it raises an error, and 'The tracked Linux profile declares [lane.deep] code_backend = ' specifies the target."
+        },
+        {
+          "quotes": [
+            "submit_local_work(task_family="
+          ],
+          "text": "The ADR notes that a 'submit_local_work(task_family="
+        }
+      ]
+    }
+  ],
+  "summary": "This report outlines the lane code backend implementation in LocalWorkService._candidates as defined by ADR-0066. The decision requires a pooled lane to declare a specific code backend from its available options, defaulting to omen-dense-27b for the deep lane. The _candidates method handles non-delivery submissions on pooled lanes by selecting the declared code backend, while refusing such work if no backend is declared. On retries, the previously recorded provider is retained."
+}

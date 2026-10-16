@@ -64,6 +64,38 @@ _STRING_CITATION = re.compile(
 _PROSE_LINES = re.compile(r"\blines?\s+\d+(?:\s*-\s*\d+)?", re.I)
 _HEADING = re.compile(r"^#{1,6}\s+(\S.*?)\s*#*\s*$", re.M)
 
+# Audit 2026-10-16: suspected-incomplete text. Under the constrained-output schema a literal double quote closes the
+# JSON string, so a paragraph can end where the model meant to keep writing (`outcome="`, `calling bash "`). The
+# decoder reports finish_reason=stop, so nothing downstream can prove the cut; these are SIGNALS with evidence, never
+# a repair and never a state on their own (review rule: punctuation is not proven truncation).
+SUSPECT_TAIL_CHARS = 40
+_OPEN_TOKEN_CHARS = frozenset("=([{,;\\")
+_COMPLETE_END_CHARS = frozenset(".!?:)]}\"'`")
+DANGLING_WORDS = frozenset({"if", "by", "from", "with", "as", "and", "or", "the", "a", "an", "to", "in", "of", "on",
+                            "at", "is", "are", "was", "were", "calling", "using", "via", "returns", "return", "then",
+                            "when", "that", "which", "into", "for", "be", "it", "its", "this"})
+
+
+def suspected_incomplete(text: str) -> Optional[dict]:
+    """A signal that `text` may have been cut, with its evidence, or None. Order: trailing_space (the string ends in
+    whitespace, which a finished sentence never does), open_token (the last character opens something: = ( [ { , ;
+    or a backslash), dangling_word (no closing punctuation and the last word is a connective)."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    tail = text[-SUSPECT_TAIL_CHARS:]
+    if text != text.rstrip():
+        return {"signal": "trailing_space", "tail": tail}
+    stripped = text.rstrip()
+    if stripped[-1] in _OPEN_TOKEN_CHARS:
+        return {"signal": "open_token", "tail": tail}
+    if stripped[-1] in _COMPLETE_END_CHARS:
+        return None
+    last = stripped.split()[-1].lower().strip(".,;:!?)]}\"'`")
+    if last in DANGLING_WORDS:
+        return {"signal": "dangling_word", "tail": tail}
+    return None
+
+
 
 def _brief_bytes(brief: Union[bytes, str, Mapping[str, Any], None]) -> tuple:
     """(bytes hashed, parsed brief dict or None). JSON text, or markdown with a CCMETA block; else ContractError."""
@@ -125,6 +157,7 @@ def _manifest_base(raw: bytes, meta: Optional[Mapping[str, Any]]) -> dict:
         "claims": [], "measures": {"words": 0, "sections": []},
         "repairs": {}, "unsupported": [], "verification": ver,
         "form_applied": None, "deviations": [],
+        "suspected_incomplete": [], "hold_for_review": False,
     }
 
 
@@ -187,9 +220,14 @@ def _sources_label(sm: SourceMap) -> str:
 
 
 def _finish(man: dict, sm: SourceMap, claims: list, extra_repairs: dict, findings: list,
-            unsupported: list, empty_quote_note: str = "paragraph has no quote") -> None:
+            unsupported: list, empty_quote_note: str = "paragraph has no quote",
+            suspected: Optional[list] = None) -> None:
     rep = {k: v for k, v in {**_tally(claims), **extra_repairs}.items() if v}
     man["claims"], man["repairs"], man["unsupported"] = claims, rep, unsupported
+    suspected = list(suspected or [])
+    man["suspected_incomplete"], man["hold_for_review"] = suspected, bool(suspected)
+    findings = list(findings) + [f"{r['id']}: suspected incomplete text ({r['signal']}; tail {r['tail']!r})"
+                                 for r in suspected]
     fw = man["form_applied"]["words"]
     enforce_fail = bool(fw) and fw["enforce"] == "fail" and any(d["kind"] == "words" for d in man["deviations"])
     by_id = {c["id"]: c for c in claims}
@@ -244,11 +282,18 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
     claims: list = []
     unsupported: list = []
     stripped = 0
+    suspected: list = []
+    hit = suspected_incomplete(output["summary"])
+    if hit:
+        suspected.append({"id": "summary", **hit})
     for i, sec in enumerate(output["sections"]):
         md += [f"## {sec['heading'].strip()}", ""]
         carried: dict = {}  # path -> anchors of the latest paragraph of this section with a unique quote in it
         for j, para in enumerate(sec["paragraphs"]):
             text = para["text"]
+            hit = suspected_incomplete(text)
+            if hit:
+                suspected.append({"id": f"s{i}.p{j}", **hit})
             shown, n = _LEAKED_CITE.subn("", text)
             shown = shown.strip()
             stripped += n
@@ -305,7 +350,9 @@ def render_with_findings(output: Mapping[str, Any], brief: Union[bytes, str, Map
     findings: list = []
     if stripped:
         findings.append(f"{stripped} citation(s) written by the model removed from the prose")
-    _finish(man, sm, claims, {"citation_syntax_stripped": stripped, "empty_quote_dropped": blank}, findings, unsupported)
+    _finish(man, sm, claims, {"citation_syntax_stripped": stripped, "empty_quote_dropped": blank}, findings, unsupported,
+            suspected=suspected)
+    findings = findings + [f"{r['id']}: suspected incomplete text ({r['signal']}; tail {r['tail']!r})" for r in suspected]
     return "\n".join(md).rstrip() + "\n", man, findings
 
 

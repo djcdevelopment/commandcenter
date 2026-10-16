@@ -1,0 +1,115 @@
+# ===== streams/bin/lane.sh @ aa85a801 =====
+#!/usr/bin/env bash
+# Lane driver for streams: a thin wrapper over bin/control.mjs (a copy of the lab's control.mjs whose Run
+# directory is streams/, so prompt files under streams/<nn>/runs/ are accepted). Never prints credentials.
+# Usage: lane.sh <probe|create|start|stop|read|transcript|send <file>|wait-idle [min]|reply <label> <expect>> <lane> <provider>
+set -u
+S=/home/derek/work/amux/streams
+cmd=$1; shift
+case "$cmd" in
+  send) file=$1; shift ;;
+  wait-idle) ;;
+  reply) label=$1; expect=$2; shift 2 ;;
+esac
+lane=${1:?lane}; provider=${2:?provider}; extra=${3:-}
+export LANE=$lane PROVIDER=$provider LANE_CWD=${LANE_CWD:-$S/lane-cwd} LANE_FLAGS=${LANE_FLAGS:-}
+hash_cfg() { sha256sum "$HOME/.claude.json" "$HOME/.codex/config.toml" 2>/dev/null | cut -c1-16 | tr '\n' ' '; }
+case "$cmd" in
+  start|create)
+    before=$(hash_cfg)
+    node "$S/bin/control.mjs" "$cmd"; rc=$?
+    after=$(hash_cfg)
+    if [[ "$before" != "$after" ]]; then
+      echo "{\"host_config_changed\": true, \"note\": \"lane $cmd wrote host CLI config (KNOWN-GAPS 12/29); hashes before [$before] after [$after]; halting\"}"
+      exit 3
+    fi
+    exit $rc ;;
+  send)
+    [[ "$file" == "$S/"* ]] || { echo "refused: prompt must live under $S/"; exit 2; }
+    node "$S/bin/control.mjs" send "$file" ;;
+  wait-idle)
+    tmo=${extra:-45}; deadline=$(( $(date +%s) + tmo*60 ))
+    while :; do
+      st=$(node "$S/bin/control.mjs" read 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("session",{}).get("status","?"), d.get("session",{}).get("running"))' 2>/dev/null)
+      echo "$(date -u +%H:%M:%SZ) $lane $st"
+      case "$st" in "idle True"*) exit 0;; "waiting "*) echo "lane is waiting for a human (approval or picker)";; esac
+      [[ $(date +%s) -lt $deadline ]] || { echo "timeout after $tmo min"; exit 4; }
+      sleep 20
+    done ;;
+  reply) node "$S/bin/control.mjs" reply "$label" "$expect" ;;
+  *) node "$S/bin/control.mjs" "$cmd" ;;
+esac
+# ===== streams/lib/stream.sh @ aa85a801 =====
+# Shared bash for stream drivers. Source it; absolute paths only (bound schedule copies run elsewhere).
+S=/home/derek/work/amux/streams
+AMUX_REPO=/home/derek/work/amux
+export AMUX_API=https://localhost:18824
+export AMUX_HOME=${AMUX_HOME:-/home/derek/work/amux/scratch/amux_home}
+export CC_HOME=${CC_HOME:-$AMUX_HOME}
+STREAM=""; MODE=manual; DRY=""; RUN=""; LANE_DEFAULT=stream-claude-01; PROVIDER_DEFAULT=claude
+
+stream_args() {  # stream_args <stream> "$@"
+  STREAM=$1; shift
+  for a in "$@"; do case "$a" in --scheduled) MODE=scheduled;; frontier|manual|scheduled) MODE=$a;; --dry-run) DRY=1;; esac; done
+  RUN=${STREAM_FIXED_RUN:-$(date -u +%Y%m%dT%H%M%SZ)}
+  export STREAM_BOUND_SHA="${STREAM_BOUND_SHA:-}"
+  mkdir -p "$S/$STREAM/runs" "$S/$STREAM/receipts"
+  echo "stream $STREAM run=$RUN mode=$MODE dry=${DRY:-no}"
+}
+
+render_brief() {  # render_brief [extra KEY=VALUE ...] -> prints path; no trailing newline (control.mjs rule)
+  local out="$S/$STREAM/runs/$RUN.md" text
+  text=$(sed -e "s/{RUN}/$RUN/g" -e "s/{STREAM}/$STREAM/g" "$S/$STREAM/brief.md")
+  for kv in "$@"; do text=${text//\{${kv%%=*}\}/${kv#*=}}; done
+  printf '%s' "$text" > "$out"
+  echo "$out"
+}
+
+server_up() { curl -sk -m 3 -o /dev/null "$AMUX_API/health"; }
+
+hearth_env_name() { hearth-env show 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("environment","unknown"))' 2>/dev/null || echo unknown; }
+
+row_begin() {  # row_begin -> writes $S/$STREAM/runs/$RUN.row.json skeleton
+  python3 - "$STREAM" "$RUN" "$MODE" "$S/$STREAM/runs/$RUN.row.json" <<'PY'
+import json, os, sys
+sys.path.insert(0, "/home/derek/work/amux/streams/lib")
+import receipt
+stream, run, mode, out = sys.argv[1:5]
+row = receipt.new_row(stream, mode=mode); row["run"] = run
+json.dump(row, open(out, "w"), indent=1, sort_keys=True)
+PY
+}
+
+row_finish() {  # row_finish <outcome> <measured true|false> "<why_unmeasured>" "<notes>" [result.json] -> appends, prints path
+  python3 - "$S/$STREAM/runs/$RUN.row.json" "$1" "$2" "$3" "$4" "${5:-}" "${DRY:-}" <<'PY'
+import json, os, sys
+sys.path.insert(0, "/home/derek/work/amux/streams/lib")
+import receipt
+rowp, outcome, measured, why, notes, resultp, dry = sys.argv[1:8]
+row = json.load(open(rowp))
+if resultp and os.path.exists(resultp):
+    res = json.load(open(resultp))
+    for k in ("hearth", "family", "regime", "seat", "seats_live", "bucket", "interventions", "card", "lane", "provider", "notes"):
+        if k in res and res[k] is not None:
+            row[k] = res[k]
+    row["data"] = res.get("data", row.get("data") or {})
+    row["for_derek"] = res.get("for_derek", row.get("for_derek") or [])
+    if res.get("outcome") in ("ok", "invalid", "not_run"):
+        outcome = res["outcome"]
+    if res.get("measured") is not None:
+        measured = "true" if res["measured"] else "false"
+        why = res.get("why_unmeasured") or why
+receipt.finish_row(row, outcome=outcome, measured=(measured == "true"), why_unmeasured=(why or None), notes=(notes or row.get("notes")))
+if dry:
+    print(json.dumps(row, indent=1, sort_keys=True)); sys.exit(0)
+print(receipt.append_row(row).split("/amux/", 1)[-1])
+PY
+  [[ -n "$DRY" ]] || python3 "$S/lib/dashboard.py" >/dev/null
+}
+
+lane_run_brief() {  # lane_run_brief <brief-path> [lane] [provider] [timeout-min]  -> sends, waits for idle, saves transcript
+  local brief=$1 lane=${2:-$LANE_DEFAULT} provider=${3:-$PROVIDER_DEFAULT} tmo=${4:-45}
+  bash "$S/bin/lane.sh" send "$brief" "$lane" "$provider" || return 1
+  bash "$S/bin/lane.sh" wait-idle "$lane" "$provider" "$tmo" || return 1
+  bash "$S/bin/lane.sh" transcript "$lane" "$provider" > "$S/$STREAM/runs/$RUN.transcript.json" 2>/dev/null || true
+}

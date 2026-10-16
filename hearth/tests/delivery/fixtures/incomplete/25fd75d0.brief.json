@@ -1,0 +1,59 @@
+{
+ "aids": [
+  "source_map",
+  "quote_renderer",
+  "constrained_output"
+ ],
+ "builders": [
+  "omen-local-work"
+ ],
+ "est_tokens": 3000,
+ "form": {
+  "citations": "quote",
+  "sections": [],
+  "style": "markdown",
+  "words": {
+   "enforce": "measure",
+   "max": 400,
+   "min": 300
+  }
+ },
+ "max_age_s": 172800,
+ "requires": [
+  "candidate"
+ ],
+ "schema": "brief.v2",
+ "sources": [
+  {
+   "commit": "aa85a801b0d7c87d04ab00c5746e30bd71d502fa",
+   "path": "streams/08-lab-stats/jepa.py"
+  }
+ ],
+ "substance": [
+  {
+   "id": "s1",
+   "statement": "Names the two ledgers the collector reads (LEDGER, the frozen v1 live_transitions.jsonl, and LEDGER_V2, the transitions.v2.jsonl) and the functions ledger_stats and ledger_v2_stats that summarize them."
+  },
+  {
+   "id": "s2",
+   "statement": "States what integrity() verifies: the export manifest sha256 against the state file, the files listed in that manifest, and the strategy manifest.sha256 lines, each counted as ok, missing or mismatch."
+  },
+  {
+   "id": "s3",
+   "statement": "States what frozen_quality() reads (the amendment verdict file, the gate-2 blind-retrieval results, EXPERIMENTS.md headings, the game-jepa reports)."
+  },
+  {
+   "id": "s4",
+   "statement": "Quotes the module docstring's never-do list: never imports from or writes into jepa-*, never copies intent or diff_sample text, never restarts the daemon; and notes the v1 ledger scan only tests the intent for 'co-authored-by' and keeps a count."
+  },
+  {
+   "id": "s5",
+   "statement": "States how main() records a failure (outcome invalid, measured False, why_unmeasured) and what --dry-run does."
+  },
+  {
+   "id": "s6",
+   "statement": "Cites only streams/08-lab-stats/jepa.py."
+  }
+ ],
+ "task_class": "local-work"
+}

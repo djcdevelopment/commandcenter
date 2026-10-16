@@ -1,0 +1,63 @@
+{
+ "aids": [
+  "source_map",
+  "quote_renderer",
+  "constrained_output"
+ ],
+ "builders": [
+  "omen-local-work"
+ ],
+ "est_tokens": 3000,
+ "form": {
+  "citations": "quote",
+  "sections": [],
+  "style": "markdown",
+  "words": {
+   "enforce": "measure",
+   "max": 400,
+   "min": 300
+  }
+ },
+ "max_age_s": 172800,
+ "requires": [
+  "candidate"
+ ],
+ "schema": "brief.v2",
+ "sources": [
+  {
+   "commit": "5c0bf5c1c9e63acadab35003378d4f57076808f7",
+   "path": "docs/adr/0066-lane-code-backend-and-default-fallback.md"
+  },
+  {
+   "commit": "5c0bf5c1c9e63acadab35003378d4f57076808f7",
+   "path": "hearth/localwork/service.py"
+  }
+ ],
+ "substance": [
+  {
+   "id": "s1",
+   "statement": "States the ADR's lane code backend decision: a lane table may declare code_backend, it must name one of the lane's backends, and the tracked profile declares [lane.deep] code_backend = omen-dense-27b."
+  },
+  {
+   "id": "s2",
+   "statement": "Explains _candidates in hearth/localwork/service.py: for a non-delivery submission on a lane with more than one backend it returns the code backend, unpooled, with the choice by lane_code_backend."
+  },
+  {
+   "id": "s3",
+   "statement": "Quotes the refusal raised when the lane has no code_backend: 'pooled code work is unsupported: no code-qualification source; a delivery brief is required'."
+  },
+  {
+   "id": "s4",
+   "statement": "Quotes the validation error 'code_backend must name one of the lane's backends' and says where in service.py it is raised."
+  },
+  {
+   "id": "s5",
+   "statement": "States what _candidates does on a retry (existing is not None): the recorded provider is kept and the choice is by recorded."
+  },
+  {
+   "id": "s6",
+   "statement": "Cites only the ADR and hearth/localwork/service.py, and does not describe parts of service.py outside _candidates and the code_backend validation."
+  }
+ ],
+ "task_class": "local-work"
+}

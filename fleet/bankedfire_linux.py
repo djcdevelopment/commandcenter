@@ -67,6 +67,72 @@ LOCAL_WORK_TASK_CLASS = "local-work"
 EXPERIMENT_TASK_CLASS = "experiment"
 DEEPAGENTS_TASK_CLASS = "deepagents"
 DRAIN_CALLER_ID = "bankedfire-drain"
+PAUSE_FILE = Path(os.environ.get("HEARTH_DISPATCH_PAUSE_FILE",
+                                 os.path.join(os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production")), "pause.dispatch")))
+
+
+def latched() -> bool:
+    """The dispatch latch (pause.dispatch), read uncached before every dispatch: a guard trip between admission and
+    dispatch must stop the next run_tick, whatever the 30 s occupancy cache still says (audit 2026-10-16, C12)."""
+    try:
+        return PAUSE_FILE.exists()
+    except OSError:
+        return True   # unreadable reads as latched: fail closed
+
+
+def _lane_backends(lane: str) -> list[str]:
+    """The seats a local-work lane may use, from the live route profile (HEARTH_LOCAL_WORK_ROUTES)."""
+    import tomllib
+    path = os.environ.get("HEARTH_LOCAL_WORK_ROUTES")
+    if not path:
+        return []
+    with open(path, "rb") as fh:
+        table = (tomllib.load(fh).get("lane") or {}).get(lane) or {}
+    names = table.get("backends") or ([table["backend"]] if table.get("backend") else [])
+    return [str(n) for n in names]
+
+
+def _seat_loads(backend: str) -> dict[str, int]:
+    """Authoritative load of one seat: the door's capacity leases plus outstanding local-work manifests of EVERY
+    caller (the drain's own included: capacity is never exempt), against the seat's declared parallel_slots."""
+    from hearth.execution.coordination import CapacityLeaseStore
+    from hearth.toolsurface.backends import load_pool
+    provider = load_pool().by_name(backend)
+    slots = int((provider.settings.get("parallel_slots") if provider is not None else 0) or 0)
+    db = os.environ.get("HEARTH_COORDINATION_DB") or os.path.join(
+        os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production")), "var", "execution", "coordination.sqlite")
+    leases = CapacityLeaseStore(db).active_count(f"provider:{backend}")
+    outstanding = 0
+    for m in (_REPO_ROOT / "runs" / "operator").glob("work_*/work-manifest.json"):
+        try:
+            d = json.loads(m.read_text())
+        except Exception:  # noqa: BLE001
+            continue
+        if d.get("status") in {"queued", "running"} and (d.get("route") or {}).get("provider") == backend:
+            outstanding += 1
+    return {"slots": slots, "leases": leases, "outstanding": outstanding}
+
+
+def seat_capacity(lane: str) -> dict[str, Any]:
+    """Per-seat admission for a lane (audit 2026-10-16, C9): {"seats": {name: {slots, leases, outstanding, free}},
+    "free": total free slots, "error": None | reason}. Counts come from the lease store and the manifests, never
+    from the cached metrics; the door's lease at submit is the reservation, so two ticks racing for the last slot
+    leave the second job queued at the door, never two jobs on one slot. Fail closed: an error means no admission."""
+    try:
+        names = _lane_backends(lane)
+        if not names:
+            return {"seats": {}, "free": 0, "error": f"no backends declared for lane {lane!r}"}
+        seats = {}
+        for name in names:
+            load = _seat_loads(name)
+            load["free"] = max(0, load["slots"] - max(load["leases"], load["outstanding"]))
+            seats[name] = load
+        return {"seats": seats, "free": sum(v["free"] for v in seats.values()), "error": None}
+    except Exception as exc:  # noqa: BLE001 -- unavailable telemetry is a recorded reason, not an admission
+        return {"seats": {}, "free": 0, "error": f"{type(exc).__name__}: {exc}"}
+
+
+seat_capacity_fn = seat_capacity   # injectable for tests
 
 
 def lane_slots() -> dict[str, int]:
@@ -907,10 +973,15 @@ def tick() -> dict[str, Any]:
             report["am4_profile"]["switch"] = am4_switch(want)
     except Exception as exc:  # noqa: BLE001 -- the profile step never blocks the OMEN lanes
         report["am4_profile"] = {"error": f"{type(exc).__name__}: {exc}"}
+    seats_full: list[str] = []
     for _ in range(sum(caps.values()) + 1):
         state = drain.load_arm_state(arm_path)
         if not state.get("armed"):
             report["reason"] = "disarmed"; break
+        if latched():   # uncached, before every dispatch (a guard trip latches dispatch closed)
+            report["reason"] = "latched:pause.dispatch"
+            report["latch"] = str(PAUSE_FILE)
+            break
         scope = state.get("scope")
         used = in_use_by_lane(slots)
         pick = pick_dispatchable(scope, backlog_scans(excl), used, caps, slots)
@@ -923,12 +994,23 @@ def tick() -> dict[str, Any]:
         for row in pick["passed_over"]:   # heads whose lane was full: they keep their place
             if row not in report.setdefault("passed_over", []):
                 report["passed_over"].append(row)
+        # per-seat admission (audit 2026-10-16): the lane cap is the drain's budget; the seats' free slots are the
+        # door's truth. No free seat, or no telemetry, means no dispatch, with the table in the report.
+        if lane in ("deep", "fast", "tool"):
+            cap = seat_capacity_fn(lane)
+            report.setdefault("seat_capacity", {})[lane] = cap
+            if cap.get("error") or cap.get("free", 0) <= 0:
+                report["reason"] = (f"seats-unknown:{lane}" if cap.get("error") else f"seats-full:{lane}")
+                seats_full.append(lane)
+                break
         # the brief goes to run_tick: its own select_next would put the full-lane head back in front
         result = drain.run_tick(arm_state_path=arm_path, submit_task_fn=submit_task,
                                 task_status_fn=task_status, queue_status_fn=queue_status,
                                 exclude_refs=excl, brief=nxt)
         ran_drain += 1
         report["reason"] = result["reason"]
+        report.setdefault("gates", []).append({"reason": result["reason"],
+                                               "gate": drain._gate_summary(result["reason"], result.get("detail") or {})})
         if not str(result["reason"]).startswith("dispatched:"):
             detail = result.get("detail") or {}
             if result["reason"] == "no-op:dispatch-failed" and detail.get("source") == "candidate" and detail.get("source_ref"):
@@ -953,7 +1035,11 @@ def tick() -> dict[str, Any]:
         report["ledger_event_id"] = drain._record_tick(
             f"no-op:{report['reason']}",
             {"backend": drain.DRAIN_BACKEND, "lane": "bankedfire_linux", "excluded": report.get("excluded", []),
-             "in_use": report.get("in_use", {}), "slots": report["slots"]})
+             "in_use": report.get("in_use", {}), "slots": report["slots"],
+             **({"latch": report["latch"]} if report.get("latch") else {}),
+             **({"seat_capacity": json.dumps({k: {n: (v.get("free"), v.get("error")) for n, v in c.get("seats", {}).items()} | ({"error": c["error"]} if c.get("error") else {})
+                                             for k, c in report["seat_capacity"].items()}, sort_keys=True)}
+                if report.get("seat_capacity") else {})})
     return report
 
 

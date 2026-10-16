@@ -1,0 +1,11 @@
+[Unit]
+Description=Banked Fire night kick: start the installed drain tick every 2 minutes while a measured night runs (started by night window open, stopped by night window close or a guard trip)
+
+[Timer]
+OnActiveSec=5s
+OnUnitActiveSec=2min
+AccuracySec=1s
+Unit=bankedfire-night-kick.service
+
+[Install]
+WantedBy=timers.target

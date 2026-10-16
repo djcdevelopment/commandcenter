@@ -1,0 +1,254 @@
+# ===== streams/08-lab-stats/jepa.py @ aa85a801 =====
+#!/usr/bin/env python3
+"""Stream 08, JEPA collector. Read-only over the jepa-* directories and the live ledger. Stdlib only.
+Never imports from or writes into jepa-*; never copies intent or diff_sample text; never restarts the daemon."""
+import datetime as _dt
+import glob
+import hashlib
+import json
+import os
+import re
+import statistics
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
+import receipt  # noqa: E402
+
+WORK = "/home/derek/work"  # absolute: a bound schedule runs with the server HOME
+LEDGER = os.path.join(WORK, "jepa-add-protocol", "ledger", "live_transitions.jsonl")
+LEDGER_V2 = "/home/derek/hearth-production/var/jepa-harvest/transitions.v2.jsonl"
+DAEMON_LOG = os.path.join(WORK, "jepa-add-protocol", "ledger", "continuous_daemon.log")
+STATE = os.path.join(WORK, "jepa-research-current.json")
+EXPORT_DIR = os.path.join(WORK, "jepa-recorded-actions-20260925")
+EXPORT_MANIFEST = os.path.join(EXPORT_DIR, "export-manifest.json")
+STRATEGY_DIR = os.path.join(WORK, "jepa-strategy-20260925")
+STRATEGY_MANIFEST = os.path.join(STRATEGY_DIR, "manifest.sha256")
+EXPERIMENTS = os.path.join(STRATEGY_DIR, "EXPERIMENTS.md")
+VERDICT = os.path.join(WORK, "jepa-add-protocol", "results", "VERDICT_AMENDMENT_002.json")
+GATE2 = os.path.join(WORK, "jepa-add-protocol", "output", "phase5", "gate2-blind-retrieval-results.json")
+GAME_REPORTS = os.path.join(WORK, "game-jepa", "output", "v5-*-report*.md")
+
+
+def rel(p):
+    return os.path.relpath(p, WORK)
+
+
+def mtime(p):
+    try:
+        return _dt.datetime.fromtimestamp(os.path.getmtime(p), _dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    except OSError:
+        return None
+
+
+def sha256(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def ledger_stats():
+    rows = []
+    with open(LEDGER, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    per_day, per_repo = {}, {}
+    deltas, coauth, jepa_rows = [], 0, 0
+    last_ts = 0
+    for r in rows:
+        ts = int(r.get("timestamp") or 0)
+        last_ts = max(last_ts, ts)
+        day = _dt.datetime.fromtimestamp(ts, _dt.timezone.utc).strftime("%Y-%m-%d")
+        per_day[day] = per_day.get(day, 0) + 1
+        repo = str(r.get("repo") or "?")
+        per_repo[repo] = per_repo.get(repo, 0) + 1
+        if repo.startswith("jepa-"):
+            jepa_rows += 1
+        if "co-authored-by" in str(r.get("intent") or "").lower():
+            coauth += 1
+        try:
+            deltas.append(int(r.get("delta_bytes") or 0))
+        except (TypeError, ValueError):
+            pass
+    daemon_last = None
+    if os.path.exists(DAEMON_LOG):
+        with open(DAEMON_LOG, "rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            fh.seek(max(0, size - 4096))
+            tail = fh.read().decode("utf-8", "replace")
+        m = re.findall(r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC\]", tail)
+        if m:
+            daemon_last = m[-1]
+    since_daemon = None
+    if daemon_last:
+        d_ts = int(_dt.datetime.strptime(daemon_last, "%Y-%m-%d %H:%M:%S").replace(tzinfo=_dt.timezone.utc).timestamp())
+        since_daemon = sum(1 for r in rows if int(r.get("timestamp") or 0) > d_ts)
+    enrolled = 0
+    for hook in glob.glob(os.path.join(WORK, "*", ".git", "hooks", "post-commit")):
+        try:
+            with open(hook, encoding="utf-8", errors="replace") as fh:
+                if "jepa" in fh.read().lower():
+                    enrolled += 1
+        except OSError:
+            pass
+    return {
+        "ledger_file": rel(LEDGER), "ledger_mtime": mtime(LEDGER), "rows": len(rows),
+        "last_record_utc": _dt.datetime.fromtimestamp(last_ts, _dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if last_ts else None,
+        "per_day": dict(sorted(per_day.items())), "per_repo": dict(sorted(per_repo.items(), key=lambda kv: -kv[1])),
+        "rows_in_jepa_dirs": jepa_rows, "coauthored_rows": coauth,
+        "delta_bytes_total": sum(deltas), "delta_bytes_median": int(statistics.median(deltas)) if deltas else None,
+        "daemon_last_log_utc": daemon_last, "rows_since_daemon_last_log": since_daemon,
+        "enrolled_hooks_under_work": enrolled,
+    }
+
+
+def ledger_v2_stats():
+    rows = []
+    if os.path.exists(LEDGER_V2):
+        with open(LEDGER_V2, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    try:
+                        rows.append(json.loads(line))
+                    except ValueError:
+                        pass
+    per_day, per_repo, per_main = {}, {}, {}
+    deltas, files_total, coauth, last_ts = [], 0, 0, 0
+    for r in rows:
+        ts = int(r.get("timestamp") or 0)
+        last_ts = max(last_ts, ts)
+        day = _dt.datetime.fromtimestamp(ts, _dt.timezone.utc).strftime("%Y-%m-%d")
+        per_day[day] = per_day.get(day, 0) + 1
+        k = str(r.get("repo") or "?")
+        per_repo[k] = per_repo.get(k, 0) + 1
+        m = str(r.get("repo_main") or "?")
+        per_main[m] = per_main.get(m, 0) + 1
+        if r.get("coauthored"):
+            coauth += 1
+        try:
+            files_total += int(r.get("files_changed") or 0)
+            deltas.append(int(r.get("delta_bytes") or 0))
+        except (TypeError, ValueError):
+            pass
+    return {
+        "ledger_file": LEDGER_V2.replace("/home/derek/", "~/"), "rows": len(rows),
+        "last_record_utc": _dt.datetime.fromtimestamp(last_ts, _dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if last_ts else None,
+        "per_day": dict(sorted(per_day.items())), "per_repo": dict(sorted(per_repo.items(), key=lambda kv: -kv[1])),
+        "per_repo_main": dict(sorted(per_main.items(), key=lambda kv: -kv[1])),
+        "coauthored_rows": coauth, "files_changed_total": files_total,
+        "delta_bytes_total": sum(deltas), "delta_bytes_median": int(statistics.median(deltas)) if deltas else None,
+    }
+
+
+def integrity():
+    out = {}
+    state = json.load(open(STATE, encoding="utf-8"))
+    fe = state.get("frozen_export") or {}
+    expected = fe.get("manifest_sha256")
+    actual = sha256(EXPORT_MANIFEST) if os.path.exists(EXPORT_MANIFEST) else None
+    out["export_manifest"] = {"file": rel(EXPORT_MANIFEST), "expected_sha256_prefix": (expected or "")[:12],
+                              "actual_sha256_prefix": (actual or "")[:12], "match": bool(expected and actual and expected == actual)}
+    ok = missing = mismatch = 0
+    if actual:
+        files = json.load(open(EXPORT_MANIFEST, encoding="utf-8")).get("files") or {}
+        for name, digest in files.items():
+            p = os.path.join(EXPORT_DIR, name)
+            if not os.path.exists(p):
+                missing += 1
+            elif sha256(p) == digest:
+                ok += 1
+            else:
+                mismatch += 1
+    out["export_files"] = {"ok": ok, "missing": missing, "mismatch": mismatch}
+    ok = missing = mismatch = 0
+    if os.path.exists(STRATEGY_MANIFEST):
+        for line in open(STRATEGY_MANIFEST, encoding="utf-8"):
+            m = re.match(r"([0-9a-f]{64})\s+\*?(.+)$", line.strip())
+            if not m:
+                continue
+            p = os.path.join(STRATEGY_DIR, m.group(2))
+            if not os.path.exists(p):
+                missing += 1
+            elif sha256(p) == m.group(1):
+                ok += 1
+            else:
+                mismatch += 1
+    out["strategy_files"] = {"ok": ok, "missing": missing, "mismatch": mismatch}
+    out["state_file"] = {"file": rel(STATE), "updated_at": state.get("updated_at"), "goal_complete": state.get("goal_complete"),
+                         "model_fits": state.get("model_fits"), "latest_completed_experiment": state.get("latest_completed_experiment")}
+    return out
+
+
+def frozen_quality():
+    out = {}
+    if os.path.exists(VERDICT):
+        v = json.load(open(VERDICT, encoding="utf-8"))
+        hv = v.get("hypotheses_verdict") or {}
+        out["add_protocol_verdict"] = {
+            "file": rel(VERDICT), "mtime": mtime(VERDICT), "verdict_status": v.get("verdict_status"),
+            "hypotheses": {k: {"passed": x.get("passed"), "falsified": x.get("falsified")} for k, x in hv.items() if isinstance(x, dict)},
+            "H1_jepa_r1_pct": (hv.get("H1_zero_lexical_overlap") or {}).get("jepa_r1_pct"),
+            "H1_bm25_r1_pct": (hv.get("H1_zero_lexical_overlap") or {}).get("bm25_r1_pct"),
+        }
+    if os.path.exists(GATE2):
+        g = json.load(open(GATE2, encoding="utf-8"))
+        out["add_protocol_gate2_blind"] = {
+            "file": rel(GATE2), "mtime": mtime(GATE2), "total_scenarios": g.get("total_scenarios"),
+            "r1_pct_by_arm": {k: a.get("r1_pct") for k, a in (g.get("arms") or {}).items() if isinstance(a, dict)},
+        }
+    if os.path.exists(EXPERIMENTS):
+        heads = []
+        for line in open(EXPERIMENTS, encoding="utf-8"):
+            m = re.match(r"#+\s*(X\d)\.\s*(.*?)\s*\((.*?)\)\s*$", line.strip())
+            if m:
+                heads.append({"id": m.group(1), "status": m.group(3)})
+        out["strategy_experiments"] = {"file": rel(EXPERIMENTS), "mtime": mtime(EXPERIMENTS), "entries": heads}
+    reports = []
+    for p in sorted(glob.glob(GAME_REPORTS)):
+        verdict = None
+        with open(p, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                m = re.search(r"\*\*Verdict:\s*([^*]{1,120})", line)
+                if m:
+                    verdict = m.group(1).strip().rstrip(".")
+                    break
+        reports.append({"file": os.path.basename(p), "mtime": mtime(p), "verdict": verdict})
+    out["game_jepa_reports"] = reports
+    return out
+
+
+def main():
+    mode = "scheduled" if "--scheduled" in sys.argv else ("frontier" if "--mode" in sys.argv and "frontier" in sys.argv else "manual")
+    row = receipt.new_row("08-lab-stats", mode=mode)
+    row["notes"] = "jepa"
+    try:
+        led = ledger_stats()
+        led["frozen_since"] = led["last_record_utc"]
+        v2 = ledger_v2_stats()
+        integ = integrity()
+        qual = frozen_quality()
+        row["data"] = {"collector": "jepa", "ledger": led, "ledger_v2": v2, "integrity": integ, "frozen_quality": qual}
+        row["for_derek"] = [
+            f"JEPA v1 ledger frozen at {led['rows']} rows ({led['rows_in_jepa_dirs']} were written from inside jepa-* directories); since 2026-10-15 the 12 writable hooks point at lab/tools/jepa-harvest and write digests and counts only to the v2 ledger outside every repo; only the jepa-* directories' own hooks still write v1, and commits there are forbidden anyway.",
+            f"JEPA daemon: last log {led['daemon_last_log_utc']}; {led['rows_since_daemon_last_log']} v1 rows since; nothing consumes either ledger (restarting it needs a B70 and writes checkpoints into an immutable directory: Derek's call).",
+            "JEPA state file stopped at " + str(integ["state_file"]["updated_at"]) + "; the ct JEPA bridge (continuity HANDOFF §3) is the undone step.",
+        ]
+        receipt.finish_row(row, outcome="ok", measured=True)
+    except Exception as exc:
+        row["data"] = {"collector": "jepa", "error": type(exc).__name__}
+        receipt.finish_row(row, outcome="invalid", measured=False, why_unmeasured=f"{type(exc).__name__}: {str(exc)[:120]}")
+    if "--dry-run" in sys.argv:
+        print(json.dumps(row, indent=1, sort_keys=True))
+        return 0
+    path = receipt.append_row(row)
+    print(json.dumps({"ok": row["outcome"] == "ok", "appended": path.split("/amux/", 1)[-1], "run": row["run"], "rows": row["data"].get("ledger", {}).get("rows")}))
+    return 0 if row["outcome"] == "ok" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

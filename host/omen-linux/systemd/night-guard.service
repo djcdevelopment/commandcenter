@@ -1,0 +1,10 @@
+[Unit]
+Description=Night guard: thermal guard for both B70s and the AM4 pair; a trip latches dispatch closed (pause.dispatch) before anything else (audit 2026-10-16)
+After=hearth-production.service
+
+[Service]
+Type=simple
+Environment=PYTHONPATH=/home/derek/work/commandcenter-linux-flash
+EnvironmentFile=/home/derek/.config/hearth/hearth-ops.env
+ExecStart=/home/derek/.venvs/hearth-private/bin/python /home/derek/work/commandcenter-linux-flash/tools/ops/night_guard.py %h/hearth-production/var/night-guard/cards.jsonl --card card2=omen-dense-27b --card card3=omen-dense-27b-b --am4 am4-vllm --interval 20 --limit 104 --am4-limit 90 --caller claude --on-trip "systemctl --user stop bankedfire-night-kick.timer"
+Restart=no

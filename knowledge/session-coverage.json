@@ -1,0 +1,311 @@
+{
+  "schema": "session-coverage.v1",
+  "generated_at": "2026-10-16T00:27:59+00:00",
+  "window": {
+    "start": "2026-10-02",
+    "end": "2026-10-15",
+    "days": 14,
+    "tz": "UTC"
+  },
+  "unobservable": [
+    "gemini"
+  ],
+  "per_day": [
+    {
+      "day": "2026-10-02",
+      "claude_top_level": 7,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 5,
+      "codex_rollouts": 7,
+      "codex_eligible": 3,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 1,
+        "of_eligible": 5,
+        "share": 0.2
+      },
+      "in_lane": {
+        "count": 0,
+        "of_eligible": 5,
+        "share": 0.0
+      }
+    },
+    {
+      "day": "2026-10-03",
+      "claude_top_level": 4,
+      "claude_excluded_rd": 1,
+      "claude_eligible": 1,
+      "codex_rollouts": 4,
+      "codex_eligible": 1,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 1,
+        "of_eligible": 1,
+        "share": 1.0
+      },
+      "in_lane": {
+        "count": 0,
+        "of_eligible": 1,
+        "share": 0.0
+      }
+    },
+    {
+      "day": "2026-10-04",
+      "claude_top_level": 0,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 0,
+      "codex_rollouts": 4,
+      "codex_eligible": 1,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      },
+      "in_lane": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      }
+    },
+    {
+      "day": "2026-10-05",
+      "claude_top_level": 106,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 1,
+      "codex_rollouts": 0,
+      "codex_eligible": 0,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 0,
+        "of_eligible": 1,
+        "share": 0.0
+      },
+      "in_lane": {
+        "count": 0,
+        "of_eligible": 1,
+        "share": 0.0
+      }
+    },
+    {
+      "day": "2026-10-06",
+      "claude_top_level": 0,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 0,
+      "codex_rollouts": 0,
+      "codex_eligible": 0,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      },
+      "in_lane": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      }
+    },
+    {
+      "day": "2026-10-07",
+      "claude_top_level": 0,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 0,
+      "codex_rollouts": 6,
+      "codex_eligible": 2,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      },
+      "in_lane": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      }
+    },
+    {
+      "day": "2026-10-08",
+      "claude_top_level": 0,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 0,
+      "codex_rollouts": 1,
+      "codex_eligible": 1,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      },
+      "in_lane": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      }
+    },
+    {
+      "day": "2026-10-09",
+      "claude_top_level": 11,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 8,
+      "codex_rollouts": 17,
+      "codex_eligible": 10,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 0,
+        "of_eligible": 8,
+        "share": 0.0
+      },
+      "in_lane": {
+        "count": 1,
+        "of_eligible": 8,
+        "share": 0.125
+      }
+    },
+    {
+      "day": "2026-10-10",
+      "claude_top_level": 10,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 5,
+      "codex_rollouts": 5,
+      "codex_eligible": 3,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 0,
+        "of_eligible": 5,
+        "share": 0.0
+      },
+      "in_lane": {
+        "count": 2,
+        "of_eligible": 5,
+        "share": 0.4
+      }
+    },
+    {
+      "day": "2026-10-11",
+      "claude_top_level": 0,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 0,
+      "codex_rollouts": 0,
+      "codex_eligible": 0,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      },
+      "in_lane": {
+        "count": 0,
+        "of_eligible": 0,
+        "share": null
+      }
+    },
+    {
+      "day": "2026-10-12",
+      "claude_top_level": 1,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 1,
+      "codex_rollouts": 0,
+      "codex_eligible": 0,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 1,
+        "of_eligible": 1,
+        "share": 1.0
+      },
+      "in_lane": {
+        "count": 0,
+        "of_eligible": 1,
+        "share": 0.0
+      }
+    },
+    {
+      "day": "2026-10-13",
+      "claude_top_level": 5,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 3,
+      "codex_rollouts": 5,
+      "codex_eligible": 1,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 0,
+        "of_eligible": 3,
+        "share": 0.0
+      },
+      "in_lane": {
+        "count": 3,
+        "of_eligible": 3,
+        "share": 1.0
+      }
+    },
+    {
+      "day": "2026-10-14",
+      "claude_top_level": 6,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 2,
+      "codex_rollouts": 12,
+      "codex_eligible": null,
+      "codex_prompts_unknown": 1,
+      "used_hearth": {
+        "count": 2,
+        "of_eligible": 2,
+        "share": 1.0
+      },
+      "in_lane": {
+        "count": 1,
+        "of_eligible": 2,
+        "share": 0.5
+      }
+    },
+    {
+      "day": "2026-10-15",
+      "claude_top_level": 11,
+      "claude_excluded_rd": 0,
+      "claude_eligible": 7,
+      "codex_rollouts": 12,
+      "codex_eligible": 5,
+      "codex_prompts_unknown": 0,
+      "used_hearth": {
+        "count": 2,
+        "of_eligible": 7,
+        "share": 0.2857
+      },
+      "in_lane": {
+        "count": 1,
+        "of_eligible": 7,
+        "share": 0.1429
+      }
+    }
+  ],
+  "totals": {
+    "claude_top_level": 161,
+    "claude_excluded_rd": 1,
+    "claude_eligible": 33,
+    "codex_rollouts": 73,
+    "codex_eligible": 28,
+    "codex_prompts_unknown": 1,
+    "used_hearth": {
+      "count": 7,
+      "of_eligible": 33,
+      "share": 0.2121
+    },
+    "in_lane": {
+      "count": 8,
+      "of_eligible": 33,
+      "share": 0.2424
+    }
+  },
+  "method": "Denominator = top-level frontier sessions from the agents' own transcripts, independent of HEARTH. Claude: ~/.claude/projects/<projdir>/<uuid>.jsonl, UUID-named files only, nothing under a subagents/ directory; day = UTC date of the first line carrying a timestamp (mtime if none); session id = the sessionId field (file stem if absent); prompts = user lines that are not tool_result echoes and not isMeta/isSidechain. Codex: ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl, day = directory path, prompts = role=user response_item messages excluding injected context (AGENTS.md, environment, instructions); null when the rollout shows no message items. Eligible = >= 3 prompts and cc-<first 8 of sessionId> not in knowledge/rd-task-ids.json. used_hearth (Claude only): the session's cc- id is a key of knowledge/offload.json by_task or a string task_id in the execution events.ndjson (read-only). in_lane (Claude only): an amux sessions/*.meta.json cc_conversation_id[:8] equals sessionId[:8]. Both are shares of claude_eligible and are not independent: do not multiply them. Codex sessions are not joined (no cc- id; the cx-<lane> stamp starts with I1.2). Windows are UTC days, last 14 including today.",
+  "caveats": [
+    "offload.json by_task is truncated (25 task ids omitted); the events.ndjson join covers the gap, but used_hearth can still undercount."
+  ],
+  "sources": {
+    "hearth_task_ids_offload": 50,
+    "hearth_task_ids_events": 84,
+    "lane_prefixes": 13,
+    "excluded_rd_ids": [
+      "cc-9568f28c"
+    ]
+  }
+}

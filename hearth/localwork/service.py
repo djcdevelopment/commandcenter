@@ -825,7 +825,8 @@ class LocalWorkService:
                 manifest["route"]["lane_choice"] = lane_choice
         if carried:
             manifest["carry"] = {"stage": "work", "batch": 0, "batches": 0, "retried": [], "jobs": [], "quotes": {},
-                                 "check": self._carry_check_plan(prompt, context_tokens)}
+                                 "check": self._carry_check_plan(prompt, context_tokens),
+                                 "work_execution_procedure": self._carry_work_execution_procedure()}
         if items_run:
             manifest["items"] = {"kind": brief["items"]["kind"], "stage": "read", "count": len(item_list),
                                  "readers": [{k: r[k] for k in ("backend", "model")} for r in roster[:2]],
@@ -1472,6 +1473,11 @@ class LocalWorkService:
         work_id, carry_state = str(manifest["work_id"]), manifest["carry"]
         arguments = {"messages": messages, "backend": manifest["route"]["provider"], "model": manifest["route"]["model"],
                      "thinking": thinking, "temperature": temperature}
+        # Frozen at local-work submission. Historical manifests omit this pin and keep
+        # their original request unchanged; only the work turn may use emit recovery.
+        work_procedure = carry_state.get("work_execution_procedure", "one_call")
+        if stage == "work" and work_procedure == "think_then_emit":
+            arguments["procedure"] = work_procedure
         carry_state.update(stage=stage, batch=batch, part=part)
         state = self.execution.submit(operation_name="inference.deliberate", arguments=arguments, principal=principal,
                                       source=source, policy={"max_tokens": max_tokens, "deadline_s": deadline_s},
@@ -1492,6 +1498,14 @@ class LocalWorkService:
                     "carry_stage": stage, "carry_batch": batch, "carry_part": part, **_dispatch_conditions(manifest)},
                     refs={"receipt_id": manifest["receipt_id"]} if manifest.get("receipt_id") else {})
         return state
+
+    @staticmethod
+    def _carry_work_execution_procedure() -> str:
+        """Explicit research pin; distinct from the delivery procedure, which remains carry."""
+        value = os.environ.get("HEARTH_CARRY_WORK_EXECUTION_PROCEDURE", "one_call").strip()
+        if value not in ("one_call", "think_then_emit"):
+            raise LocalWorkError("HEARTH_CARRY_WORK_EXECUTION_PROCEDURE must be one_call or think_then_emit")
+        return value
 
     @staticmethod
     def _carry_check_plan(prompt: str, context_tokens: int) -> dict[str, Any]:

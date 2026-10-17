@@ -1759,8 +1759,9 @@ class LocalWorkService:
                                            self_check=checked)
         except (carry.CarryError, _Refused) as exc:
             return self._carry_fail(manifest, job, f"render: {exc}")
-        metadata = self.execution.read_artifact(str(next(
-            a["artifact_id"] for a in work_job["artifacts"] if a.get("role") == "output")))[0]
+        result_id = work_job.get("result_artifact_id") or next(
+            a["artifact_id"] for a in work_job["artifacts"] if a.get("role") == "output")
+        metadata = self.execution.read_artifact(str(result_id))[0]
         self._note_attempt(manifest, work_job)
         self._adopt_delivery(manifest, work_job, metadata, raw, rendered)
         run_dir = self._run_dir(work_id)

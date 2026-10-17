@@ -1692,7 +1692,10 @@ class LocalWorkService:
                     "carry_batch": carry_state["batch"], "carry_part": carry_state.get("part", "")})
         artifacts = {a["role"]: a["artifact_id"] for a in job.get("artifacts", []) if a.get("role")}
         if carry_state["stage"] == "work":
-            draft = self.execution.read_artifact(str(artifacts["output"]))[1]
+            # Emit recovery retains the empty first-turn output. The execution's
+            # canonical result points at the recovered answer, as in one_call.
+            draft_id = job.get("result_artifact_id") or artifacts["output"]
+            draft = self.execution.read_artifact(str(draft_id))[1]
             run_dir = self._run_dir(work_id)
             reasoning = self.execution.read_artifact(str(artifacts["reasoning"]))[1] if "reasoning" in artifacts else b""
             (run_dir / "carry-draft.md").write_bytes(draft)

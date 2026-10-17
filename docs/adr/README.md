@@ -78,6 +78,8 @@ record with its status changed and a pointer to the ADR that replaced it.
 
 | [0062](0062-a-deep-lane-routes-among-qualified-configurations.md) | A deep lane chooses among independently qualified configurations by outstanding assignments, then execution leases; evidence stays backend and recipe specific and retries retain their route | Proposed (2026-10-05); built, pending independent review and deployment |
 
+| 0072 | [Flash-Next remains an isolated research recipe](0072-flash-next-remains-an-isolated-research-recipe.md) | Accepted2026-10-17; documentary disposition, no runtime change |
+
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is
 run-of-record: ember vs Farmer) was a forward-reference from the pre-fleet convergence

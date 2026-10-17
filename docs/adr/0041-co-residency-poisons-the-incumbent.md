@@ -140,3 +140,8 @@ rate at **104.83** — identical to fresh.
 
 ⚠ Preserved deliberately: the reasoning in this record was sound given what was measured, and the
 rule it produced prevented further bad data all evening. It is superseded, not withdrawn.
+
+
+## Addendum2026-10-17 — Linux Flash-Next transfer study
+
+The [new measured recipe](../rnd/flash-next-20261017/RESULT.md) releases most GPU-uploaded file mappings and retains a sparse table working set; host expert placement enables near-native occupied-context work in isolation. This updates the historical footprint conditions, not the co-residency verdict: no current-production co-residency arm was run. The original three seats were restored after the fenced lap. [ADR-0072](0072-flash-next-remains-an-isolated-research-recipe.md) records the experimental disposition and saved-state/restore distinction.

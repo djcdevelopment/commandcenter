@@ -987,3 +987,6 @@ Appended by `/retro` (Phase 2e); check off with a link to where it was decided.
 - [ ] 2026-09-20 — **Upstream PRs:** `vllm-project/vllm` — the `MoeWNA16Config` loader-hook fix + the Arc Pro B70
       `int4_w4a16` MoE config JSON (not Windows-specific); `vllm-project/vllm-xpu-kernels` — the Windows build
       patch set (4 commits on lab branch `windows`) (source: [SESSION-RETRO-2026-09-20.md](SESSION-RETRO-2026-09-20.md))
+
+- [ ]2026-10-17 — Choose the next Flash-Next physical lap: banked long-state restore first, or Derek-terminal Gen5 recovery followed by a bounded30K baseline. Linux/Windows peer cause remains unresolved; no driver replacement is justified by the checked version audit. [Plan](docs/rnd/flash-next-20261017/PLAN.md).
+- [ ]2026-10-17 — Independent reviewer to dispose of unapplied telemetry candidate `work_d35da09285b7d268b07962af188c27d2` (job `job_f150d2e4d807b2a8a624bab8bb6ca252`). The submitter’s verdict was refused under ADR-0069; do not silently mark it accepted or superseded to close the docs. [Retro](SESSION-RETRO-2026-10-17.md).

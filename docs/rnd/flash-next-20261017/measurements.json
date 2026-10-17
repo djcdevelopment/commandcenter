@@ -1,0 +1,343 @@
+{
+  "conditions": {
+    "native_context": 262144,
+    "disk_cache": "uncontrolled; no global eviction",
+    "observed_host_link": "Gen4 x8 each B70",
+    "interpretation": "single-sample transfer study; quant/runtime/hardware differ from Matt reference"
+  },
+  "measurements": [
+    {
+      "label": "fourgpu-30k",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 29735,
+        "prompt_ms": 439391.329,
+        "prompt_per_token_ms": 14.776906978308391,
+        "prompt_per_second": 67.67316065993646,
+        "predicted_n": 55,
+        "predicted_ms": 4295.237,
+        "predicted_per_token_ms": 79.54142592592592,
+        "predicted_per_second": 12.572065289994475
+      },
+      "usage": {
+        "completion_tokens": 55,
+        "prompt_tokens": 29735,
+        "total_tokens": 29790,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 439.8173413100003,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), the crate number is 583 (Evidence ID B-246), and the required storage temperature is 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "fourgpu-30k-reuse",
+      "timings": {
+        "cache_n": 29731,
+        "prompt_n": 4,
+        "prompt_ms": 688.857,
+        "prompt_per_token_ms": 172.21425,
+        "prompt_per_second": 5.8067204078640415,
+        "predicted_n": 55,
+        "predicted_ms": 4267.111,
+        "predicted_per_token_ms": 79.02057407407408,
+        "predicted_per_second": 12.654932107460997
+      },
+      "usage": {
+        "completion_tokens": 55,
+        "prompt_tokens": 29735,
+        "total_tokens": 29790,
+        "prompt_tokens_details": {
+          "cached_tokens": 29731
+        }
+      },
+      "first_content_s": 0.7232120120006584,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), the crate number is 583 (Evidence ID B-246), and the required storage temperature is 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "fourgpu-short",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 248,
+        "prompt_ms": 4294.279,
+        "prompt_per_token_ms": 17.31564112903226,
+        "prompt_per_second": 57.75125463436353,
+        "predicted_n": 57,
+        "predicted_ms": 3123.938,
+        "predicted_per_token_ms": 55.78460714285715,
+        "predicted_per_second": 17.926092003106334
+      },
+      "usage": {
+        "completion_tokens": 57,
+        "prompt_tokens": 248,
+        "total_tokens": 305,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 4.298536295000304,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar, the crate number is 583, and the required storage temperature is 17 C. This chain is supported by evidence IDs A-917, B-246, and C-805."
+    },
+    {
+      "label": "omen-cpu16-30k",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 29735,
+        "prompt_ms": 245512.968,
+        "prompt_per_token_ms": 8.256699781402387,
+        "prompt_per_second": 121.11376536330252,
+        "predicted_n": 51,
+        "predicted_ms": 3506.848,
+        "predicted_per_token_ms": 70.13696,
+        "predicted_per_second": 14.257817846681693
+      },
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 29735,
+        "total_tokens": 29786,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 245.54666257899953,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), which ships crate 583 (Evidence ID B-246), requiring storage at 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "omen-cpu16-b1024-30k",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 29735,
+        "prompt_ms": 158455.87900000002,
+        "prompt_per_token_ms": 5.328934891541954,
+        "prompt_per_second": 187.65476035130257,
+        "predicted_n": 51,
+        "predicted_ms": 3465.3940000000002,
+        "predicted_per_token_ms": 69.30788000000001,
+        "predicted_per_second": 14.428373801074278
+      },
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 29735,
+        "total_tokens": 29786,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 158.48965256599877,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), which ships crate 583 (Evidence ID B-246), requiring storage at 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "omen-cpu16-b1024-mtp-100k",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 99735,
+        "prompt_ms": 728213.3200000001,
+        "prompt_per_token_ms": 7.301482127638242,
+        "prompt_per_second": 136.95849452465384,
+        "predicted_n": 51,
+        "predicted_ms": 3078.947,
+        "predicted_per_token_ms": 61.57894,
+        "predicted_per_second": 16.239318182482517,
+        "draft_n": 43,
+        "draft_n_accepted": 35
+      },
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 99735,
+        "total_tokens": 99786,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 728.3094417190005,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), which ships crate 583 (Evidence ID B-246), requiring storage at 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "omen-cpu16-b1024-mtp-250k",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 249735,
+        "prompt_ms": 2163899.673,
+        "prompt_per_token_ms": 8.664783362364107,
+        "prompt_per_second": 115.4096944123897,
+        "predicted_n": 45,
+        "predicted_ms": 3675.966,
+        "predicted_per_token_ms": 83.54468181818181,
+        "predicted_per_second": 11.969642809536323,
+        "draft_n": 32,
+        "draft_n_accepted": 30
+      },
+      "usage": {
+        "completion_tokens": 45,
+        "prompt_tokens": 249735,
+        "total_tokens": 249780,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 2164.1222648050007,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (A-917), which ships crate 583 (B-246), requiring storage at 17 C (C-805)."
+    },
+    {
+      "label": "omen-cpu16-b1024-mtp-30k",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 29735,
+        "prompt_ms": 163486.574,
+        "prompt_per_token_ms": 5.498119186144274,
+        "prompt_per_second": 181.88037875208028,
+        "predicted_n": 51,
+        "predicted_ms": 1899.226,
+        "predicted_per_token_ms": 37.98452,
+        "predicted_per_second": 26.32651406415034,
+        "draft_n": 39,
+        "draft_n_accepted": 36
+      },
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 29735,
+        "total_tokens": 29786,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 163.52088098499917,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), which ships crate 583 (Evidence ID B-246), requiring storage at 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "omen-cpu16-b1024-mtp-short",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 248,
+        "prompt_ms": 4155.93,
+        "prompt_per_token_ms": 16.757782258064516,
+        "prompt_per_second": 59.67376736374289,
+        "predicted_n": 51,
+        "predicted_ms": 1621.4470000000001,
+        "predicted_per_token_ms": 32.428940000000004,
+        "predicted_per_second": 30.83665392701704,
+        "draft_n": 39,
+        "draft_n_accepted": 36
+      },
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 248,
+        "total_tokens": 299,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 4.15836898499947,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), which ships crate 583 (Evidence ID B-246), requiring storage at 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "omen-cpu22-30k",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 29735,
+        "prompt_ms": 260569.649,
+        "prompt_per_token_ms": 8.763062014461074,
+        "prompt_per_second": 114.11536268370227,
+        "predicted_n": 51,
+        "predicted_ms": 3545.5260000000003,
+        "predicted_per_token_ms": 70.91052,
+        "predicted_per_second": 14.102279887384833
+      },
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 29735,
+        "total_tokens": 29786,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 260.6033488610001,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), which ships crate 583 (Evidence ID B-246), requiring storage at 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "omen-cpu22-f16-30k",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 29735,
+        "prompt_ms": 278954.413,
+        "prompt_per_token_ms": 9.381349016310745,
+        "prompt_per_second": 106.59447785828719,
+        "predicted_n": 51,
+        "predicted_ms": 3655.756,
+        "predicted_per_token_ms": 73.11511999999999,
+        "predicted_per_second": 13.677061598202943
+      },
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 29735,
+        "total_tokens": 29786,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 278.98835136100024,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), which ships crate 583 (Evidence ID B-246), requiring storage at 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "omen-cpu22-f16-short",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 248,
+        "prompt_ms": 5469.3460000000005,
+        "prompt_per_token_ms": 22.053814516129034,
+        "prompt_per_second": 45.34362975024801,
+        "predicted_n": 51,
+        "predicted_ms": 2960.181,
+        "predicted_per_token_ms": 59.20362,
+        "predicted_per_second": 16.89085903868716
+      },
+      "usage": {
+        "completion_tokens": 51,
+        "prompt_tokens": 248,
+        "total_tokens": 299,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 5.471808043000237,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar (Evidence ID A-917), which ships crate 583 (Evidence ID B-246), requiring storage at 17 C (Evidence ID C-805)."
+    },
+    {
+      "label": "omen-cpu22-short",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 248,
+        "prompt_ms": 4653.7570000000005,
+        "prompt_per_token_ms": 18.76514919354839,
+        "prompt_per_second": 53.290277081506396,
+        "predicted_n": 53,
+        "predicted_ms": 3105.2380000000003,
+        "predicted_per_token_ms": 59.71611538461539,
+        "predicted_per_second": 16.74589838202418
+      },
+      "usage": {
+        "completion_tokens": 53,
+        "prompt_tokens": 248,
+        "total_tokens": 301,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "first_content_s": 4.656169267000223,
+      "finish_reason": "stop",
+      "answer": "For Project Nacre, the supplier is Cedar, which ships crate 583, requiring storage at 17 C. This chain is supported by evidence IDs A-917, B-246, and C-805."
+    }
+  ]
+}

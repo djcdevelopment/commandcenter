@@ -139,3 +139,8 @@ shape (`docs/adr#0045`, plan P6/P13, commit `26a1d66`):
 - Still true, still load-bearing: the bare `POST /api/models/unload` unloads **everything**,
   production included — the path form only; llama-swap stays on loopback (its admin endpoints are
   unauthenticated).
+
+
+## Addendum2026-10-17 — Linux Flash-Next transfer study
+
+The [new measured recipe](../rnd/flash-next-20261017/RESULT.md) releases most GPU-uploaded file mappings and retains a sparse table working set; host expert placement enables near-native occupied-context work in isolation. This updates the historical footprint conditions, not the co-residency verdict: no current-production co-residency arm was run. The original three seats were restored after the fenced lap. [ADR-0072](0072-flash-next-remains-an-isolated-research-recipe.md) records the experimental disposition and saved-state/restore distinction.

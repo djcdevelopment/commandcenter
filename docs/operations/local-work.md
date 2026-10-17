@@ -47,3 +47,7 @@ Run the local-work, execution, operator-history, guard, capability-surface, and
 gateway suites. Verify both live `/v1/models` surfaces through their authenticated
 facades, submit real candidates on each lane, and inspect the final manifests'
 provider, model, routing, token, artifact, receipt, and verdict fields.
+
+## Carry emit recovery research closeout
+
+[Opt-in carry emit recovery](carry-emit-recovery.md) documents the frozen manifest flag, canonical-result consumption, native known-task evidence and unchanged defaults. The selection-evidence study remains shadow-only; no regime selector was adopted.

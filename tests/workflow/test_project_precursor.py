@@ -415,7 +415,7 @@ class LateAdviceAndJoin(TempDirs):
         self.assertEqual({r["mode"] for r in rows}, {"shadow"}, "display records as shadow in this increment")
 
 
-class LiveRefreshTest(TestCase):
+class LiveRefreshTest(TempDirs):
     """A corpus row whose run also exists on disk takes the disk's verdict events and timestamps
     (owner's fix after the first real sweep read every row as stale)."""
 
@@ -451,3 +451,30 @@ class LiveRefreshTest(TestCase):
             self.assertEqual(row["first_final_at"], later)
             self.assertEqual(doc["refreshed_from_live"], 1)
             self.assertEqual(doc["evidence_watermark"], later)
+
+    def test_jepa_v3_hybrid_and_bm25_id_arms_and_pending_backfill(self):
+        pending = _make_work_dir(self.runs, "work_pend_jepa" + "0" * 18, "ct stats --json flag in ct/ct.py",
+                                 dispatched_at="2026-10-03T10:00:00Z")
+        pi.build_index(FIXTURE_CORPUS, self.runs, self.knowledge, research_dir=None, now=_ts("2026-10-03T12:00:00Z"))
+        c1 = pi.advise(self.runs, self.knowledge, mode="shadow", now=_ts("2026-10-03T12:00:00Z"))
+        self.assertEqual(c1["advised"], 1)
+        rows1 = json.loads((pending / pi.ADVICE_DIR / pi.ADVICE_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([r["arm"] for r in rows1], ["table", "bm25"])
+
+        # Now configure arms to include bm25_id and jepa_v3_hybrid
+        research = self.tmp / "research" / "results" / "2026-10-23"
+        research.mkdir(parents=True)
+        (research / "config.json").write_text(
+            json.dumps({"arms": ["table", "bm25", "bm25_id", "jepa_v3_hybrid"]}), encoding="utf-8"
+        )
+        pi.build_index(FIXTURE_CORPUS, self.runs, self.knowledge, research_dir=self.tmp / "research",
+                       now=_ts("2026-10-03T12:05:00Z"))
+        c2 = pi.advise(self.runs, self.knowledge, mode="shadow", now=_ts("2026-10-03T12:05:00Z"))
+        self.assertEqual(c2["advised"], 1)
+        rows2 = json.loads((pending / pi.ADVICE_DIR / pi.ADVICE_FILE).read_text(encoding="utf-8"))
+        self.assertEqual([r["arm"] for r in rows2], ["table", "bm25", "bm25_id", "jepa_v3_hybrid"])
+        self.assertTrue(all(r["state"] == "ok" for r in rows2))
+        # A subsequent sweep with no missing arms is a no-op
+        c3 = pi.advise(self.runs, self.knowledge, mode="shadow", now=_ts("2026-10-03T12:06:00Z"))
+        self.assertEqual(c3["advised"], 0)
+        self.assertEqual(c3["skipped_has_advice"], 1)

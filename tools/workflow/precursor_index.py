@@ -21,6 +21,7 @@ import os
 import re
 import time
 import traceback
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable, Optional
@@ -62,6 +63,13 @@ DEFAULT_CONFIG = {
 }
 
 _TOKEN = re.compile(r"[a-z0-9_]+")
+_IDENT_RE = re.compile(
+    r"\b(?:ADR-\d+|INC-[0-9A-Za-z\-]+|ANTIG-\d+|[a-zA-Z_][a-zA-Z0-9_]*_[a-zA-Z0-9_]+"
+    r"|[a-z0-9]+(?:[A-Z][a-z0-9]+)+|[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)+"
+    r"|[\w\-./]+\.(?:py|rs|ts|js|cs|md|json|yaml|yml|sh|sql))\b"
+)
+_BACKTICK_RE = re.compile(r"`([A-Za-z_][A-Za-z0-9_.\-:]*)`")
+JEPA_DAEMON_URL = os.environ.get("HEARTH_JEPA_DAEMON_URL", "http://127.0.0.1:18097")
 
 
 # --------------------------------------------------------------------------- small helpers
@@ -96,6 +104,26 @@ def canonical(doc) -> str:
 
 def tokenize(text: str) -> list[str]:
     return _TOKEN.findall((text or "").lower())
+
+
+def tokenize_id(text: str) -> list[str]:
+    """Identifier-aware BM25 tokenizer (BM25-ID): base word tokens plus boosted code/file identifiers."""
+    if not text:
+        return []
+    base = _TOKEN.findall(text.lower())
+    raw_ids = _IDENT_RE.findall(text) + _BACKTICK_RE.findall(text)
+    extra: list[str] = []
+    seen: set[str] = set()
+    for token in raw_ids:
+        low = token.lower().strip("._-/:`")
+        if len(low) >= 3 and low not in seen:
+            seen.add(low)
+            extra.append(f"id::{low}")
+            extra.append(f"id::{low}")
+            for part in re.split(r"[_\-./:]+", low):
+                if len(part) >= 3:
+                    extra.append(part)
+    return base + extra
 
 
 def atomic_write_json(path: Path, doc) -> None:
@@ -553,6 +581,99 @@ def arm_bm25(pool: list[dict], query_text: str, query_conditions: dict, config: 
             "neighbours": neighbours, "diagnostic": None}
 
 
+def arm_bm25_id(pool: list[dict], query_text: str, query_conditions: dict, config: dict, at: datetime) -> dict:
+    """Identifier-aware BM25 shadow arm (BM25-ID)."""
+    params = config.get("bm25") or {}
+    engine = BM25([tokenize_id(row_text(r)) for r in pool],
+                  k1=float(params.get("k1", 1.5)), b=float(params.get("b", 0.75)))
+    scores = engine.scores(tokenize_id(query_text))
+    k = int(config.get("k", 5))
+    order = sorted(range(len(pool)), key=lambda i: (-scores[i], pool[i]["run_id"]))[:k]
+    top = [pool[i] for i in order]
+    acc, n = _aggregate(top, query_conditions, config)
+    neighbours = [{"run_id": pool[i]["run_id"], "score": round(scores[i], 4),
+                   "decision_at_T": pool[i]["_label"],
+                   "bucket_at_T": next((ev.get("bucket") for ev in reversed(pool[i].get("verdict_events") or [])
+                                        if (parse_ts(ev.get("at")) or at) <= at), None)}
+                  for i in order]
+    return {"state": "ok", "p_accept": laplace(acc, n), "n_support": n, "n_accepted": acc,
+            "neighbours": neighbours, "diagnostic": None}
+
+
+def arm_jepa_v3_hybrid(pool: list[dict], query_info: dict, query_conditions: dict, config: dict, at: datetime) -> dict:
+    """Sovereign JEPA v3 Calibrated Hybrid Router shadow arm (:18097 + BM25-ID fallback)."""
+    params = config.get("bm25") or {}
+    q_text = row_text(query_info)
+    engine = BM25([tokenize_id(row_text(r)) for r in pool],
+                  k1=float(params.get("k1", 1.5)), b=float(params.get("b", 0.75)))
+    lex_scores = engine.scores(tokenize_id(q_text))
+    max_lex = max(lex_scores) if lex_scores else 0.0
+    lex_norm = [s / max_lex if max_lex > 1e-8 else 0.0 for s in lex_scores]
+
+    # Pre-select top-24 BM25-ID candidates for resident :18097 latent + regime scoring (<3ms)
+    shortlist_k = min(len(pool), 24)
+    shortlist_idx = sorted(range(len(pool)), key=lambda i: (-lex_scores[i], pool[i]["run_id"]))[:shortlist_k]
+
+    final_scores = list(lex_norm)
+    jepa_cal_by_idx: dict[int, float] = {}
+    tau_jump = "standard_lexical"
+    lam = 0.20
+
+    if shortlist_idx:
+        crit_list = [c for c in (query_info.get("criteria") or []) if isinstance(c, str)]
+        state_text = "\n".join(crit_list) if crit_list else f"[BACKEND: {query_conditions.get('backend')}] [FAMILY: {query_conditions.get('task_family')}]"
+        intent_text = (query_info.get("intent_text") or q_text).strip()
+        if state_text.strip() == intent_text.strip():
+            state_text = f"[TASK_CONTEXT] {state_text}"
+        cand_texts = [row_text(pool[i])[:900] for i in shortlist_idx]
+        cand_labels = [str(i) for i in shortlist_idx]
+        payload = {
+            "state": state_text[:1200],
+            "intent": intent_text[:600],
+            "role_id": 2,
+            "topo_id": 0,
+            "candidates": cand_texts,
+            "labels": cand_labels,
+        }
+        try:
+            req = urllib.request.Request(
+                f"{JEPA_DAEMON_URL}/rank_candidates",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "User-Agent": "hearth-precursor-shadow"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=0.12) as resp:
+                doc = json.loads(resp.read().decode("utf-8"))
+                regime = doc.get("regime") or {}
+                tau_jump = str(regime.get("tau_jump") or "standard_lexical")
+                lam = float(regime.get("lambda_jepa") or 0.20)
+                for r in doc.get("rankings") or []:
+                    lbl = r.get("label")
+                    if lbl is not None and str(lbl).isdigit():
+                        idx_val = int(lbl)
+                        jepa_cal_by_idx[idx_val] = float(r.get("cosine", r.get("raw_jepa_cosine", 0.0)))
+        except Exception:  # noqa: BLE001 -- resident daemon offline or timed out: deterministic BM25-ID fallback
+            jepa_cal_by_idx = {}
+
+    if jepa_cal_by_idx:
+        blend_w = 0.20 if tau_jump == "standard_lexical" else min(0.50, max(0.25, lam * 0.5))
+        for i in shortlist_idx:
+            j_sc = jepa_cal_by_idx.get(i, lex_norm[i])
+            final_scores[i] = (1.0 - blend_w) * lex_norm[i] + blend_w * j_sc
+
+    k = int(config.get("k", 5))
+    order = sorted(range(len(pool)), key=lambda i: (-final_scores[i], pool[i]["run_id"]))[:k]
+    top = [pool[i] for i in order]
+    acc, n = _aggregate(top, query_conditions, config)
+    neighbours = [{"run_id": pool[i]["run_id"], "score": round(final_scores[i], 4),
+                   "decision_at_T": pool[i]["_label"],
+                   "bucket_at_T": next((ev.get("bucket") for ev in reversed(pool[i].get("verdict_events") or [])
+                                        if (parse_ts(ev.get("at")) or at) <= at), None)}
+                  for i in order]
+    return {"state": "ok", "p_accept": laplace(acc, n), "n_support": n, "n_accepted": acc,
+            "neighbours": neighbours, "diagnostic": None}
+
+
 # --------------------------------------------------------------------------- advice
 
 def _request_id(run_id: str, arm: str, corpus_version: str, config_id: str) -> str:
@@ -634,6 +755,10 @@ def advise_run(info: dict, index: Optional[dict], index_diag: Optional[str], *, 
                 results[arm] = arm_table(pool, conditions, config)
             elif arm == "bm25":
                 results[arm] = arm_bm25(pool, row_text(info), conditions, config, at)
+            elif arm == "bm25_id":
+                results[arm] = arm_bm25_id(pool, row_text(info), conditions, config, at)
+            elif arm == "jepa_v3_hybrid":
+                results[arm] = arm_jepa_v3_hybrid(pool, info, conditions, config, at)
             else:
                 results[arm] = {"state": "unavailable", "diagnostic": f"arm not in this increment: {arm}"}
         elapsed = (time.perf_counter() - t0) * 1000
@@ -686,28 +811,50 @@ def advise(runs_root: Path, out_dir: Path, *, mode: str, now: Optional[datetime]
     finals = [i["first_final_at"] for i in infos if i.get("first_final_at")]
     stale_reason = stale_reason_for(index, max(finals) if finals else None, now) if index else None
 
+    configured_arms = list(((index or {}).get("config") or DEFAULT_CONFIG).get("arms") or ARMS)
     counts = {"swept": len(infos), "advised": 0, "skipped_has_advice": 0, "skipped_no_event": 0,
               "late": 0, "by_state": {}, "errors": errors, "stale": bool(stale_reason), "latency_ms": []}
     for info in infos:
+        target = Path(info["path"]) / ADVICE_DIR / ADVICE_FILE
+        existing_rows: list[dict] = []
         if info["has_advice"]:
-            counts["skipped_has_advice"] += 1
-            continue
+            if info.get("first_final_at") is not None:
+                counts["skipped_has_advice"] += 1
+                continue
+            try:
+                loaded = read_json(target)
+                if isinstance(loaded, list):
+                    existing_rows = [r for r in loaded if isinstance(r, dict)]
+            except Exception:  # noqa: BLE001
+                existing_rows = []
+            existing_arm_names = {r.get("arm") for r in existing_rows}
+            if all(a in existing_arm_names for a in configured_arms):
+                counts["skipped_has_advice"] += 1
+                continue
         if not (info.get("dispatched_at") or info.get("received_at")):
             counts["skipped_no_event"] += 1
             continue
         rows = advise_run(info, index, index_diag, mode=mode, now=now, stale_reason=stale_reason)
-        target = Path(info["path"]) / ADVICE_DIR / ADVICE_FILE
+        if existing_rows:
+            existing_arm_names = {r.get("arm") for r in existing_rows}
+            new_only = [r for r in rows if r.get("arm") not in existing_arm_names]
+            rows_to_write = existing_rows + new_only
+            rows_recorded = new_only
+        else:
+            rows_to_write = rows
+            rows_recorded = rows
         try:
-            atomic_write_json(target, rows)
+            atomic_write_json(target, rows_to_write)
         except Exception as exc:  # noqa: BLE001
             errors.append({"path": str(target), "error": f"{type(exc).__name__}: {str(exc)[:200]}"})
             continue
         counts["advised"] += 1
-        if any((r.get("diagnostic") or "").find(LATE_DIAGNOSTIC) >= 0 for r in rows):
+        if any((r.get("diagnostic") or "").find(LATE_DIAGNOSTIC) >= 0 for r in rows_recorded):
             counts["late"] += 1
-        for r in rows:
+        for r in rows_recorded:
             counts["by_state"][r["state"]] = counts["by_state"].get(r["state"], 0) + 1
-        counts["latency_ms"].append(max(r["latency_ms"] for r in rows))
+        if rows_recorded:
+            counts["latency_ms"].append(max(r["latency_ms"] for r in rows_recorded))
     lat = sorted(counts.pop("latency_ms"))
     counts["latency_ms_p50"] = lat[len(lat) // 2] if lat else None
     counts["latency_ms_p95"] = lat[min(len(lat) - 1, int(len(lat) * 0.95))] if lat else None
@@ -855,6 +1002,7 @@ def join(runs_root: Path, out_dir: Path, corpus_path: Path, *, now: Optional[dat
 
 
 __all__ = ["INDEX_SCHEMA", "ADVICE_SCHEMA", "ACCURACY_SCHEMA", "INDEX_FILE", "ACCURACY_FILE", "ADVICE_DIR",
-           "ADVICE_FILE", "LATE_DIAGNOSTIC", "DEFAULT_CONFIG", "BM25", "tokenize", "label_at", "eligible_rows",
-           "arm_table", "arm_bm25", "build_index", "load_index", "advise", "advise_run", "join", "read_work_dir",
-           "atomic_write_json", "config_id_of", "parse_ts", "iso_z", "traceback"]
+           "ADVICE_FILE", "LATE_DIAGNOSTIC", "DEFAULT_CONFIG", "BM25", "tokenize", "tokenize_id", "label_at",
+           "eligible_rows", "arm_table", "arm_bm25", "arm_bm25_id", "arm_jepa_v3_hybrid", "build_index", "load_index",
+           "advise", "advise_run", "join", "read_work_dir", "atomic_write_json", "config_id_of", "parse_ts", "iso_z",
+           "traceback"]

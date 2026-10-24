@@ -131,22 +131,27 @@ def verify_gate_v5() -> dict[str, Any]:
     # Test 10 quotes with 0042| line-number prefixes against sourcemap.locate()
     sm_loaded = sourcemap.build(str(REPO), head_commit, ["hearth/delivery/sourcemap.py"])
     sm_lines = sm_loaded.files[0].lines
-    test_line_indices = [12, 26, 48, 72, 95, 120, 160, 200, 250, 300]
+    candidate_indices = [
+        i + 1
+        for i in range(len(sm_lines) - 1)
+        if len(sm_lines[i].strip()) >= 32 and len(sm_lines[i + 1].strip()) >= 32
+    ]
+    step = max(1, len(candidate_indices) // 10)
+    test_line_indices = [candidate_indices[i * step] for i in range(10)]
     quote_checks = []
     resolved_count = 0
     for idx in test_line_indices:
-        if idx + 1 <= len(sm_lines):
-            q_single = f"{idx:04d}| {sm_lines[idx - 1]}\n{idx+1:04d}| {sm_lines[idx]}"
-            loc = sourcemap.locate(sm_loaded, q_single)
-            ok = bool(loc.resolved and loc.match == "normalized")
-            if ok:
-                resolved_count += 1
-            quote_checks.append({
-                "line": idx,
-                "match": loc.match,
-                "ref": loc.ref,
-                "resolved": ok,
-            })
+        q_single = f"{idx:04d}| {sm_lines[idx - 1]}\n{idx+1:04d}| {sm_lines[idx]}"
+        loc = sourcemap.locate(sm_loaded, q_single)
+        ok = bool(loc.resolved and loc.match == "normalized")
+        if ok:
+            resolved_count += 1
+        quote_checks.append({
+            "line": idx,
+            "match": loc.match,
+            "ref": loc.ref,
+            "resolved": ok,
+        })
 
     avg_reduction = round(sum(r["reduction_pct"] for r in slice_results) / len(slice_results), 1)
     v5_ok = (
@@ -283,8 +288,13 @@ def verify_gate_v6() -> dict[str, Any]:
                 base_commit=head_commit,
                 files=spec["files"],
                 artifact_kind="markdown",
+                target_path=None,
                 lane="deep",
                 task_family="code_review",
+                deadline_s=1800,
+                max_tokens=None,
+                receipt_id=None,
+                idempotency_key=None,
                 caller_id="claude-frontier-bolt74-qual",
                 brief=brief_obj,
                 procedure=spec["procedure"],
@@ -428,8 +438,13 @@ def verify_gate_v6() -> dict[str, Any]:
         base_commit=head_commit,
         files=qual_specs[0]["files"],
         artifact_kind="markdown",
+        target_path=None,
         lane="deep",
         task_family="code_review",
+        deadline_s=1800,
+        max_tokens=None,
+        receipt_id=None,
+        idempotency_key=None,
         caller_id="claude-frontier-bolt74-qual",
         brief=unpinned_brief,
         procedure=None,  # unpinned!

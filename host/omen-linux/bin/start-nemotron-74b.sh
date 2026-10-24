@@ -14,7 +14,7 @@ OMEN_BOLT_SPLIT="${OMEN_BOLT_SPLIT:-53,47}"
 OMEN_BOLT_BATCH="${OMEN_BOLT_BATCH:-4096}"
 OMEN_BOLT_UBATCH="${OMEN_BOLT_UBATCH:-2048}"
 
-args=(
+llama_args=(
   -m "$OMEN_BOLT_MODEL"
   --alias "$OMEN_BOLT_ALIAS"
   -ngl 999
@@ -28,7 +28,7 @@ args=(
   -ctk q8_0
   -ctv q8_0
   -fa on
-  -fit off
+  --fit off
   --jinja
   --no-warmup
   --reasoning-format deepseek
@@ -38,7 +38,7 @@ args=(
 )
 
 if [[ ${OMEN_DRY:-0} == 1 ]]; then
-  printf '%s\n' "$LLAMA_SERVER" "${args[@]}" "${extra_args[@]}"
+  printf '%s\n' "$LLAMA_SERVER" "${llama_args[@]}" "${extra_args[@]}"
   exit 0
 fi
 
@@ -85,7 +85,7 @@ fi
 
 api_token="${OMEN_ARC_TOKEN:-${VLLM_API_KEY:-}}"
 if [[ -n "$api_token" ]]; then
-  args+=(--api-key "$api_token")
+  llama_args+=(--api-key "$api_token")
 fi
 
-exec "$LLAMA_SERVER" "${args[@]}" "${extra_args[@]}"
+exec "$LLAMA_SERVER" "${llama_args[@]}" "${extra_args[@]}"

@@ -317,7 +317,7 @@ def verify_gate_v6() -> dict[str, Any]:
                 verdict_manifest = service.verdict(
                     work_id,
                     decision="accepted",
-                    criteria=[{"criterion": spec["substance"][0]["statement"], "met": True, "evidence": f"Verified in {work_id}"}],
+                    criteria=[{"criterion": spec["substance"][0]["statement"], "status": "passed", "evidence": f"Verified in {work_id}"}],
                     summary=f"Accepted {spec['name']} ({spec['procedure']}) during Gate V6 bolt74-am4 qualification.",
                     evidence=[f"work_id:{work_id}"],
                     receipt_id=None,
@@ -461,7 +461,7 @@ def verify_gate_v6() -> dict[str, Any]:
         service.verdict(
             unpinned_init["work_id"],
             decision="accepted",
-            criteria=[{"criterion": qual_specs[0]["substance"][0]["statement"], "met": True, "evidence": "Verified unpinned pool routing"}],
+            criteria=[{"criterion": qual_specs[0]["substance"][0]["statement"], "status": "passed", "evidence": "Verified unpinned pool routing"}],
             summary="Accepted unpinned pooled deep-lane verification brief on omen-nemotron-74b.",
             evidence=[f"work_id:{unpinned_init['work_id']}"],
             receipt_id=None,

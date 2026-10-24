@@ -255,7 +255,7 @@ def verify_gate_v6() -> dict[str, Any]:
             'profile = "omen-linux-local-work-v1"\n\n'
             '[lane.fast]\nbackend = "omen-vllm"\n\n'
             '[lane.deep]\nbackend = "omen-nemotron-74b"\n\n'
-            '[lane.tool]\nbackends = ["am4-tool-4070ti", "am4-tool-5070"]\n'
+            '[lane.tool]\nbackend = "am4-tool-4070ti"\n'
         )
         singleton_route_path = tf.name
 

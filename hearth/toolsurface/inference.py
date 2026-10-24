@@ -745,55 +745,77 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
                 "finish_reason": None, "tokens_reasoning": None,
                 "first_reasoning_ms": None, "first_content_ms": None, "stream_chunks": None}
 
-    started = time.monotonic()
-    if stream:
-        got = _post_stream(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers,
-                           should_stop=should_stop)
-        usage = got["usage"]
-        observed.update({
-            "reasoning": got["reasoning"], "finish_reason": got["finish_reason"],
-            "tokens_reasoning": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
-            "first_reasoning_ms": got["first_reasoning_ms"], "first_content_ms": got["first_content_ms"],
-            "stream_chunks": got["chunks"]})
-        if got.get("error_code") == "":
-            return _sent_temperature({"ok": False, "error": got["error"], "endpoint": target.endpoint,
-                                      "model": model, **observed}, temperature)
-        out = {"ok": True, "text": got["text"], "model": got["model"] or model,
-               "endpoint": target.endpoint, "tokens_in": usage.get("prompt_tokens"),
-               "tokens_out": usage.get("completion_tokens"), "duration_ms": got["duration_ms"],
-               **observed}
-        _sent_temperature(out, temperature)
-        if "error_code" in got:
-            out.update(ok=False, error_code=got["error_code"], error=f"{got['error_code']}: {got['error']}")
-            return out
-        text, finish_reason = got["text"], got["finish_reason"]
-        return _finish_openai(out, text, finish_reason, usage, response_schema, new_path)
-    body, error = _post(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers)
-    if error is not None:
-        return _sent_temperature({"ok": False, "error": error, "endpoint": target.endpoint, "model": model,
-                                  **observed}, temperature)
-    wall_ms = round((time.monotonic() - started) * 1000)
+    from hearth.adapters.openai_server import (
+        _SINGLE_FLIGHT_MAX_WAIT_S,
+        begin_single_flight_prefix,
+        end_single_flight_prefix,
+    )
+    prefix_key, is_leader, prefix_event = begin_single_flight_prefix(
+        endpoint=target.endpoint,
+        model=model,
+        messages=messages,
+        prompt=prompt,
+    )
+    if not is_leader and prefix_event is not None:
+        wait_budget = min(float(timeout_s), _SINGLE_FLIGHT_MAX_WAIT_S)
+        prefix_event.wait(timeout=max(0.1, wait_budget))
 
-    choices = body.get("choices") or [{}]
-    message = choices[0].get("message") or {}
-    text = message.get("content", "")
-    usage = body.get("usage") or {}
-    finish_reason = choices[0].get("finish_reason")
-    observed.update({"reasoning": message.get("reasoning") or message.get("reasoning_content") or "",
-                     "finish_reason": finish_reason,
-                     "tokens_reasoning": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")})
-    out = {
-        "ok": True,
-        "text": text,
-        "model": body.get("model", model),
-        "endpoint": target.endpoint,
-        "tokens_in": usage.get("prompt_tokens"),
-        "tokens_out": usage.get("completion_tokens"),
-        "duration_ms": wall_ms,
-        **observed,
-    }
-    _sent_temperature(out, temperature)
-    return _finish_openai(out, text, finish_reason, usage, response_schema, new_path)
+    prefix_populated = False
+    try:
+        started = time.monotonic()
+        if stream:
+            got = _post_stream(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers,
+                               should_stop=should_stop)
+            usage = got["usage"]
+            observed.update({
+                "reasoning": got["reasoning"], "finish_reason": got["finish_reason"],
+                "tokens_reasoning": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+                "first_reasoning_ms": got["first_reasoning_ms"], "first_content_ms": got["first_content_ms"],
+                "stream_chunks": got["chunks"]})
+            if got.get("error_code") == "":
+                return _sent_temperature({"ok": False, "error": got["error"], "endpoint": target.endpoint,
+                                          "model": model, **observed}, temperature)
+            prefix_populated = bool(got.get("chunks")) or "error_code" not in got
+            out = {"ok": True, "text": got["text"], "model": got["model"] or model,
+                   "endpoint": target.endpoint, "tokens_in": usage.get("prompt_tokens"),
+                   "tokens_out": usage.get("completion_tokens"), "duration_ms": got["duration_ms"],
+                   **observed}
+            _sent_temperature(out, temperature)
+            if "error_code" in got:
+                out.update(ok=False, error_code=got["error_code"], error=f"{got['error_code']}: {got['error']}")
+                return out
+            text, finish_reason = got["text"], got["finish_reason"]
+            return _finish_openai(out, text, finish_reason, usage, response_schema, new_path)
+        body, error = _post(f"{target.endpoint}/v1/chat/completions", payload, timeout_s, headers)
+        if error is not None:
+            return _sent_temperature({"ok": False, "error": error, "endpoint": target.endpoint, "model": model,
+                                      **observed}, temperature)
+        prefix_populated = True
+        wall_ms = round((time.monotonic() - started) * 1000)
+
+        choices = body.get("choices") or [{}]
+        message = choices[0].get("message") or {}
+        text = message.get("content", "")
+        usage = body.get("usage") or {}
+        finish_reason = choices[0].get("finish_reason")
+        observed.update({"reasoning": message.get("reasoning") or message.get("reasoning_content") or "",
+                         "finish_reason": finish_reason,
+                         "tokens_reasoning": (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")})
+        out = {
+            "ok": True,
+            "text": text,
+            "model": body.get("model", model),
+            "endpoint": target.endpoint,
+            "tokens_in": usage.get("prompt_tokens"),
+            "tokens_out": usage.get("completion_tokens"),
+            "duration_ms": wall_ms,
+            **observed,
+        }
+        _sent_temperature(out, temperature)
+        return _finish_openai(out, text, finish_reason, usage, response_schema, new_path)
+    finally:
+        if is_leader:
+            end_single_flight_prefix(prefix_key, prefix_event, ok=prefix_populated)
 
 
 def _finish_openai(out: dict, text, finish_reason, usage: dict, response_schema: Optional[dict],

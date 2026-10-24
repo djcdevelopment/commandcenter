@@ -26,9 +26,11 @@ reuses the exact Mamba-2 + KV state at the end of Turn 1 across parallel subtask
 from __future__ import annotations
 
 import concurrent.futures
+import hashlib
 import json
 import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -106,8 +108,15 @@ def split_shared_context_pack(prompt: str) -> Optional[tuple[str, str]]:
     # Shape 6 (checked first so source_pack contents containing marker literals do not false-match):
     # LocalWorkService non-delivery JSON request_doc prompts:
     #   template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True) [+ "\n\nREPAIR: ..."]
+    # Also handles already-reordered Shape 6 prompts:
+    #   template + "\n\nSHARED REPOSITORY CONTEXT\n...\n\nSOURCE PACK\n...\n\nREQUEST\n{...}"
     if "\n\nREQUEST\n{" in prompt:
         template_head, req_part = prompt.split("\n\nREQUEST\n", 1)
+        if "\n\nSHARED REPOSITORY CONTEXT\n" in template_head and "\n\nSOURCE PACK\n" in template_head:
+            shared_context_pack = template_head.strip()
+            task_instruction = f"REQUEST\n{req_part.strip()}"
+            if shared_context_pack and task_instruction:
+                return shared_context_pack, task_instruction
         repair_tail = ""
         req_json_str = req_part
         if "\n\nREPAIR:" in req_part:
@@ -205,7 +214,8 @@ def checkpoint_messages_list(
 ) -> tuple[list[dict[str, Any]], bool]:
     """Apply Turn-Boundary Mamba-2 State Checkpointing to an explicit ``messages`` list
     (such as ``LocalWorkService`` ``carry`` ``work``, ``check``, and ``attach`` stages)
-    when targeting a Hybrid Mamba-2 / ``llama-server`` seat.
+    when targeting a Hybrid Mamba-2 / ``llama-server`` seat, or reorder non-prefix shared
+    context packs to token 0 of the first ``user`` message for non-Mamba vLLM APC seats.
 
     If the first ``user`` message contains a splittable shared context pack and is not
     already followed by ``TURN_CHECKPOINT_ACK``, splits that ``user`` message into:
@@ -215,8 +225,9 @@ def checkpoint_messages_list(
     so ``work``, ``check``, and ``attach`` stages share the exact same Turn 1 Mamba-2
     checkpoint and ``check`` also reuses the ``work`` turn's KV prefix.
     """
-    if not messages or not is_mamba_hybrid_target(model_name=model_name, backend_id=backend_id):
+    if not messages:
         return messages, False
+    mamba = is_mamba_hybrid_target(model_name=model_name, backend_id=backend_id)
 
     out: list[dict[str, Any]] = []
     checkpointed = False
@@ -235,16 +246,24 @@ def checkpoint_messages_list(
             split = split_shared_context_pack(msg["content"])
             if split is not None:
                 shared_context_pack, task_instruction = split
-                out.extend([
-                    {"role": "user", "content": shared_context_pack},
-                    {"role": "assistant", "content": TURN_CHECKPOINT_ACK},
-                    {"role": "user", "content": task_instruction},
-                ])
+                if mamba:
+                    out.extend([
+                        {"role": "user", "content": shared_context_pack},
+                        {"role": "assistant", "content": TURN_CHECKPOINT_ACK},
+                        {"role": "user", "content": task_instruction},
+                    ])
+                else:
+                    reordered = (
+                        f"{shared_context_pack}\n\n{task_instruction}"
+                        if not msg["content"].lstrip().startswith(shared_context_pack)
+                        else msg["content"]
+                    )
+                    out.append({**msg, "content": reordered})
                 checkpointed = True
                 continue
         out.append(msg)
 
-    if checkpointed or len(out) >= 3:
+    if mamba and (checkpointed or len(out) >= 3):
         return out, True
     return out, False
 
@@ -257,7 +276,10 @@ def build_turn_checkpointed_messages(
     image_url: Optional[str] = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     """Build ``/v1/chat/completions`` messages, splitting shared context packs into a
-    2-turn checkpointed sequence when targeting a Hybrid Mamba-2 / ``llama-server`` seat.
+    2-turn checkpointed sequence when targeting a Hybrid Mamba-2 / ``llama-server`` seat,
+    and reordering non-prefix shared context packs (such as ``LocalWorkService`` JSON
+    ``request_doc`` or delivery ``SOURCE FILES`` prompts) to token 0 of the single user
+    message for non-Mamba vLLM Automatic Prefix Caching seats.
 
     Returns ``(messages, cache_prompt_enabled)``.
     """
@@ -265,16 +287,19 @@ def build_turn_checkpointed_messages(
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
 
-    if not image_url and is_mamba_hybrid_target(model_name=model_name, backend_id=backend_id):
+    if not image_url:
         split = split_shared_context_pack(prompt)
         if split is not None:
             shared_context_pack, task_instruction = split
-            messages.extend([
-                {"role": "user", "content": shared_context_pack},
-                {"role": "assistant", "content": TURN_CHECKPOINT_ACK},
-                {"role": "user", "content": task_instruction},
-            ])
-            return messages, True
+            if is_mamba_hybrid_target(model_name=model_name, backend_id=backend_id):
+                messages.extend([
+                    {"role": "user", "content": shared_context_pack},
+                    {"role": "assistant", "content": TURN_CHECKPOINT_ACK},
+                    {"role": "user", "content": task_instruction},
+                ])
+                return messages, True
+            if not prompt.lstrip().startswith(shared_context_pack):
+                prompt = f"{shared_context_pack}\n\n{task_instruction}"
 
     content: Any = (
         [
@@ -288,23 +313,171 @@ def build_turn_checkpointed_messages(
     return messages, False
 
 
-def _load_default_omen_token() -> Optional[str]:
-    """Load OMEN_ARC_TOKEN / VLLM_API_KEY from environment or ~/.config/omen-vllm/omen-api.env."""
-    for env_key in ("OMEN_ARC_TOKEN", "VLLM_API_KEY", "OPENAI_API_KEY"):
+_PREFIX_COALESCE_LOCK = threading.Lock()
+_WARMED_PREFIX_KEYS: dict[tuple[str, str, str], float] = {}
+_INFLIGHT_PREFIX_EVENTS: dict[tuple[str, str, str], threading.Event] = {}
+_WARMED_PREFIX_TTL_S = 1800.0
+_WARMED_PREFIX_MAX = 512
+_SINGLE_FLIGHT_MAX_WAIT_S = 90.0
+
+
+def reset_single_flight_prefix_cache() -> None:
+    """Clear in-process single-flight cold-prefix state (used by unit tests and benchmarks)."""
+    with _PREFIX_COALESCE_LOCK:
+        _WARMED_PREFIX_KEYS.clear()
+        for ev in _INFLIGHT_PREFIX_EVENTS.values():
+            ev.set()
+        _INFLIGHT_PREFIX_EVENTS.clear()
+
+
+def extract_shared_prefix(
+    messages: list[dict[str, Any]],
+    prompt: str = "",
+) -> Optional[str]:
+    """Return the canonical shared prefix string if ``messages`` or ``prompt``
+    contains a shared repository/architecture context pack; otherwise ``None``.
+    """
+    if not isinstance(messages, list) or not messages:
+        return None
+
+    for idx, msg in enumerate(messages):
+        if (
+            idx >= 1
+            and isinstance(msg, dict)
+            and msg.get("role") == "assistant"
+            and msg.get("content") == TURN_CHECKPOINT_ACK
+        ):
+            return json.dumps(messages[:idx], sort_keys=True, ensure_ascii=False)
+
+    system_parts: list[str] = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role")
+        content = msg.get("content")
+        if role == "system" and isinstance(content, str):
+            system_parts.append(content)
+        elif role == "user" and isinstance(content, str):
+            split = split_shared_context_pack(content)
+            if split is None and prompt:
+                split = split_shared_context_pack(prompt)
+            if split is not None:
+                shared_context_pack, _ = split
+                sys_prefix = "\n".join(system_parts)
+                return f"{sys_prefix}\n{shared_context_pack}" if sys_prefix else shared_context_pack
+            break
+
+    return None
+
+
+def begin_single_flight_prefix(
+    endpoint: str,
+    model: str,
+    messages: list[dict[str, Any]],
+    prompt: str = "",
+) -> tuple[Optional[tuple[str, str, str]], bool, Optional[threading.Event]]:
+    """Register or join a single-flight cold-prefix wave.
+
+    Returns ``(prefix_key, is_leader, event)``:
+    - If ``messages`` has no shared context pack or the prefix is already warm:
+      returns ``(None, False, None)``.
+    - If the prefix is cold and no request is currently in-flight for it:
+      marks ``prefix_key`` as in-flight with a new ``threading.Event`` and returns
+      ``(prefix_key, True, event)``. The caller MUST call ``end_single_flight_prefix``
+      in a ``finally:`` block.
+    - If the prefix is cold and a leader request is currently in-flight:
+      returns ``(prefix_key, False, event)`` so concurrent followers wait on ``event``
+      before dispatching their HTTP POSTs.
+    """
+    shared_prefix = extract_shared_prefix(messages, prompt=prompt)
+    if not shared_prefix:
+        return None, False, None
+
+    prefix_hash = hashlib.sha256(shared_prefix.encode("utf-8")).hexdigest()
+    prefix_key = (endpoint.rstrip("/"), model or "", prefix_hash)
+    now = time.monotonic()
+
+    with _PREFIX_COALESCE_LOCK:
+        warmed_at = _WARMED_PREFIX_KEYS.get(prefix_key)
+        if warmed_at is not None:
+            if (now - warmed_at) < _WARMED_PREFIX_TTL_S:
+                return None, False, None
+            _WARMED_PREFIX_KEYS.pop(prefix_key, None)
+
+        existing_event = _INFLIGHT_PREFIX_EVENTS.get(prefix_key)
+        if existing_event is not None:
+            return prefix_key, False, existing_event
+
+        event = threading.Event()
+        _INFLIGHT_PREFIX_EVENTS[prefix_key] = event
+        return prefix_key, True, event
+
+
+def end_single_flight_prefix(
+    prefix_key: Optional[tuple[str, str, str]],
+    event: Optional[threading.Event],
+    *,
+    ok: bool = True,
+) -> None:
+    """Complete a leader's single-flight cold-prefix wave and wake waiting followers."""
+    if prefix_key is None or event is None:
+        return
+    now = time.monotonic()
+    with _PREFIX_COALESCE_LOCK:
+        if ok:
+            if len(_WARMED_PREFIX_KEYS) >= _WARMED_PREFIX_MAX:
+                _WARMED_PREFIX_KEYS.pop(next(iter(_WARMED_PREFIX_KEYS)))
+            _WARMED_PREFIX_KEYS[prefix_key] = now
+        if _INFLIGHT_PREFIX_EVENTS.get(prefix_key) is event:
+            _INFLIGHT_PREFIX_EVENTS.pop(prefix_key, None)
+        event.set()
+
+
+_BACKENDS_ENV_FILE = Path("/home/derek/.config/omen-vllm/hearth-backends.env")
+
+
+def _load_default_omen_token(
+    auth_env: Optional[str] = None,
+    backend_id: Optional[str] = None,
+    endpoint: str = "",
+) -> Optional[str]:
+    """Load auth token from environment or ~/.config/omen-vllm/{hearth-backends,omen-api}.env."""
+    preferred_keys: list[str] = []
+    if auth_env and auth_env != "OMEN_ARC_TOKEN":
+        preferred_keys.append(auth_env)
+    elif backend_id and "am4" in backend_id.lower() or "10.44.0.2" in endpoint:
+        preferred_keys.append("AM4_VLLM_TOKEN")
+    for k in ("OMEN_ARC_TOKEN", "AM4_VLLM_TOKEN", "VLLM_API_KEY", "OPENAI_API_KEY"):
+        if k not in preferred_keys:
+            preferred_keys.append(k)
+
+    for env_key in preferred_keys:
         val = os.environ.get(env_key)
         if val:
             return val.strip()
-    if _DEFAULT_ENV_FILE.is_file():
+
+    env_files = (_BACKENDS_ENV_FILE, _DEFAULT_ENV_FILE)
+    parsed: dict[str, str] = {}
+    for env_file in env_files:
+        if not env_file.is_file():
+            continue
         try:
-            for raw in _DEFAULT_ENV_FILE.read_text(encoding="utf-8").splitlines():
+            for raw in env_file.read_text(encoding="utf-8").splitlines():
                 line = raw.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue
+                if line.startswith("export "):
+                    line = line[7:].strip()
                 k, v = line.split("=", 1)
-                if k.strip() in ("OMEN_ARC_TOKEN", "VLLM_API_KEY") and v.strip():
-                    return v.strip().strip('"').strip("'")
+                k_clean = k.strip()
+                v_clean = v.strip().strip('"').strip("'")
+                if k_clean and v_clean and k_clean not in parsed:
+                    parsed[k_clean] = v_clean
         except OSError:
             pass
+    for env_key in preferred_keys:
+        if env_key in parsed:
+            return parsed[env_key]
     return None
 
 
@@ -332,7 +505,11 @@ class OpenAIServerAdapter:
         elif auth_env and os.environ.get(auth_env):
             self.api_key = os.environ.get(auth_env)
         else:
-            self.api_key = _load_default_omen_token()
+            self.api_key = _load_default_omen_token(
+                auth_env=auth_env,
+                backend_id=backend_id,
+                endpoint=self.endpoint,
+            )
 
     def build_payload(
         self,
@@ -507,26 +684,53 @@ class OpenAIServerAdapter:
         url = f"{self.endpoint}/v1/chat/completions"
         headers = self._headers()
 
-        if stream:
-            return self._post_stream(
-                url=url,
-                payload=payload,
-                headers=headers,
-                timeout_s=resolved_timeout,
-                resolved_model=resolved_model,
-                resolved_backend=resolved_backend,
-                turn_checkpointed=turn_checkpointed,
-                should_stop=should_stop,
-            )
-        return self._post_json(
-            url=url,
-            payload=payload,
-            headers=headers,
-            timeout_s=resolved_timeout,
-            resolved_model=resolved_model,
-            resolved_backend=resolved_backend,
-            turn_checkpointed=turn_checkpointed,
+        prefix_key, is_leader, prefix_event = begin_single_flight_prefix(
+            endpoint=self.endpoint,
+            model=resolved_model,
+            messages=payload["messages"],
+            prompt=prompt,
         )
+        single_flight_wait_ms = 0.0
+        if not is_leader and prefix_event is not None:
+            t_wait0 = time.perf_counter()
+            wait_budget = min(float(resolved_timeout), _SINGLE_FLIGHT_MAX_WAIT_S)
+            prefix_event.wait(timeout=max(0.1, wait_budget))
+            single_flight_wait_ms = round((time.perf_counter() - t_wait0) * 1000.0, 2)
+
+        res: dict[str, Any] = {"ok": False}
+        try:
+            if stream:
+                res = self._post_stream(
+                    url=url,
+                    payload=payload,
+                    headers=headers,
+                    timeout_s=resolved_timeout,
+                    resolved_model=resolved_model,
+                    resolved_backend=resolved_backend,
+                    turn_checkpointed=turn_checkpointed,
+                    should_stop=should_stop,
+                )
+            else:
+                res = self._post_json(
+                    url=url,
+                    payload=payload,
+                    headers=headers,
+                    timeout_s=resolved_timeout,
+                    resolved_model=resolved_model,
+                    resolved_backend=resolved_backend,
+                    turn_checkpointed=turn_checkpointed,
+                )
+            if prefix_key is not None:
+                res["single_flight_role"] = "leader" if is_leader else "follower"
+                res["single_flight_wait_ms"] = single_flight_wait_ms
+            return res
+        finally:
+            if is_leader:
+                end_single_flight_prefix(
+                    prefix_key,
+                    prefix_event,
+                    ok=bool(res.get("ok")),
+                )
 
     def _post_json(
         self,

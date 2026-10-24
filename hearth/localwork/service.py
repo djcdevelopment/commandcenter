@@ -218,6 +218,11 @@ class LocalWorkService:
         temporary = target.with_suffix(".tmp")
         temporary.write_text(encoded, encoding="utf-8", newline="")
         os.replace(temporary, target)
+        path_str = str(target)
+        if manifest.get("status") in FINAL | {"awaiting_review"}:
+            self._terminal_manifest_mtimes[path_str] = 1
+        else:
+            self._terminal_manifest_mtimes.pop(path_str, None)
 
     def _event(self, manifest: Mapping[str, Any], event_type: str,
                payload: Mapping[str, Any], refs: Mapping[str, Any] | None = None) -> dict:
@@ -677,24 +682,35 @@ class LocalWorkService:
             raise LocalWorkError("idempotency retry cannot change the recorded procedure")
         names, pooled, backend_choice = self._candidates(route_sets, code_backends, selected_lane, delivery, existing)
         outstanding = {name: 0 for name in names}
-        for path in (self.root / "runs" / "operator").glob("work_*/work-manifest.json"):
-            path_str = str(path)
-            try:
-                mtime_ns = path.stat().st_mtime_ns
-                if self._terminal_manifest_mtimes.get(path_str) == mtime_ns:
-                    continue
-                recorded = json.loads(path.read_text(encoding="utf-8"))
-                if not isinstance(recorded, dict) or not isinstance(recorded.get("route", {}), dict):
-                    raise ValueError("manifest and route must be objects")
-            except (OSError, ValueError) as exc:
-                raise LocalWorkError(f"outstanding work manifest unreadable: {path.name} in {path.parent.name}: {exc}") from exc
-            status = recorded.get("status")
-            if status in FINAL | {"awaiting_review"}:
-                self._terminal_manifest_mtimes[path_str] = mtime_ns
-                continue
-            name = recorded.get("route", {}).get("provider")
-            if name in outstanding:
-                outstanding[name] += 1
+        op_dir = self.root / "runs" / "operator"
+        if op_dir.is_dir():
+            with os.scandir(op_dir) as entries:
+                for entry in entries:
+                    if not entry.name.startswith("work_"):
+                        continue
+                    path_str = os.path.join(entry.path, "work-manifest.json")
+                    if path_str in self._terminal_manifest_mtimes:
+                        continue
+                    path = Path(path_str)
+                    try:
+                        raw_manifest = path.read_text(encoding="utf-8")
+                    except FileNotFoundError:
+                        continue
+                    except OSError as exc:
+                        raise LocalWorkError(f"outstanding work manifest unreadable: {path.name} in {path.parent.name}: {exc}") from exc
+                    try:
+                        recorded = json.loads(raw_manifest)
+                        if not isinstance(recorded, dict) or not isinstance(recorded.get("route", {}), dict):
+                            raise ValueError("manifest and route must be objects")
+                    except (OSError, ValueError) as exc:
+                        raise LocalWorkError(f"outstanding work manifest unreadable: {path.name} in {path.parent.name}: {exc}") from exc
+                    status = recorded.get("status")
+                    if status in FINAL | {"awaiting_review"}:
+                        self._terminal_manifest_mtimes[path_str] = 1
+                        continue
+                    name = recorded.get("route", {}).get("provider")
+                    if name in outstanding:
+                        outstanding[name] += 1
         loads = {name: {"outstanding_assignments": outstanding[name],
                         "active_leases": self.execution.leases.active_count(f"provider:{name}"),
                         "configured_order": index} for index, name in enumerate(names)}
@@ -2228,22 +2244,24 @@ class LocalWorkService:
         count = 0
         if not base.is_dir():
             return 0
-        for target in base.glob("work_*/work-manifest.json"):
-            t_str = str(target)
-            try:
-                mtime_ns = target.stat().st_mtime_ns
-                if self._terminal_manifest_mtimes.get(t_str) == mtime_ns:
+        with os.scandir(base) as entries:
+            for entry in entries:
+                if not entry.name.startswith("work_"):
                     continue
-                manifest = json.loads(target.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            if manifest.get("status") in FINAL or manifest.get("status") == "awaiting_review":
-                self._terminal_manifest_mtimes[t_str] = mtime_ns
-                continue
-            reconciled = self.reconcile(str(manifest["work_id"]))
-            if reconciled.get("status") in {"queued", "running"} and reconciled.get("job_id"):
-                self._spawn_auto_reconcile(str(reconciled["work_id"]), str(reconciled["job_id"]))
-            count += 1
+                t_str = os.path.join(entry.path, "work-manifest.json")
+                if t_str in self._terminal_manifest_mtimes:
+                    continue
+                try:
+                    manifest = json.loads(Path(t_str).read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                if manifest.get("status") in FINAL or manifest.get("status") == "awaiting_review":
+                    self._terminal_manifest_mtimes[t_str] = 1
+                    continue
+                reconciled = self.reconcile(str(manifest["work_id"]))
+                if reconciled.get("status") in {"queued", "running"} and reconciled.get("job_id"):
+                    self._spawn_auto_reconcile(str(reconciled["work_id"]), str(reconciled["job_id"]))
+                count += 1
         return count
 
     def watch(self, work_id: str, after_sequence: int = 0, wait_seconds: float = 0) -> dict[str, Any]:

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import io
 import json
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -13,6 +16,7 @@ from hearth.adapters.openai_server import (
     build_turn_checkpointed_messages,
     checkpoint_messages_list,
     is_mamba_hybrid_target,
+    reset_single_flight_prefix_cache,
     split_shared_context_pack,
 )
 
@@ -321,6 +325,146 @@ class TestOpenAIServerTurnCheckpointing(unittest.TestCase):
         self.assertIn("SOURCE PACK\n--- FILE hearth/adapters/openai_server.py ---", msgs_1[0]["content"])
         self.assertIn("Audit Turn-1 cache key boundaries.", msgs_1[2]["content"])
         self.assertIn("REPAIR: The response below was rejected as malformed.", msgs_2[2]["content"])
+
+    def test_non_mamba_am4_vllm_request_doc_reorders_shared_context_prefix(self) -> None:
+        template = "You are a local work worker. Return local-work-candidate.v1 JSON."
+        shared_files = [{"path": "hearth/adapters/openai_server.py", "lines": 700, "sha256": "abc123"}]
+        shared_pack = "--- SOURCE hearth/adapters/openai_server.py @ deadbeef ---\n" + ("def f(x): return x + 1\n" * 400)
+        req_doc_1 = {
+            "intent": "Task A: Audit Turn-1 cache key boundaries.",
+            "acceptance_criteria": ["Criterion A1", "Criterion A2"],
+            "artifact_kind": "markdown",
+            "target_path": None,
+            "declared_paths": ["hearth/adapters/openai_server.py"],
+            "source_files": shared_files,
+            "source_pack": shared_pack,
+        }
+        req_doc_2 = {
+            "intent": "Task B: Propose a unified diff for APC prefix ordering.",
+            "acceptance_criteria": ["Criterion B1"],
+            "artifact_kind": "unified_diff",
+            "target_path": "hearth/adapters/openai_server.py",
+            "declared_paths": ["hearth/adapters/openai_server.py"],
+            "source_files": shared_files,
+            "source_pack": shared_pack,
+        }
+        prompt_1 = template + "\n\nREQUEST\n" + json.dumps(req_doc_1, sort_keys=True)
+        prompt_2 = template + "\n\nREQUEST\n" + json.dumps(req_doc_2, sort_keys=True)
+
+        msgs_1, cache_1 = build_turn_checkpointed_messages(
+            prompt_1, model_name="am4-dense-27b", backend_id="am4-vllm"
+        )
+        msgs_2, cache_2 = build_turn_checkpointed_messages(
+            prompt_2, model_name="am4-dense-27b", backend_id="am4-vllm"
+        )
+        self.assertFalse(cache_1)
+        self.assertFalse(cache_2)
+        self.assertEqual(len(msgs_1), 1)
+        self.assertEqual(len(msgs_2), 1)
+
+        c1 = msgs_1[0]["content"]
+        c2 = msgs_2[0]["content"]
+        expected_shared_prefix = split_shared_context_pack(prompt_1)[0]  # type: ignore[index]
+        self.assertTrue(c1.startswith(expected_shared_prefix + "\n\nREQUEST\n{"))
+        self.assertTrue(c2.startswith(expected_shared_prefix + "\n\nREQUEST\n{"))
+        # Both prompts share the exact same multi-kilobyte prefix from byte 0 up through the end of shared_pack!
+        self.assertEqual(c1[: len(expected_shared_prefix)], c2[: len(expected_shared_prefix)])
+        self.assertIn("Task A: Audit Turn-1 cache key boundaries.", c1[len(expected_shared_prefix) :])
+        self.assertIn("Task B: Propose a unified diff for APC prefix ordering.", c2[len(expected_shared_prefix) :])
+
+    def test_single_flight_cold_prefix_coalescing_waits_for_leader_then_runs_followers_in_parallel(self) -> None:
+        reset_single_flight_prefix_cache()
+        adapter = OpenAIServerAdapter(
+            endpoint="http://10.44.0.2:8090",
+            model="am4-dense-27b",
+            backend_id="am4-vllm",
+            api_key="test-token",
+        )
+        shared_pack = "=== BEGIN REPOSITORY SOURCE PACK ===\n" + ("x = 1\n" * 200) + "=== END REPOSITORY SOURCE PACK ==="
+        prompts = [f"{shared_pack}\nTask #{i}: summarize." for i in range(4)]
+
+        call_lock = threading.Lock()
+        active_count = 0
+        max_active_during_leader = 0
+        max_active_during_followers = 0
+        call_order: list[int] = []
+        leader_entered = threading.Event()
+        release_leader = threading.Event()
+        followers_all_active = threading.Event()
+
+        class _FakeHTTPResponse(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                self.close()
+
+        def fake_urlopen(req, timeout=None):
+            nonlocal active_count, max_active_during_leader, max_active_during_followers
+            with call_lock:
+                call_idx = len(call_order)
+                call_order.append(call_idx)
+                active_count += 1
+                if call_idx == 0:
+                    max_active_during_leader = max(max_active_during_leader, active_count)
+                    leader_entered.set()
+                else:
+                    max_active_during_followers = max(max_active_during_followers, active_count)
+                    if active_count >= 3:
+                        followers_all_active.set()
+
+            try:
+                if call_idx == 0:
+                    # Wait briefly to give followers time to arrive and block on the leader's Event
+                    release_leader.wait(timeout=2.0)
+                    with call_lock:
+                        max_active_during_leader = max(max_active_during_leader, active_count)
+                else:
+                    # Followers should all enter urlopen in parallel once the leader finishes
+                    followers_all_active.wait(timeout=2.0)
+                body = {
+                    "id": f"chatcmpl-{call_idx}",
+                    "model": "am4-dense-27b",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "stop",
+                            "message": {"role": "assistant", "content": f"done-{call_idx}"},
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 1000,
+                        "completion_tokens": 8,
+                        "prompt_tokens_details": {"cached_tokens": 0 if call_idx == 0 else 980},
+                    },
+                }
+                return _FakeHTTPResponse(json.dumps(body).encode("utf-8"))
+            finally:
+                with call_lock:
+                    active_count -= 1
+
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+                f0 = pool.submit(adapter.generate, prompts[0], max_tokens=16, temperature=0.0)
+                self.assertTrue(leader_entered.wait(timeout=2.0))
+                follower_futures = [
+                    pool.submit(adapter.generate, prompts[i], max_tokens=16, temperature=0.0)
+                    for i in range(1, 4)
+                ]
+                # Give followers 50ms to enter generate() and block on single-flight Event
+                time.sleep(0.05)
+                release_leader.set()
+                results = [f0.result(timeout=5.0)] + [f.result(timeout=5.0) for f in follower_futures]
+
+        self.assertTrue(all(r["ok"] for r in results))
+        # Leader ran completely alone (max_active_during_leader == 1) while followers waited!
+        self.assertEqual(max_active_during_leader, 1)
+        # Once leader completed, all 3 followers ran in parallel (max_active_during_followers == 3)!
+        self.assertEqual(max_active_during_followers, 3)
+        self.assertEqual(results[0].get("single_flight_role"), "leader")
+        for r in results[1:]:
+            self.assertEqual(r.get("single_flight_role"), "follower")
+            self.assertGreater(r.get("single_flight_wait_ms", 0.0), 0.0)
 
 
 if __name__ == "__main__":

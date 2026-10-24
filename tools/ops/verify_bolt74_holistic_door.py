@@ -320,6 +320,7 @@ def verify_gate_v6() -> dict[str, Any]:
                     criteria=[{"criterion": spec["substance"][0]["statement"], "met": True, "evidence": f"Verified in {work_id}"}],
                     summary=f"Accepted {spec['name']} ({spec['procedure']}) during Gate V6 bolt74-am4 qualification.",
                     evidence=[f"work_id:{work_id}"],
+                    receipt_id=None,
                     caller_id="claude-frontier-bolt74-qual",
                     attended=True,
                 )
@@ -463,6 +464,7 @@ def verify_gate_v6() -> dict[str, Any]:
             criteria=[{"criterion": qual_specs[0]["substance"][0]["statement"], "met": True, "evidence": "Verified unpinned pool routing"}],
             summary="Accepted unpinned pooled deep-lane verification brief on omen-nemotron-74b.",
             evidence=[f"work_id:{unpinned_init['work_id']}"],
+            receipt_id=None,
             caller_id="claude-frontier-bolt74-qual",
             attended=True,
         )

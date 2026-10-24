@@ -55,6 +55,9 @@ The candidate is never authoritative and is never applied by HEARTH.
    - `review_minutes_active=<n>` in the evidence text of one row: your ESTIMATE of active
      review minutes. The measured value is derived from the first artifact fetch to the
      verdict event; the estimate stays beside it for calibration, never in its place.
+6. In `dev` mode (`APPROVAL_AUTHORITY=frontier`), pass `apply=True` to `mcp__hearth__record_local_work_verdict`
+   or call `mcp__hearth__apply_local_work(work_id, target_root=...)` after acceptance to write the accepted
+   candidate to the repository worktree.
 
 Never apply, commit, merge, or count a candidate as successful before the
 frontier caller records an evidenced acceptance verdict.

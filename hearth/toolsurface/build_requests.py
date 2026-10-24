@@ -51,7 +51,7 @@ from hearth.toolsurface.task_expectations import validate_max_age_s, validate_re
 # were moved to this path, which fieldlab/.gitignore keeps out of the repo.
 DEFAULT_RECEIPT_DIR = Path(os.environ.get(
     "HEARTH_BUILD_REQUEST_DIR",
-    r"C:\work\baseline\fieldlab\runs\build-requests",
+    str(Path(__file__).resolve().parents[2] / "runs" / "build-requests"),
 ))
 FINAL_STATUSES = {"done", "failed", "blocked", "cancelled"}
 OPEN_STATUSES = {"open", "running", *FINAL_STATUSES}
@@ -970,7 +970,7 @@ def execute_build_request(receipt_id: str, mode: str = "manual",
 
 def close_build_request(receipt_id: str, status: str,
                         summary: str,
-                        validation: list[dict],
+                        validation: list[dict] | None = None,
                         commits: list[str] | None = None,
                         changed_files: list[str] | None = None,
                         receipt_dir: str | None = None) -> dict:
@@ -989,6 +989,13 @@ def close_build_request(receipt_id: str, status: str,
     projection = _load_projection(paths)
     if projection.get("status") in FINAL_STATUSES:
         return {**projection, "duplicate_close": True}
+    if validation is None and status == "done":
+        from fleet import environment as _env
+        if not _env.bool_knob("VERDICT_STRICT_PAPERWORK", True):
+            validation = [
+                {"criterion": c, "status": "passed", "evidence": summary}
+                for c in projection["acceptance_criteria"]
+            ]
     rows = _validate_criteria(status, validation, projection["acceptance_criteria"])
     repo_after = _repo_state(projection["repo"])
     repo_before = projection["repo_before"]

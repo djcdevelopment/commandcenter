@@ -166,6 +166,7 @@ TOOL_CAPABILITY: dict[str, str] = {
     "get_local_work": "execution",
     "get_local_work_artifact": "execution",
     "record_local_work_verdict": "execution",
+    "apply_local_work": "execution",
     # status: cheap gateway self-report
     "kernel_status": "status",
     # kernel_admin: the kernel change ceremony

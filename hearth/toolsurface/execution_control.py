@@ -8,12 +8,14 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
+from fleet import environment
 from hearth.execution import ExecutionService
 from hearth.execution.defaults import get_execution_service
 from hearth.observation.identity import DispatchIdentity, current_identity
 from hearth.toolsurface.backends import load_pool
 
 _DELEGATING_PROFILES = frozenset({"irc-adapter", "unrestricted"})
+_DEV_PRIVILEGED_PROFILES = frozenset({"unrestricted", "operator", "human-operator", "orchestrator"})
 
 
 def _get_service() -> ExecutionService:
@@ -37,6 +39,8 @@ def _direct_principal(identity: DispatchIdentity) -> dict[str, Any]:
 
 def _may_access(identity: DispatchIdentity, state: dict[str, Any]) -> bool:
     if identity.profile == "unrestricted":
+        return True
+    if environment.is_dev() and identity.profile in _DEV_PRIVILEGED_PROFILES:
         return True
     principal = state.get("principal") or {}
     if principal.get("type") == "hearth_caller" and principal.get("id") == identity.caller_id:
@@ -224,15 +228,15 @@ def _execution_summary(state: dict[str, Any]) -> dict[str, Any]:
 def list_my_executions(
     task_id: str | None = None, status: str | None = None,
     limit: int = 20, before_sequence: int | None = None,
+    all_callers: bool = False,
 ) -> dict[str, Any]:
-    """Newest executions owned by this authenticated caller, with an exclusive page cursor.
-
-    Even unrestricted callers see only their own direct principal here. This
-    does not acknowledge, cancel, or resolve work. Fetch artifacts by their IDs.
+    """Newest executions owned by this authenticated caller (or all callers when all_callers=True in dev/operator mode),
+    with an exclusive page cursor.
     """
     identity = _identity()
+    target_principal = None if (all_callers and (identity.profile in _DEV_PRIVILEGED_PROFILES or environment.is_dev())) else identity.caller_id
     page = _get_service().ledger.list_principal_jobs(
-        principal_type="hearth_caller", principal_id=identity.caller_id,
+        principal_type="hearth_caller", principal_id=target_principal,
         task_id=task_id, status=status, limit=limit, before_sequence=before_sequence,
     )
     return {"executions": [_execution_summary(state) for state in page["jobs"]],
@@ -244,7 +248,9 @@ def list_owned_executions(
 ) -> list[dict[str, Any]]:
     """List redacted canonical executions for one delegated principal."""
     identity = _identity()
-    if identity.profile not in _DELEGATING_PROFILES:
+    if identity.profile not in _DELEGATING_PROFILES and not (
+        environment.is_dev() and identity.profile in _DEV_PRIVILEGED_PROFILES
+    ):
         raise PermissionError(
             f"profile {identity.profile!r} may not delegate execution identity"
         )

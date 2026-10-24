@@ -114,13 +114,9 @@ and `am4-vllm`, balanced by `lane_code_backend`) at any size; otherwise
 evidence of 8,192 tokens or more goes to `deep` and less to `fast` (`omen-vllm`). The exact check is
 `input + output reserve <= context_tokens`, so on the deep lane input may reach 65,536 − reserve.
 Watch with `watch_local_work`, fetch with `get_local_work_artifact`, validate in an isolated worktree,
-then `record_local_work_verdict(accepted|rejected|superseded)` with evidence per criterion (each
-`criteria[].criterion` repeats a submitted acceptance criterion verbatim) and `bucket="form"|"setup"|"substance"`
-naming the miss (HEARTH method section 3). Never apply a candidate before the verdict.
-Verdict labels (live since 2026-10-16, ADR-0071 proposed): a `rejected` verdict without `bucket` is refused; pass `attended`
-(false only for an unattended Codex verdict, which may only reject and never its own candidate, ADR-0069) and `task_id`
-(this session's `cc-`/`cx-` id); criteria rows are `{criterion, status: passed|failed, evidence}`; put `review_minutes_active=<n>`
-in one evidence row as your estimate. Fetch the candidate through `get_local_work_artifact`, not from disk: that call is the
+then `record_local_work_verdict(accepted|rejected|superseded, apply=False, target_root=None)` or apply an accepted candidate with `apply_local_work(work_id, target_root=None)`.
+In `dev` mode (`APPROVAL_AUTHORITY=frontier`, `VERDICT_STRICT_PAPERWORK=0`), any frontier agent (`claude-frontier`, `codex-cli`, `handoff-claude`, `helm-gemini`) may accept, reject, supersede, and apply any local-model candidate (`criteria`, `evidence`, and `bucket` are auto-filled when omitted). In `prod` mode (`APPROVAL_AUTHORITY=human`, `VERDICT_STRICT_PAPERWORK=1`), verbatim `criteria` rows and `bucket="form"|"setup"|"substance"` are enforced. Never apply a candidate before the verdict.
+Fetch the candidate through `get_local_work_artifact`, not from disk: that call is the
 `artifact.fetched` event the measured review time starts from. When an accepted candidate is applied, commit with the trailer
 `Local-Work: work_<id>`. Two sidecars appear beside each run and are advisory only: `precursor/advice.json` (prior-run evidence,
 shadow, never displayed unless a later decision) and `labels.json` (every label with its method; `knowledge/labels.json` rolls up).
@@ -135,10 +131,8 @@ and reads a prompt at ~1,500 tok/s). Every size on this host is mapped and check
 `docs/sizing-map.md` (`python tools/ops/sizing_map.py --check`).
 
 **Codex:** unattended, use `codex exec -c approval_policy="never" -c sandbox_mode="workspace-write" "<prompt>" < /dev/null`
-(checked by `~/work/lab/tools/cli_doctor.py`; HEARTH read and dispatch tools run through per-tool approvals that
-`hearth_cli_policy.py` keeps in `~/.codex/config.toml`, and mutators are refused, not prompted). Do not use
-`--approve-for-me`: its automatic reviewer also approves HEARTH mutators (amux receipt
-CODEX-UNATTENDED-PROBE-20261014). Interactive Codex prompts only for escalations and mutators. Skills are installed under `~/.codex/skills/` from
+(checked by `~/work/lab/tools/cli_doctor.py`; all 45 HEARTH read, dispatch, verdict, apply, and build-request tools run through per-tool approvals that
+`hearth_cli_policy.py` keeps in `~/.codex/config.toml`). Skills are installed under `~/.codex/skills/` from
 `docs/agents/codex-skills/` (the tracked source).
 
 **Memory tie-in (continuity):** for substantial offloads open or reuse a `ct` work item
@@ -150,14 +144,10 @@ candidate manifest and HEARTH's `query_offload(task_id=...)` finds the spend, co
 wraps `submit_execution` / `get_execution` / `get_execution_artifact` with an idempotency key
 (`sha256(task_id + brief sha + family)`), keeps only the association in `streams/stats/handoffs.jsonl` (state is
 read from the door), survives a gateway restart and a session change (proved 2026-10-15), and the hook
-`~/.claude/hooks/hearth_handoffs.py` prints one line per prompt when a tracked job's state changed. It runs as the
-`dev-local` operator caller until the caller key is routed (I2.5), so jobs submitted through the MCP tools are not
-yet listed by it.
+`~/.claude/hooks/hearth_handoffs.py` prints one line per prompt when a tracked job's state changed.
 
-**Environment (ADR-0053):** `hearth-env show | set dev|prod --by WHO --reason WHY [--until ISO] | check`.
-Dev relaxes the night window, re-runs and the presence gate for daytime R&D; approvals, `pause.dispatch`,
-ai-mode, tenancy, admission and scope never change. Every receipt carries the environment and the night
-audit excludes dev. Code defaults are prod; a missing or expired file reads as prod.
+**Environment (ADR-0053, R&D default):** `hearth-env show | set dev|prod --by WHO --reason WHY [--until ISO] | check`.
+`dev` is the permanent default (`APPROVAL_AUTHORITY=frontier`): frontier agents (`claude-frontier`, `codex-cli`, `handoff-claude`, `helm-gemini`) vet, accept, reject, and apply local-model work directly without human-only ceremony, while GPU tenancy, thermal guards, context/KV overflow math, and secret path blocks remain strictly enforced. `hearth-env set prod` activates strict human-only gates (`APPROVAL_AUTHORITY=human`). Every receipt carries the environment and caller provenance.
 
 **Validation, reporting, recovery:**
 

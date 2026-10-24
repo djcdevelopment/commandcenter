@@ -596,11 +596,12 @@ class ExecutionLedger:
         return [copy.deepcopy(json.loads(row["state_json"])) for row in rows]
 
     def list_principal_jobs(
-        self, *, principal_type: str, principal_id: str, task_id: Optional[str] = None,
+        self, *, principal_type: Optional[str] = "hearth_caller", principal_id: Optional[str] = None,
+        task_id: Optional[str] = None,
         status: Optional[str] = None, limit: int = 20, before_sequence: Optional[int] = None,
         adapter: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Page newest requests for an exact principal, filtering before LIMIT.
+        """Page newest requests for an exact principal (or all principals when principal_id is None), filtering before LIMIT.
 
         The request event sequence is immutable: job updates cannot move records
         between pages. The cursor is exclusive; newly submitted jobs appear on
@@ -616,10 +617,14 @@ class ExecutionLedger:
             raise ValueError("unsupported execution status")
         if task_id is not None and (not isinstance(task_id, str) or not task_id.strip()):
             raise ValueError("task_id must be a non-empty string")
-        clauses = ["e.event_type IN ('request.accepted', 'request.rejected')",
-                   "json_extract(j.state_json, '$.principal.type') = ?",
-                   "json_extract(j.state_json, '$.principal.id') = ?"]
-        parameters: list[Any] = [principal_type, principal_id]
+        clauses = ["e.event_type IN ('request.accepted', 'request.rejected')"]
+        parameters: list[Any] = []
+        if principal_type is not None:
+            clauses.append("json_extract(j.state_json, '$.principal.type') = ?")
+            parameters.append(principal_type)
+        if principal_id is not None:
+            clauses.append("json_extract(j.state_json, '$.principal.id') = ?")
+            parameters.append(principal_id)
         for clause, value in (
             ("json_extract(j.state_json, '$.desired.arguments.task_id') = ?", task_id),
             ("j.status = ?", status),

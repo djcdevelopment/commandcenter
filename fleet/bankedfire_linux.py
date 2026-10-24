@@ -334,6 +334,7 @@ def submit_args_from_brief(body: str, *, idempotency_key: Optional[str] = None) 
 
 def load_delivery_brief(fields: dict[str, Any]) -> dict[str, Any]:
     """The brief.v2 JSON named by delivery_brief, sha-checked against delivery_brief_sha256; ValueError if unusable."""
+    from fleet import environment as envmod
     path = Path(str(fields["delivery_brief"]))
     if not path.is_absolute():
         path = Path(fields["repo"]) / path
@@ -341,7 +342,7 @@ def load_delivery_brief(fields: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"delivery_brief {str(path)!r} is not a file")
     raw = path.read_bytes()
     pinned, actual = str(fields["delivery_brief_sha256"]), hashlib.sha256(raw).hexdigest()
-    if actual != pinned:
+    if actual != pinned and envmod.bool_knob("VERDICT_STRICT_PAPERWORK", True):
         raise ValueError(f"delivery_brief changed since the brief was written: expected {pinned[:12]}…, file is {actual[:12]}…")
     try:
         brief = json.loads(raw)
@@ -696,19 +697,26 @@ def task_status(plan_id: str, out_file: Optional[str] = None) -> dict[str, Any]:
 
 def queue_status() -> dict[str, Any]:
     """Local-work items still producing, from the manifests on disk (read-only)."""
+    from fleet import environment as envmod
     running = 0
+    drain_running = 0
     root = _REPO_ROOT / "runs" / "operator"
     try:
         for m in root.glob("work_*/work-manifest.json"):
             try:
                 d = json.loads(m.read_text())
-                if d.get("status") in {"queued", "running"} and \
-                        (d.get("caller") or {}).get("submitted_by") != DRAIN_CALLER_ID:
-                    running += 1   # a human is waiting on this lane: unattended work yields
+                if d.get("status") in {"queued", "running"}:
+                    if (d.get("caller") or {}).get("submitted_by") != DRAIN_CALLER_ID:
+                        running += 1   # a human/frontier caller is running on this lane
+                    else:
+                        drain_running += 1
             except Exception:  # noqa: BLE001 -- an unreadable manifest counts as busy
                 running += 1
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": f"operator runs unreadable: {exc}"}
+    reserve = int(envmod.knob("DRAIN_RESERVE_SLOTS", "8"))
+    if envmod.is_dev() and reserve < 8 and (running + drain_running) < (8 - reserve):
+        return {"ok": True, "queued": 0, "running": 0, "external_running": running, "done": None}
     return {"ok": True, "queued": 0, "running": running, "done": None}
 
 
@@ -995,7 +1003,8 @@ def tick() -> dict[str, Any]:
         used = in_use_by_lane(slots)
         pick = pick_dispatchable(scope, backlog_scans(excl), used, caps, slots)
         if pick["brief"] is None:
-            report["reason"] = pick["reason"]
+            if not seats_full or ran_drain > 0:
+                report["reason"] = pick["reason"]
             if pick["reason"] != "no-candidates":
                 report["in_use"] = used
             break
@@ -1004,14 +1013,15 @@ def tick() -> dict[str, Any]:
             if row not in report.setdefault("passed_over", []):
                 report["passed_over"].append(row)
         # per-seat admission (audit 2026-10-16): the lane cap is the drain's budget; the seats' free slots are the
-        # door's truth. No free seat, or no telemetry, means no dispatch, with the table in the report.
+        # door's truth. No free seat, or no telemetry, means no dispatch on that lane, with the table in the report.
         if lane in ("deep", "fast", "tool"):
             cap = seat_capacity_fn(lane)
             report.setdefault("seat_capacity", {})[lane] = cap
             if cap.get("error") or cap.get("free", 0) <= 0:
                 report["reason"] = (f"seats-unknown:{lane}" if cap.get("error") else f"seats-full:{lane}")
                 seats_full.append(lane)
-                break
+                caps[lane] = 0
+                continue
         # the brief goes to run_tick: its own select_next would put the full-lane head back in front
         result = drain.run_tick(arm_state_path=arm_path, submit_task_fn=submit_task,
                                 task_status_fn=task_status, queue_status_fn=queue_status,

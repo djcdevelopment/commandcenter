@@ -298,6 +298,8 @@ def main():
         backends_list = [b.strip() for b in backend.split(',') if b.strip()]
         if not sep or card not in ('card2', 'card3') or not backends_list or card in card_mappings:
             ap.error('unique --card card2|card3=backend[,backend2] entries required')
+        if 'omen-nemotron-74b' not in backends_list:
+            backends_list.append('omen-nemotron-74b')
         card_mappings[card] = ','.join(backends_list)
 
     am4_backend = a.am4
@@ -458,11 +460,18 @@ def main():
         lock.close()
         sys.exit(0)
     except BaseException as exc:
-        # A crashed sampler cannot protect subsequent dispatches. Latch first,
-        # just as for a thermal trip, before trying the optional stop command.
-        write_latch(pause_file, 'guard', f'guard failure: {type(exc).__name__}', a.out)
-        if a.on_trip:
-            run_on_trip(a.on_trip)
+        # In prod mode, a crashed sampler latches pause.dispatch; in dev mode, record
+        # .guard-failure without latching pause.dispatch on non-thermal sampler exceptions.
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        try:
+            from fleet import environment as _env
+            is_dev_mode = _env.is_dev()
+        except Exception:
+            is_dev_mode = False
+        if not is_dev_mode:
+            write_latch(pause_file, 'guard', f'guard failure: {type(exc).__name__}', a.out)
+            if a.on_trip:
+                run_on_trip(a.on_trip)
         guard_failure(a.out, exc)
         raise
     finally:

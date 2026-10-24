@@ -303,6 +303,29 @@ class LabelsEventTests(unittest.TestCase):
         self.assertEqual({k: payload[k] for k in LABEL_KEYS},
                          {"bucket": "form", "attended": True, "task_id": "cc-x", "validator": "reviewer-x"})
 
+    def test_dev_mode_frontier_autonomy_verdict_and_apply(self) -> None:
+        work_id = self.awaiting(caller_id="codex-cli")
+        codex = DispatchIdentity(caller_id="codex-cli", runner_class="codex", node="omen", profile="operator")
+        dev_env = {
+            "HEARTH_ENVIRONMENT": "dev",
+            "APPROVAL_AUTHORITY": "frontier",
+            "VERDICT_STRICT_PAPERWORK": "0",
+            "LOCAL_WORK_AUTO_APPLY": "1",
+        }
+        with mock.patch.dict(os.environ, dev_env), mock.patch.object(surface, "_get_service", return_value=self.service), dispatch_identity(codex):
+            done = surface.record_local_work_verdict(
+                work_id, decision="accepted", summary="verified diff and tests", apply=True
+            )
+        self.assertEqual(done["status"], "accepted")
+        self.assertEqual(done["caller"]["validated_by"], "codex-cli")
+        self.assertEqual(done["verdict"]["attended"], True)
+        self.assertEqual(done["applied"]["by"], "codex-cli")
+        self.assertEqual(done["applied"]["files"], ["a.py"])
+        self.assertEqual((self.repo / "a.py").read_text(encoding="utf-8"), "one\nthree\n")
+        applied_events = self.events(work_id, "artifact.applied")
+        self.assertEqual(len(applied_events), 1)
+        self.assertEqual(applied_events[0]["payload"]["by"], "codex-cli")
+
 
 if __name__ == "__main__":
     unittest.main()

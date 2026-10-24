@@ -159,7 +159,7 @@ class LaneSlotsTests(unittest.TestCase):
     def test_caps_parse_and_default(self) -> None:
         with mock.patch.dict("os.environ", {"BANKEDFIRE_SLOTS": "fast=2,deep=1,experiment=0,junk"}):
             self.assertEqual(lane.lane_slots(), {"fast": 2, "deep": 1, "experiment": 0})
-        with mock.patch.dict("os.environ", {}, clear=False):
+        with mock.patch.dict("os.environ", {"HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment"}, clear=False):
             import os; os.environ.pop("BANKEDFIRE_SLOTS", None)
             self.assertEqual(lane.lane_slots(), {"fast": 3, "deep": 1, "experiment": 1, "deepagents": 1, "tool": 2})
 
@@ -199,7 +199,8 @@ class HumanWaitsTests(unittest.TestCase):
                 d = root / wid; d.mkdir(parents=True)
                 (d / "work-manifest.json").write_text(json.dumps({"work_id": wid, "status": st, "caller": {"submitted_by": who},
                                                                    "route": {"selected_lane": "fast"}}))
-            with mock.patch.object(lane, "_REPO_ROOT", Path(tmp)):
+            with mock.patch.object(lane, "_REPO_ROOT", Path(tmp)), \
+                 mock.patch.dict("os.environ", {"HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment"}):
                 self.assertEqual(lane.queue_status()["running"], 1)
                 self.assertEqual(lane.in_use_by_lane([]), {"fast": 1})
 
@@ -223,7 +224,7 @@ class DeepAgentsLaneTests(unittest.TestCase):
         with mock.patch("fleet.deepagents_linux.status", return_value={"phase": "done", "outcome": "succeeded"}):
             s = lane.task_status("da_r1")
             self.assertEqual((s["done"], s["result"]["ok"], s["result"]["winner"]), (True, True, "deepagents:r1"))
-        with mock.patch.dict("os.environ", {}, clear=False):
+        with mock.patch.dict("os.environ", {"HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment"}, clear=False):
             import os; os.environ.pop("BANKEDFIRE_SLOTS", None)
             self.assertEqual(lane.lane_slots().get("deepagents"), 1)
 
@@ -546,7 +547,10 @@ class GitRepoCase(unittest.TestCase):
         self.brief_file = self.tmp / "report.brief.v2.json"
         self.brief_file.write_bytes(json.dumps(DELIVERY_BRIEF, indent=1).encode())
         self.sha = hashlib.sha256(self.brief_file.read_bytes()).hexdigest()
-        envp = mock.patch.dict("os.environ", {"HEARTH_ROOT": str(self.tmp / "hearth-root")})
+        envp = mock.patch.dict("os.environ", {
+            "HEARTH_ROOT": str(self.tmp / "hearth-root"),
+            "HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment",
+        })
         envp.start()
         self.addCleanup(envp.stop)
 
@@ -591,10 +595,11 @@ class DeliveryBriefTests(GitRepoCase):
         """rehearsal queue files pin the JSON's bytes (delivery_brief_sha256); a file that no longer matches must not be
         submitted, and the drain's hook must report it without calling the door."""
         self.brief_file.write_bytes(self.brief_file.read_bytes() + b"\n")
-        with self.assertRaisesRegex(ValueError, "changed since the brief was written"):
-            lane.submit_args_from_brief(self.delivery_body())
-        with mock.patch.object(lane, "call_tool") as door:
-            result = lane.submit_task(prompt=self.delivery_body(), plan_id_hint="slug")
+        with mock.patch.dict("os.environ", {"HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment"}):
+            with self.assertRaisesRegex(ValueError, "changed since the brief was written"):
+                lane.submit_args_from_brief(self.delivery_body())
+            with mock.patch.object(lane, "call_tool") as door:
+                result = lane.submit_task(prompt=self.delivery_body(), plan_id_hint="slug")
         self.assertFalse(result["ok"])
         self.assertIn("changed since", result["error"])
         door.assert_not_called()
@@ -810,7 +815,8 @@ class OccupancyOwnerSplitTests(unittest.TestCase):
     AWAY = {"away": True, "mode": "deep-research", "present_reasons": []}
 
     def _probe(self, jobs):
-        with mock.patch.object(occ, "_tenancy_fence", return_value=None), \
+        with mock.patch.dict("os.environ", {"HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment"}), \
+             mock.patch.object(occ, "_tenancy_fence", return_value=None), \
              mock.patch.object(occ, "_fetch_vllm_metrics", return_value=(self.GAUGES, None)), \
              mock.patch.object(occ, "_hearth_active_jobs_by_owner", return_value=(jobs, None)), \
              mock.patch("fleet.presence_linux.report", return_value=dict(self.AWAY)):

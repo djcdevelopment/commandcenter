@@ -499,13 +499,23 @@ def probe_omen_vllm() -> dict:
     # Audit 2026-10-16 (C9): "busy" means an EXTERNAL tenant is on the seats or the operator is present. The drain's
     # own running jobs are not a tenant; they are capacity, admitted per seat by the drain (bankedfire_linux.seat_capacity).
     # Every signal that fires is named, so a ledgered tick says why it yielded.
+    from fleet import environment as _env
+    reserve = int(_env.knob("DRAIN_RESERVE_SLOTS", "8"))
+    multi_slot_dev = _env.is_dev() and _is_bolt74_profile() and reserve < 8
+    max_active = max(0, 8 - reserve) if multi_slot_dev else 0
     signals = []
     if waiting > 0:
         signals.append("seat_waiting=%d" % int(waiting))
-    if counts["external"] > 0:
-        signals.append("external_jobs=%d" % counts["external"])
-    if running > counts["drain"]:
-        signals.append("running=%d>drain_jobs=%d" % (int(running), counts["drain"]))
+    if multi_slot_dev:
+        if (counts["external"] + counts["drain"]) >= max_active and counts["external"] > 0:
+            signals.append("external_jobs=%d" % counts["external"])
+        if running >= max_active and running > counts["drain"]:
+            signals.append("running=%d>drain_jobs=%d" % (int(running), counts["drain"]))
+    else:
+        if counts["external"] > 0:
+            signals.append("external_jobs=%d" % counts["external"])
+        if running > counts["drain"]:
+            signals.append("running=%d>drain_jobs=%d" % (int(running), counts["drain"]))
     if not presence.get("away"):
         signals.append("presence:" + ",".join(presence.get("present_reasons") or ["present"]))
     detail["busy_signals"] = signals

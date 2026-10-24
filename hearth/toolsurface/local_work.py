@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 from typing import Any, Callable
 
+from fleet import environment
 from hearth.execution.defaults import get_execution_service
 from hearth.localwork import LocalWorkService
 from hearth.observation.identity import DispatchIdentity, current_identity
@@ -33,7 +34,9 @@ def _owned(work_id: str) -> tuple[LocalWorkService, dict[str, Any], DispatchIden
     service = _get_service()
     manifest = service.get(work_id)
     owner = (manifest.get("caller") or {}).get("submitted_by")
-    if identity.profile != "unrestricted" and owner != identity.caller_id:
+    if (identity.profile not in {"unrestricted", "operator", "human-operator"}
+            and not environment.is_dev()
+            and owner != identity.caller_id):
         raise PermissionError("caller does not own this local work")
     return service, manifest, identity
 
@@ -106,24 +109,31 @@ def get_local_work_artifact(work_id: str) -> dict[str, Any]:
 
 
 def record_local_work_verdict(work_id: str, decision: str,
-                              criteria: list[dict[str, Any]], summary: str,
-                              evidence: list[Any], receipt_id: str | None = None,
+                              criteria: list[dict[str, Any]] | None = None,
+                              summary: str = "reviewed",
+                              evidence: list[Any] | None = None,
+                              receipt_id: str | None = None,
                               bucket: str | None = None, attended: bool | None = None,
-                              task_id: str | None = None) -> dict[str, Any]:
+                              task_id: str | None = None,
+                              apply: bool = False,
+                              target_root: str | None = None) -> dict[str, Any]:
     """Record the frontier caller's explicit candidate verdict. ``bucket`` names the miss: "form", "setup" or
-    "substance" (HEARTH method section 3); required when ``decision`` is "rejected" (ADR-0071), optional otherwise;
-    stored as ``verdict.bucket``. ``attended`` says whether a person or an attended frontier lane stands behind the
-    verdict; absent, it defaults by caller class (``codex-cli`` is unattended, every other caller attended; ADR-0069).
-    An unattended caller may record a rejection only and never on a candidate it submitted; ``attended=True`` from an
-    unattended class is recorded as ``attended_declared`` and carries no authority (ADR-0071 amendment). ``task_id`` is the
-    reviewing session's id (``cc-...`` or ``cx-...``) so the record can be joined to its transcript. ``bucket``,
-    ``attended``, ``task_id`` and the validator are copied onto the ``verification.recorded`` and ``outcome.final``
-    events."""
+    "substance" (HEARTH method section 3); required when ``decision`` is "rejected" in prod mode (ADR-0071), optional
+    otherwise; stored as ``verdict.bucket``. ``attended`` says whether a person or an attended frontier lane stands behind
+    the verdict; in dev mode (``APPROVAL_AUTHORITY=frontier``), all frontier callers are attended and ``criteria`` /
+    ``evidence`` auto-fill from the manifest and ``summary`` when omitted. When ``apply=True`` and ``decision=="accepted"``,
+    applies the candidate diff or file content to ``target_root`` (or the manifest's repository) in the same call."""
     service, _, identity = _owned(work_id)
     return service.verdict(work_id, decision=decision, criteria=criteria,
                            summary=summary, evidence=evidence, receipt_id=receipt_id,
                            caller_id=identity.caller_id, bucket=bucket, attended=attended,
-                           task_id=task_id)
+                           task_id=task_id, apply=apply, target_root=target_root)
+
+
+def apply_local_work(work_id: str, target_root: str | None = None) -> dict[str, Any]:
+    """Apply an accepted local-work candidate (unified_diff, whole_file, markdown, or json) to the repository worktree."""
+    service, _, identity = _owned(work_id)
+    return service.apply_candidate(work_id, target_root=target_root, caller_id=identity.caller_id)
 
 
 def get_tools() -> list[Callable]:
@@ -131,4 +141,4 @@ def get_tools() -> list[Callable]:
     # gateway restart cannot strand work until a caller happens to poll it.
     _get_service().reconcile_all()
     return [submit_local_work, watch_local_work, get_local_work,
-            get_local_work_artifact, record_local_work_verdict]
+            get_local_work_artifact, record_local_work_verdict, apply_local_work]

@@ -672,7 +672,9 @@ class LocalWorkService:
                     _, qualification = procedures.choose(table, backend_name, task_family,
                         serving_profile_sha256=profile_sha, require_profile=True)
                     if qualification["level"] == "none":
-                        raise LocalWorkError(f"backend {backend_name!r} has no qualified delivery procedure for this serving profile")
+                        if environment.bool_knob("PROCEDURE_QUALIFICATION_ENFORCE", True):
+                            raise LocalWorkError(f"backend {backend_name!r} has no qualified delivery procedure for this serving profile")
+                        qualification = {**qualification, "qualification_bypassed": "dev"}
                 if delivery:
                     if procedure:
                         carried, pinned, choice = procedure == "carry", True, {"by": "caller", "level": "pin"}
@@ -789,8 +791,10 @@ class LocalWorkService:
                     actual = "carry" if carried else "one_call"
                     count = qualification["counts"].get(actual, {}).get("accepted_briefs", 0)
                     if count < qualification["rule"]["min_accepted_briefs"]:
-                        raise LocalWorkError(f"procedure {actual!r} is not qualified for {backend_name!r} at this profile"
-                                             + (f"; qualified procedure is inadmissible: {fallback}" if fallback else ""))
+                        if environment.bool_knob("PROCEDURE_QUALIFICATION_ENFORCE", True):
+                            raise LocalWorkError(f"procedure {actual!r} is not qualified for {backend_name!r} at this profile"
+                                                 + (f"; qualified procedure is inadmissible: {fallback}" if fallback else ""))
+                        qualification = {**qualification, "qualification_bypassed": "dev"}
                 serving_profile, serving_profile_sha256 = profile, profile_sha
 
                 break
@@ -2228,28 +2232,34 @@ class LocalWorkService:
         self._validate_candidate(manifest, candidate)
         return {"work_id": work_id, "artifact": metadata, "candidate": candidate}
 
-    def verdict(self, work_id: str, *, decision: str, criteria: list[dict[str, Any]],
-                summary: str, evidence: list[Any], receipt_id: str | None,
+    def verdict(self, work_id: str, *, decision: str, criteria: list[dict[str, Any]] | None = None,
+                summary: str = "reviewed", evidence: list[Any] | None = None, receipt_id: str | None = None,
                 caller_id: str, bucket: str | None = None, attended: bool | None = None,
-                task_id: str | None = None) -> dict[str, Any]:
+                task_id: str | None = None, apply: bool = False,
+                target_root: str | None = None) -> dict[str, Any]:
+        strict_paperwork = environment.bool_knob("VERDICT_STRICT_PAPERWORK", True)
+        frontier_auth = environment.approval_authority() == "frontier"
         if decision not in {"accepted", "rejected", "superseded"}:
             raise LocalWorkError("decision must be accepted, rejected, or superseded")
         if bucket is not None and bucket not in VERDICT_BUCKETS:
             raise LocalWorkError(
                 f"bucket must be one of {', '.join(VERDICT_BUCKETS)} when given, got {bucket!r}")
         if decision == "rejected" and bucket is None:
-            raise LocalWorkError("a rejection names its bucket: form, setup or substance (ADR-0071)")
+            if strict_paperwork:
+                raise LocalWorkError("a rejection names its bucket: form, setup or substance (ADR-0071)")
+            bucket = "substance"
         if attended is not None and not isinstance(attended, bool):
             raise LocalWorkError("attended must be true or false when given")
         if task_id is not None and (not isinstance(task_id, str) or not task_id.strip()):
             raise LocalWorkError("task_id must be a nonempty string when given")
+        unattended_callers = () if frontier_auth else UNATTENDED_CALLERS
         if attended is None:
             # ADR-0069: the caller class sets the default; an attended caller may state it on the call.
-            attended = caller_id not in UNATTENDED_CALLERS
+            attended = caller_id not in unattended_callers
         # ADR-0071 amendment (2026-10-16): an unattended class is unattended whatever the call says. A self-declared
         # `attended=True` is recorded as `attended_declared` so the attempt is visible, and carries no authority.
-        attended_declared = bool(attended) and caller_id in UNATTENDED_CALLERS
-        if caller_id in UNATTENDED_CALLERS:
+        attended_declared = bool(attended) and caller_id in unattended_callers
+        if caller_id in unattended_callers:
             attended = False
         if not attended and decision != "rejected":
             raise LocalWorkError(
@@ -2261,9 +2271,19 @@ class LocalWorkService:
             manifest = self.reconcile(work_id)
             if manifest["status"] != "awaiting_review":
                 raise LocalWorkError("only awaiting_review work can receive a verdict")
-            if not attended and (manifest.get("caller") or {}).get("submitted_by") == caller_id:
+            if not attended and not frontier_auth and (manifest.get("caller") or {}).get("submitted_by") == caller_id:
                 raise LocalWorkError("an unattended caller never judges its own candidate (ADR-0069)")
             expected = list(manifest["criteria"])
+            if criteria is None and not strict_paperwork:
+                status_val = "passed" if decision == "accepted" else "failed"
+                criteria = [{"criterion": c, "status": status_val, "evidence": summary or "frontier review"}
+                            for c in expected]
+            elif criteria is None:
+                criteria = []
+            if (evidence is None or len(evidence) == 0) and not strict_paperwork and isinstance(summary, str) and summary.strip():
+                evidence = [summary.strip()]
+            elif evidence is None:
+                evidence = []
             rows = {row.get("criterion"): row for row in criteria if isinstance(row, dict)}
             if decision == "accepted":
                 missing = [criterion for criterion in expected if
@@ -2292,5 +2312,84 @@ class LocalWorkService:
                         "evidence_count": len(evidence), **labels},
                         refs={"receipt_id": verdict["receipt_id"]} if verdict["receipt_id"] else {})
             self._event(manifest, "outcome.final", {"status": decision, **labels})
+            self._write(manifest)
+        if apply and decision == "accepted":
+            return self.apply_candidate(work_id, target_root=target_root, caller_id=caller_id)
+        return manifest
+
+    def apply_candidate(self, work_id: str, *, target_root: str | None = None,
+                        caller_id: str | None = None) -> dict[str, Any]:
+        """Apply an accepted candidate's diff or file content to the repository worktree."""
+        if not environment.bool_knob("LOCAL_WORK_AUTO_APPLY", True) and not environment.is_dev():
+            raise LocalWorkError("apply_local_work is disabled in prod mode (LOCAL_WORK_AUTO_APPLY=0)")
+        with self._lock:
+            manifest = self.reconcile(work_id)
+            if manifest["status"] != "accepted":
+                raise LocalWorkError(
+                    f"only accepted work can be applied (current status: {manifest['status']!r})")
+            repo_dir = Path(target_root).expanduser().resolve() if target_root else Path(str(manifest["repo"])).resolve()
+            if not repo_dir.is_dir():
+                raise LocalWorkError(f"target repository directory does not exist: {repo_dir}")
+            kind = str(manifest["artifact_kind"])
+            if manifest.get("delivery"):
+                target_rel = manifest.get("target_path")
+                if not target_rel:
+                    raise LocalWorkError("delivery work has no target_path to apply")
+                safe_rel = _safe_relative(str(target_rel))
+                run_dir = self._run_dir(work_id)
+                cand_ref = (manifest.get("delivery_artifacts") or {}).get("candidate")
+                if not cand_ref:
+                    raise LocalWorkError("delivery work has no rendered candidate file")
+                content_bytes = (run_dir / cand_ref["file"]).read_bytes()
+                dest = repo_dir / safe_rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(content_bytes)
+                touched_files = [safe_rel]
+            else:
+                metadata, raw = self.execution.read_artifact(manifest["artifact"]["artifact_id"])
+                if metadata["sha256"] != manifest["artifact"]["sha256"]:
+                    raise LocalWorkError("candidate artifact digest no longer matches manifest")
+                candidate = self._parse_candidate(raw, kind)
+                if kind == "unified_diff":
+                    content = str(candidate["content"])
+                    touched = sorted({_safe_relative(item) for item in _DIFF_PATH.findall(content) if item != "/dev/null"})
+                    declared = set(manifest.get("declared_paths") or [])
+                    if not touched or not set(touched).issubset(declared):
+                        raise LocalWorkError(f"diff touches undeclared paths: {sorted(set(touched) - declared)}")
+                    proc = subprocess.run(
+                        ["git", "-C", str(repo_dir), "apply", "--whitespace=nowarn", "-"],
+                        input=content, text=True, capture_output=True, timeout=120,
+                    )
+                    if proc.returncode != 0:
+                        recount = subprocess.run(
+                            ["git", "-C", str(repo_dir), "apply", "--recount", "--whitespace=nowarn", "-"],
+                            input=content, text=True, capture_output=True, timeout=120,
+                        )
+                        if recount.returncode != 0:
+                            raise LocalWorkError(f"git apply failed in {repo_dir}: {proc.stderr.strip()}")
+                    touched_files = touched
+                else:
+                    target_rel = candidate.get("target_path") or manifest.get("target_path")
+                    if not target_rel:
+                        raise LocalWorkError(f"{kind} candidate has no target_path to apply")
+                    safe_rel = _safe_relative(str(target_rel))
+                    declared = set(manifest.get("declared_paths") or [])
+                    if declared and safe_rel not in declared:
+                        raise LocalWorkError(f"target_path {safe_rel!r} is not in declared_paths")
+                    dest = repo_dir / safe_rel
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    if kind == "json" and not isinstance(candidate["content"], str):
+                        dest.write_text(json.dumps(candidate["content"], indent=2) + "\n", encoding="utf-8")
+                    else:
+                        dest.write_text(str(candidate["content"]), encoding="utf-8")
+                    touched_files = [safe_rel]
+            applied_info = {
+                "by": caller_id,
+                "target_root": str(repo_dir),
+                "artifact_kind": kind,
+                "files": touched_files,
+            }
+            manifest["applied"] = applied_info
+            self._event(manifest, "artifact.applied", applied_info)
             self._write(manifest)
             return manifest

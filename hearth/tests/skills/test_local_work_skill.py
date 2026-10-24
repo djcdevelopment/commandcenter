@@ -20,7 +20,7 @@ CODEX_YAML = CODEX.parent / "agents" / "openai.yaml"
 LAUNCHER = REPO / "hearth" / "etc" / "start-hearth-gateway.cmd"
 TOOLS = {
     "submit_local_work", "watch_local_work", "get_local_work",
-    "get_local_work_artifact", "record_local_work_verdict",
+    "get_local_work_artifact", "record_local_work_verdict", "apply_local_work",
 }
 
 

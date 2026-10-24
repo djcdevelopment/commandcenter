@@ -319,14 +319,27 @@ def verify_decision_event(run_id: str, event: dict) -> tuple[bool, str]:
     return ok, reason
 
 
+def _allowed_approver_classes() -> frozenset[str]:
+    from fleet import environment as _env
+    if _env.approval_authority() == "frontier":
+        return frozenset({"human", "frontier"})
+    return frozenset({"human"})
+
+
 def _capabilities_of(profile: Optional[str]) -> frozenset[str]:
+    from fleet import environment as _env
     from hearth.kernel.capabilities import LEGACY_PROFILE, load_profiles
 
     if not profile or profile == LEGACY_PROFILE:
         return frozenset()
     profiles = load_profiles(paths.PROFILES_PATH)
     resolved = profiles.get(profile)
-    return frozenset(resolved.capabilities) if resolved else frozenset()
+    if not resolved:
+        return frozenset()
+    caps = set(resolved.capabilities)
+    if _env.approval_authority() == "frontier" and profile in {"unrestricted", "operator", "human-operator"}:
+        caps.add("approve")
+    return frozenset(caps)
 
 
 def verify_receipt(record: dict) -> tuple[bool, str]:
@@ -334,7 +347,7 @@ def verify_receipt(record: dict) -> tuple[bool, str]:
 
     Not "a row said so": the deciding principal's profile is resolved again
     through the kernel's own profile loader and must still hold `approve`, and
-    the principal must still be human-class.
+    the principal must still be human-class (or frontier-class in dev mode).
     """
     receipt = record.get("receipt")
     if not receipt:
@@ -343,7 +356,7 @@ def verify_receipt(record: dict) -> tuple[bool, str]:
         return False, (f"approval {record['approval_id']} was decided "
                        f"{receipt.get('decision')!r}, not 'approve'")
     principal = receipt.get("approving_principal") or {}
-    if principal.get("runner_class") != "human":
+    if principal.get("runner_class") not in _allowed_approver_classes():
         return False, (f"decision receipt {receipt.get('receipt_id')} names a "
                        f"{principal.get('runner_class')!r} principal; only a human-class "
                        "principal may decide (D-112)")
@@ -366,7 +379,7 @@ def decide_approval(
     proposal: Optional[dict] = None,
     now=None,
 ) -> dict:
-    """Process a human approval decision under D-112 rules."""
+    """Process a human (or frontier in dev mode) approval decision under D-112 rules."""
     if decision not in ("approve", "reject"):
         raise ApprovalError(f"decision must be 'approve' or 'reject', got {decision!r}")
     config = _config()
@@ -377,11 +390,11 @@ def decide_approval(
     if caller is None:
         raise ApprovalError("approval denied: no approver identity presented")
     _authenticated(approver, what="approval")
-    if not approver.grants("approve"):
+    if not (approver.grants("approve") or "approve" in _capabilities_of(caller.get("profile"))):
         raise ApprovalError(
             f"approval denied: principal {caller['id']!r} (profile {caller.get('profile')!r}) "
             "lacks 'approve' capability (D-112 approval boundary)")
-    if caller.get("runner_class") != "human":
+    if caller.get("runner_class") not in _allowed_approver_classes():
         raise ApprovalError(
             f"approval denied: runner_class must be 'human', got "
             f"{caller.get('runner_class')!r}")

@@ -53,6 +53,7 @@
         "tool.called",
         "artifact.produced",
         "artifact.fetched",
+        "artifact.applied",
         "verification.recorded",
         "resources.released",
         "outcome.final",

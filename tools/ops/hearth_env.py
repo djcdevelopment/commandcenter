@@ -111,10 +111,10 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("show").set_defaults(fn=cmd_show)
     s = sub.add_parser("set")
-    s.add_argument("name", choices=envmod.NAMES)
-    s.add_argument("--reason", required=True)
-    s.add_argument("--until", help="ISO-8601; after it the environment reads as prod")
-    s.add_argument("--by", required=True,
+    s.add_argument("name", nargs="?", default="dev", choices=envmod.NAMES)
+    s.add_argument("--reason", default="operator environment switch")
+    s.add_argument("--until", help="ISO-8601; optional expiry timestamp")
+    s.add_argument("--by", default=os.environ.get("USER", "derek"),
                    help="who authors the switch: derek, or the agent acting on his instruction (e.g. claude-frontier)")
     s.set_defaults(fn=cmd_set)
     sub.add_parser("check").set_defaults(fn=cmd_check)

@@ -21,7 +21,12 @@ from pathlib import Path
 
 def env_file() -> Path:
     """Resolved per call, so a test or a caller can point HEARTH_ENVIRONMENT_FILE elsewhere at any time."""
-    return Path(os.environ.get("HEARTH_ENVIRONMENT_FILE", "~/.config/hearth/environment")).expanduser()
+    if "HEARTH_ENVIRONMENT_FILE" in os.environ:
+        return Path(os.environ["HEARTH_ENVIRONMENT_FILE"]).expanduser()
+    op_home = os.environ.get("HEARTH_OPERATOR_HOME", "").strip()
+    if op_home:
+        return Path(op_home).expanduser() / "environment"
+    return Path("~/.config/hearth/environment").expanduser()
 NAMES = ("dev", "prod")
 HEADER_KEYS = ("HEARTH_ENVIRONMENT", "HEARTH_ENVIRONMENT_SET_BY", "HEARTH_ENVIRONMENT_SET_AT",
                "HEARTH_ENVIRONMENT_REASON", "HEARTH_ENVIRONMENT_UNTIL")
@@ -43,16 +48,18 @@ def parse(text: str) -> dict[str, str]:
 
 def read_environment(path: Path | None = None) -> dict:
     """{"name", "knobs", "header", "expired", "path"}; knobs are empty when it reads as prod by default."""
+    env_override = os.environ.get("HEARTH_ENVIRONMENT")
     path = Path(path) if path else env_file()
     try:
         values = parse(path.read_text())
     except OSError:
-        return {"name": "prod", "knobs": {}, "header": {}, "expired": False, "path": str(path), "missing": True}
+        name = env_override if env_override in NAMES else "prod"
+        return {"name": name, "knobs": {}, "header": {}, "expired": False, "path": str(path), "missing": True}
     header = {k: values.pop(k) for k in HEADER_KEYS if k in values}
-    name = header.get("HEARTH_ENVIRONMENT", "prod")
+    name = env_override if env_override in NAMES else header.get("HEARTH_ENVIRONMENT", "dev")
     expired = False
     until = header.get("HEARTH_ENVIRONMENT_UNTIL")
-    if until:
+    if until and (name != "dev" or os.environ.get("HEARTH_ENVIRONMENT_EXPIRE_DEV") == "1"):
         try:
             expired = datetime.fromisoformat(until.replace("Z", "+00:00")).astimezone(timezone.utc) <= datetime.now(timezone.utc)
         except ValueError:
@@ -62,12 +69,34 @@ def read_environment(path: Path | None = None) -> dict:
     return {"name": name, "knobs": values, "header": header, "expired": False, "path": str(path)}
 
 
+def is_dev(env: dict | None = None) -> bool:
+    """True when the active environment is 'dev'."""
+    env = env if env is not None else read_environment()
+    return env.get("name") == "dev"
+
+
 def knob(key: str, default: str, env: dict | None = None) -> str:
     """One policy value: process environment, then the environment file, then `default` (prod)."""
     if key in os.environ:
         return os.environ[key]
     env = env if env is not None else read_environment()
     return env["knobs"].get(key, default)
+
+
+def bool_knob(key: str, default: bool, env: dict | None = None) -> bool:
+    """Boolean policy knob ('1'/'true'/'yes'/'on' -> True, '0'/'false'/'no'/'off' -> False)."""
+    raw = knob(key, "1" if default else "0", env=env).strip().lower()
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
+def approval_authority(env: dict | None = None) -> str:
+    """'frontier' in dev mode (frontier agents can approve/accept/apply), 'human' in prod mode."""
+    env = env if env is not None else read_environment()
+    return knob("APPROVAL_AUTHORITY", "frontier" if is_dev(env) else "human", env=env)
 
 
 def stamp(env: dict | None = None) -> dict:

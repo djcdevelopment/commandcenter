@@ -1258,6 +1258,8 @@ class ExecutionService:
                     raise ExecutionServiceError("work.produce requires an OpenAI-compatible streaming backend for cancellation")
                 call_arguments.update(stream=True, thinking=False,
                                       should_stop=lambda: self._is_cancelled(job_id))
+            elif provider.api == "openai" and self._generate is None:
+                call_arguments.update(stream=True, should_stop=lambda: self._is_cancelled(job_id))
             # task_family reaches the provider as evidence, not as a second
             # route: THIS service already consulted the family above and pinned
             # the rung it chose (backend=provider.name), which the primitive

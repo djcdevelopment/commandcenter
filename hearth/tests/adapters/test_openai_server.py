@@ -282,6 +282,46 @@ class TestOpenAIServerTurnCheckpointing(unittest.TestCase):
         self.assertEqual(s3[0], "CONTEXT PACK:\n--- SOURCE a.py @ deadbeef ---\ndef f(): return 1")
         self.assertIn("REPAIR:\nPrevious output had invalid citation.", s3[1])
 
+    def test_non_delivery_request_doc_prompts_share_identical_turn1_checkpoint(self) -> None:
+        template = "You are a local work worker. Return local-work-candidate.v1 JSON."
+        shared_files = [{"path": "hearth/adapters/openai_server.py", "lines": 120, "sha256": "abc123"}]
+        shared_pack = "--- FILE hearth/adapters/openai_server.py ---\ndef split_shared_context_pack(prompt):\n    pass\n"
+        req_doc_1 = {
+            "intent": "Audit Turn-1 cache key boundaries.",
+            "acceptance_criteria": ["Cite exact line ranges", "Identify prefix divergence"],
+            "artifact_kind": "markdown",
+            "target_path": None,
+            "declared_paths": ["hearth/adapters/openai_server.py"],
+            "source_files": shared_files,
+            "source_pack": shared_pack,
+        }
+        req_doc_2 = {
+            "intent": "Propose a unified diff for Mamba-2 checkpointing.",
+            "acceptance_criteria": ["Must preserve backward compatibility"],
+            "artifact_kind": "markdown",
+            "target_path": "hearth/adapters/openai_server.py",
+            "declared_paths": ["hearth/adapters/openai_server.py"],
+            "source_files": shared_files,
+            "source_pack": shared_pack,
+        }
+        prompt_1 = template + "\n\nREQUEST\n" + json.dumps(req_doc_1, sort_keys=True)
+        prompt_2 = (
+            template
+            + "\n\nREQUEST\n"
+            + json.dumps(req_doc_2, sort_keys=True)
+            + "\n\nREPAIR: The response below was rejected as malformed.\nREJECTED RESPONSE:\n{}"
+        )
+        msgs_1, cache_1 = build_turn_checkpointed_messages(prompt_1, backend_id="omen-nemotron-74b")
+        msgs_2, cache_2 = build_turn_checkpointed_messages(prompt_2, backend_id="omen-nemotron-74b")
+        self.assertTrue(cache_1 and cache_2)
+        self.assertEqual(len(msgs_1), 3)
+        self.assertEqual(len(msgs_2), 3)
+        # Turn 1 (shared context pack) + Assistant ACK are 100% byte-identical across both tasks!
+        self.assertEqual(msgs_1[:2], msgs_2[:2])
+        self.assertIn("SOURCE PACK\n--- FILE hearth/adapters/openai_server.py ---", msgs_1[0]["content"])
+        self.assertIn("Audit Turn-1 cache key boundaries.", msgs_1[2]["content"])
+        self.assertIn("REPAIR: The response below was rejected as malformed.", msgs_2[2]["content"])
+
 
 if __name__ == "__main__":
     unittest.main()

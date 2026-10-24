@@ -172,6 +172,11 @@ def _serialized_submission(method):
     return locked
 
 
+_TOKEN_COUNT_CACHE: dict[tuple[str, str, str], int] = {}
+_TOKEN_COUNT_CACHE_LOCK = threading.Lock()
+_TOKEN_COUNT_CACHE_MAX = 1024
+
+
 class LocalWorkService:
     def __init__(self, execution: ExecutionService, *, root: Path | str | None = None,
                  token_counter: TokenCounter | None = None) -> None:
@@ -453,6 +458,16 @@ class LocalWorkService:
     @staticmethod
     def _server_token_count(provider: Backend, model: str, prompt: str | list[dict[str, str]]) -> int:
         messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
+        cache_key = (
+            provider.endpoint.rstrip("/"),
+            model,
+            _digest(json.dumps(messages, sort_keys=True, ensure_ascii=False)),
+        )
+        with _TOKEN_COUNT_CACHE_LOCK:
+            cached_count = _TOKEN_COUNT_CACHE.get(cache_key)
+        if cached_count is not None:
+            return cached_count
+
         headers = {"Content-Type": "application/json"}
         if provider.auth_env:
             token = os.environ.get(provider.auth_env)
@@ -481,6 +496,10 @@ class LocalWorkService:
             count = len(tokens) if isinstance(tokens, list) else counted.get("count")
             if not isinstance(count, int) or isinstance(count, bool) or count < 1:
                 raise LocalWorkError("exact tokenizer endpoint returned no token count")
+            with _TOKEN_COUNT_CACHE_LOCK:
+                if len(_TOKEN_COUNT_CACHE) >= _TOKEN_COUNT_CACHE_MAX:
+                    _TOKEN_COUNT_CACHE.pop(next(iter(_TOKEN_COUNT_CACHE)))
+                _TOKEN_COUNT_CACHE[cache_key] = count
             return count
 
         rendered = post("/apply-template", {"model": model, "messages": messages})
@@ -492,6 +511,10 @@ class LocalWorkService:
         count = len(tokens) if isinstance(tokens, list) else counted.get("count")
         if not isinstance(count, int) or isinstance(count, bool) or count < 1:
             raise LocalWorkError("exact tokenizer endpoint returned no token count")
+        with _TOKEN_COUNT_CACHE_LOCK:
+            if len(_TOKEN_COUNT_CACHE) >= _TOKEN_COUNT_CACHE_MAX:
+                _TOKEN_COUNT_CACHE.pop(next(iter(_TOKEN_COUNT_CACHE)))
+            _TOKEN_COUNT_CACHE[cache_key] = count
         return count
 
     def submit(self, *, intent: str, acceptance_criteria: list[str], repo: str,

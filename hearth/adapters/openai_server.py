@@ -102,8 +102,47 @@ def split_shared_context_pack(prompt: str) -> Optional[tuple[str, str]]:
     """
     if not isinstance(prompt, str) or not prompt:
         return None
+
+    # Shape 6 (checked first so source_pack contents containing marker literals do not false-match):
+    # LocalWorkService non-delivery JSON request_doc prompts:
+    #   template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True) [+ "\n\nREPAIR: ..."]
+    if "\n\nREQUEST\n{" in prompt:
+        template_head, req_part = prompt.split("\n\nREQUEST\n", 1)
+        repair_tail = ""
+        req_json_str = req_part
+        if "\n\nREPAIR:" in req_part:
+            req_json_str, repair_rest = req_part.split("\n\nREPAIR:", 1)
+            repair_tail = f"REPAIR:{repair_rest.rstrip()}"
+        try:
+            req_doc = json.loads(req_json_str.strip())
+        except Exception:
+            req_doc = None
+        if isinstance(req_doc, dict):
+            raw_source_pack = req_doc.get("source_pack")
+            if isinstance(raw_source_pack, str) and raw_source_pack.strip() and "intent" in req_doc:
+                shared_meta = {
+                    k: req_doc[k]
+                    for k in ("declared_paths", "source_files")
+                    if k in req_doc
+                }
+                shared_context_pack = (
+                    f"{template_head.strip()}\n\n"
+                    f"SHARED REPOSITORY CONTEXT\n"
+                    f"{json.dumps(shared_meta, sort_keys=True)}\n\n"
+                    f"SOURCE PACK\n{raw_source_pack.strip()}"
+                )
+                task_doc = {
+                    k: v
+                    for k, v in req_doc.items()
+                    if k not in ("declared_paths", "source_files", "source_pack")
+                }
+                task_instruction = f"REQUEST\n{json.dumps(task_doc, sort_keys=True)}"
+                if repair_tail:
+                    task_instruction = f"{task_instruction}\n\n{repair_tail}"
+                return shared_context_pack, task_instruction
+
     for marker in SHARED_PACK_END_MARKERS:
-        idx = prompt.find(marker)
+        idx = prompt.rfind(marker)
         if idx < 0:
             continue
         split_pos = idx + len(marker)

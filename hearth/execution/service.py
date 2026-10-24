@@ -876,18 +876,24 @@ class ExecutionService:
             if active >= self._max_pending:
                 raise ExecutionServiceError("global execution queue is full")
 
-            request_id = new_request_id()
-            job_id = new_job_id()
-            input_artifact = self.artifacts.put(
-                prompt_bytes,
-                media_type=(
-                    "application/json; charset=utf-8" if is_delegated
-                    else "text/plain; charset=utf-8"
-                ),
-                filename=(
-                    f"{job_id}-request.json" if is_delegated else f"{job_id}-prompt.txt"
-                ),
-            )
+        request_id = new_request_id()
+        job_id = new_job_id()
+        input_artifact = self.artifacts.put(
+            prompt_bytes,
+            media_type=(
+                "application/json; charset=utf-8" if is_delegated
+                else "text/plain; charset=utf-8"
+            ),
+            filename=(
+                f"{job_id}-request.json" if is_delegated else f"{job_id}-prompt.txt"
+            ),
+        )
+
+        with self._lock:
+            active = sum(not future.done() for future in self._futures.values())
+            if active >= self._max_pending:
+                raise ExecutionServiceError("global execution queue is full")
+
             desired = {
                 "operation": operation_name,
                 "arguments": {

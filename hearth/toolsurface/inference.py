@@ -160,12 +160,34 @@ def _trial_suppressed(pool: Pool) -> set[str]:
     return set()
 
 
-def _pack_files(files: list[str]) -> tuple[str, list[dict]]:
+def _pack_files(files: list[str], intent: Optional[str] = None,
+                jepa_pack: Optional[bool] = None) -> tuple[str, list[dict]]:
     """Resolve scope-guarded paths and pack their contents into <file> blocks.
 
     Caps are enforced on os.stat sizes BEFORE reading; any bad path (escape,
     missing, over-cap) raises ValueError so the caller's dispatch never starts.
+    When jepa_pack=True or HEARTH_JEPA_PACK in ("1", "auto", "true"), large files
+    are AST-sliced using hearth.delivery.sourcemap.render_jepa_ast_sliced_for_model.
     """
+    use_jepa = (
+        jepa_pack
+        if jepa_pack is not None
+        else (os.environ.get("HEARTH_JEPA_PACK", "").lower() in ("1", "auto", "true"))
+    )
+    whole_file_guard = bool(
+        intent
+        and re.search(
+            r"\b(?:entire\s+(?:file|module|script|source)|whole[- ]file|whole\s+module|"
+            r"line[- ]by[- ]line|every\s+(?:line|import|exception|caller|handler|global)|"
+            r"all\s+(?:unused\s+imports|imports|global\s+variables|exception\s+handlers|lines|dead\s+code)|"
+            r"dead\s+code\s+sweep|unused\s+import|global\s+lock\s+ordering|"
+            r"complete\s+(?:file|module)[- ](?:level|wide)|full[- ]file\s+(?:audit|invariant|security|review))\b",
+            intent,
+            re.I,
+        )
+    )
+    if whole_file_guard and jepa_pack is not True:
+        use_jepa = False
     primary = scope_root()
     packed_blocks = []
     files_packed = []
@@ -182,7 +204,8 @@ def _pack_files(files: list[str]) -> tuple[str, list[dict]]:
             raise ValueError(f"files total size {total_bytes + size} exceeds total cap {FILES_TOTAL_CAP}")
 
         total_bytes += size
-        content = resolved.read_text(encoding="utf-8", errors="replace")
+        raw_bytes = resolved.read_bytes()
+        content = raw_bytes.decode("utf-8", errors="replace")
         # Primary-root (repo) files keep their repo-relative label; files from a
         # secondary scope root are labeled by absolute path so the model (and the
         # manifest reader) can see which repo they came from.
@@ -190,8 +213,31 @@ def _pack_files(files: list[str]) -> tuple[str, list[dict]]:
             label = resolved.relative_to(primary).as_posix()
         else:
             label = resolved.as_posix()
+
+        entry: dict = {"path": label, "bytes": size}
+        if use_jepa and size >= 2400:
+            try:
+                from hearth.delivery import sourcemap as _sm
+                fmap = _sm.file_map(label, raw_bytes)
+                smap = _sm.SourceMap(repo=primary.as_posix(), commit="WORKTREE", files=[fmap])
+                sliced_text, slice_stats = _sm.render_jepa_ast_sliced_for_model(
+                    smap, intent=intent or "", numbered=True, symbols=False
+                )
+                content = sliced_text
+                packed_sz = len(content.encode("utf-8"))
+                entry = {
+                    "path": label,
+                    "bytes": packed_sz,
+                    "raw_bytes": size,
+                    "jepa_sliced": True,
+                    "token_reduction_pct": slice_stats.get("token_reduction_pct", 0.0),
+                    "jepa_mode": slice_stats.get("jepa_mode", "symbolic_ast_fallback"),
+                }
+            except Exception:
+                pass
+
         packed_blocks.append(f'<file path="{label}">\n{content}\n</file>')
-        files_packed.append({"path": label, "bytes": size})
+        files_packed.append(entry)
 
     return "\n\n".join(packed_blocks), files_packed
 
@@ -1011,7 +1057,7 @@ def local_generate(prompt: str, model: str | None = None,
         if not isinstance(files, list) or not all(isinstance(f, str) and f for f in files):
             raise ValueError("files must be a list of non-empty path strings")
         if files:
-            packed_block, files_packed_list = _pack_files(files)
+            packed_block, files_packed_list = _pack_files(files, intent=user_prompt)
             prompt = f"{packed_block}\n\n{prompt}"
             files_bytes = sum(f["bytes"] for f in files_packed_list)
 

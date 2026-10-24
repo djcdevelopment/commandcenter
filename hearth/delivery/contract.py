@@ -72,7 +72,7 @@ QUOTE_MODES = ("text", "line_reference")
 CITATIONS = ("range", "quote", "none")  # see module docstring, rule 3
 STYLES = ("markdown",)
 AIDS = frozenset({"source_map", "quote_renderer", "constrained_output", "sidecar", "judge", "reviewer", "line_reference", "source_excerpt", "source_path_alias", "thinking", "carried_draft", "self_check", "item_enumerator", "reader_agreement"})
-PROCEDURES = ("carry", "items")  # delivery.v1 optional top-level `procedure`: how the candidate was produced; absent = the one-call path
+PROCEDURES = ("carry", "items", "jepa_ast_sliced")  # delivery.v1 optional top-level `procedure`: how the candidate was produced; absent = the one-call path
 ITEM_KINDS = ("env_reads", "param_defaults")  # brief.v2 optional `items.kind`; hearth/delivery/items.py registers the same tuple
 ITEM_COUNTS = ("items", "agreed", "settled", "unverified", "reader_failures", "files")
 MATCHES = ("exact", "normalized", "missing")  # plus "fuzzy:<score>", score 0..1 with two decimals
@@ -152,7 +152,7 @@ def validate_brief(doc: Any) -> list:
         return [f"brief.{k}: v2 key needs schema {BRIEF_SCHEMA}" for k in V2_KEYS if k in doc]
     if doc["schema"] != BRIEF_SCHEMA:
         return [f"brief.schema: must be {BRIEF_SCHEMA}, got {doc['schema']!r}"]
-    _exact(doc, {"schema", "substance"}, set(V1_KEYS) | {"form", "sources", "aids", "generation", "items"}, "brief", errs)
+    _exact(doc, {"schema", "substance"}, set(V1_KEYS) | {"form", "sources", "aids", "generation", "items", "jepa_pack"}, "brief", errs)
     if "items" in doc:
         if _exact(doc["items"], {"kind"}, set(), "brief.items", errs) and doc["items"]["kind"] not in ITEM_KINDS:
             errs.append(f"brief.items.kind: one of {ITEM_KINDS}, got {doc['items']['kind']!r}")

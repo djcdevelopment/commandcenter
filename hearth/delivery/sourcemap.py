@@ -164,6 +164,10 @@ class Location(NamedTuple):
     def repaired(self) -> bool:
         return self.match == "normalized" or self.match.startswith("fuzzy:")
 
+    @property
+    def resolved(self) -> bool:
+        return self.match in ("exact", "normalized") and bool(self.path)
+
 
 _MISSING = Location("", 0, 0, "missing", 0)
 
@@ -336,6 +340,412 @@ def render_for_model(sm: SourceMap, numbered: bool = True, symbols: bool = True)
     if size > PACKET_CAP_BYTES:
         raise PacketTooLarge(f"rendered packet {size} bytes exceeds cap {PACKET_CAP_BYTES}")
     return out
+
+
+def _subtokens(text: str) -> set[str]:
+    """Extract lowercase identifier tokens and snake_case/camelCase subtokens."""
+    raw = re.findall(r"[A-Za-z_][A-Za-z0-9_]{2,}", text)
+    out: set[str] = set()
+    for tok in raw:
+        low = tok.lower()
+        out.add(low)
+        for part in re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", tok).lower().split("_"):
+            if len(part) >= 3:
+                out.add(part)
+    return out
+
+
+_WHOLE_FILE_GUARD_RE = re.compile(
+    r"\b(?:entire\s+(?:file|module|script|source)|whole[- ]file|whole\s+module|"
+    r"line[- ]by[- ]line|every\s+(?:line|import|exception|caller|handler|global)|"
+    r"all\s+(?:unused\s+imports|imports|global\s+variables|exception\s+handlers|lines|dead\s+code)|"
+    r"dead\s+code\s+sweep|unused\s+import|global\s+lock\s+ordering|"
+    r"complete\s+(?:file|module)[- ](?:level|wide)|full[- ]file\s+(?:audit|invariant|security|review))\b",
+    re.I,
+)
+
+
+def _classify_regime_via_jepa(
+    intent_text: str,
+    file_paths: list[str],
+    timeout_s: float = 0.05,
+) -> tuple[str, float]:
+    """Query resident :18097 /classify_regime (0.05s timeout) or fallback deterministically."""
+    import json
+    import time
+    import urllib.request
+
+    t0 = time.perf_counter()
+    if _WHOLE_FILE_GUARD_RE.search(intent_text) or "whole_file" in intent_text.lower():
+        return "FULL_FILE_REQUIRED", round((time.perf_counter() - t0) * 1000.0, 2)
+    try:
+        payload = {"intent": intent_text, "files": file_paths}
+        req = urllib.request.Request(
+            "http://127.0.0.1:18097/classify_regime",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "User-Agent": "hearth-sourcemap-jepa"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+            regime = str(body.get("regime") or "SLICE_SAFE")
+            return regime, round((time.perf_counter() - t0) * 1000.0, 2)
+    except Exception:
+        pass
+    return "SLICE_SAFE", round((time.perf_counter() - t0) * 1000.0, 2)
+
+
+def _rank_ast_blocks_via_jepa(
+    state_text: str,
+    intent_text: str,
+    cand_texts: list[str],
+    cand_labels: list[str],
+    timeout_s: float = 0.12,
+) -> tuple[dict[str, float], str, float]:
+    """Query resident :18097 JEPA v3 daemon or fallback to identifier+subtoken overlap."""
+    import json
+    import time
+    import urllib.request
+
+    t0 = time.perf_counter()
+    if cand_texts:
+        try:
+            payload = {
+                "state": state_text,
+                "intent": intent_text,
+                "role_id": 2,
+                "topo_id": 3,
+                "candidates": cand_texts,
+                "labels": cand_labels,
+            }
+            req = urllib.request.Request(
+                "http://127.0.0.1:18097/rank_candidates",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "User-Agent": "hearth-sourcemap-jepa"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+                rankings = body.get("rankings") or []
+                scores = {}
+                for r in rankings:
+                    lbl = r.get("label")
+                    sc = float(r.get("calibrated_score", r.get("cosine", 0.0)))
+                    if lbl:
+                        scores[lbl] = sc
+                if scores:
+                    return scores, "live_18097", round((time.perf_counter() - t0) * 1000.0, 2)
+        except Exception:
+            pass
+
+    q_toks = _subtokens(intent_text + " " + state_text)
+    scores = {}
+    for lbl, txt in zip(cand_labels, cand_texts):
+        c_toks = _subtokens(txt)
+        overlap = len(q_toks & c_toks) / max(1, len(q_toks))
+        scores[lbl] = overlap
+    return scores, "symbolic_ast_fallback", round((time.perf_counter() - t0) * 1000.0, 2)
+
+
+def _jepa_slice_symbols(fm: FileMap) -> list[dict]:
+    """Extract sliceable AST spans with P0 monolithic class (>60 lines) decomposition and
+    module-level const_table (ast.Assign / ast.AnnAssign) extraction."""
+    if fm.path.endswith(".py"):
+        try:
+            tree = ast.parse("\n".join(fm.lines))
+            syms: list[dict] = []
+
+            def start_of(node):
+                decos = [d.lineno for d in getattr(node, "decorator_list", [])]
+                return min([node.lineno] + decos)
+
+            for node in tree.body:
+                if isinstance(node, ast.ClassDef):
+                    c_start = start_of(node)
+                    c_end = int(getattr(node, "end_lineno", c_start))
+                    methods = [
+                        ch for ch in node.body
+                        if isinstance(ch, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    ]
+                    if (c_end - c_start) > 60 and methods:
+                        first_method_start = min(start_of(ch) for ch in methods)
+                        hdr_end = min(c_end, max(c_start, first_method_start - 1))
+                        syms.append({
+                            "name": node.name,
+                            "kind": "class_header",
+                            "start": c_start,
+                            "end": hdr_end,
+                            "class_start": c_start,
+                        })
+                        for ch in methods:
+                            m_start = start_of(ch)
+                            m_end = int(getattr(ch, "end_lineno", m_start))
+                            syms.append({
+                                "name": f"{node.name}.{ch.name}",
+                                "short_name": ch.name,
+                                "kind": "method",
+                                "start": m_start,
+                                "end": m_end,
+                                "class_name": node.name,
+                                "class_start": c_start,
+                            })
+                    else:
+                        syms.append({
+                            "name": node.name,
+                            "kind": "class",
+                            "start": c_start,
+                            "end": c_end,
+                        })
+                elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    f_start = start_of(node)
+                    f_end = int(getattr(node, "end_lineno", f_start))
+                    syms.append({
+                        "name": node.name,
+                        "kind": "function",
+                        "start": f_start,
+                        "end": f_end,
+                    })
+                elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                    a_start = int(getattr(node, "lineno", 1))
+                    a_end = int(getattr(node, "end_lineno", a_start))
+                    val = node.value
+                    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                    for t in targets:
+                        if not isinstance(t, ast.Name):
+                            continue
+                        tid = t.id
+                        span_lines = a_end - a_start + 1
+                        is_collection = isinstance(val, (ast.Dict, ast.Tuple, ast.List, ast.Set))
+                        if span_lines >= 8 or (is_collection and (
+                            tid.isupper()
+                            or tid.endswith(("MAP", "TABLE", "ARMS", "KNOWN", "ROUTES", "KEYS"))
+                        )):
+                            syms.append({
+                                "name": tid,
+                                "kind": "const_table",
+                                "start": a_start,
+                                "end": a_end,
+                            })
+                        elif tid.isupper():
+                            syms.append({
+                                "name": tid,
+                                "kind": "const",
+                                "start": a_start,
+                                "end": a_end,
+                            })
+            if syms:
+                return syms
+        except Exception:
+            pass
+
+    # Fallback decomposition over fm.symbols (including monolithic classes > 60 lines with child methods)
+    out: list[dict] = []
+    raw_syms = sorted(fm.symbols, key=lambda x: (x["start"], -(x["end"] - x["start"])))
+    i = 0
+    while i < len(raw_syms):
+        s = raw_syms[i]
+        c_start, c_end = int(s["start"]), int(s["end"])
+        children = [
+            ch for ch in raw_syms[i + 1:]
+            if int(ch["start"]) >= c_start and int(ch["end"]) <= c_end and ch.get("kind") == "method"
+        ]
+        if s.get("kind") == "class" and (c_end - c_start) > 60 and children:
+            first_m = min(int(ch["start"]) for ch in children)
+            out.append({
+                "name": s["name"],
+                "kind": "class_header",
+                "start": c_start,
+                "end": min(c_end, max(c_start, first_m - 1)),
+                "class_start": c_start,
+            })
+            for ch in children:
+                out.append({
+                    "name": ch["name"],
+                    "short_name": ch["name"].split(".")[-1],
+                    "kind": "method",
+                    "start": int(ch["start"]),
+                    "end": int(ch["end"]),
+                    "class_name": s["name"],
+                    "class_start": c_start,
+                })
+            while i + 1 < len(raw_syms) and int(raw_syms[i + 1]["end"]) <= c_end:
+                i += 1
+        else:
+            if not out or c_start > int(out[-1]["end"]):
+                out.append(dict(s))
+        i += 1
+    return out
+
+
+def render_jepa_ast_sliced_for_model(
+    sm: SourceMap,
+    intent: str = "",
+    brief: Optional[dict | str] = None,
+    numbered: bool = True,
+    symbols: bool = False,
+    max_symbols_per_file: int = 5,
+    budget_ratio: float = 0.36,
+) -> tuple[str, dict]:
+    """Render an AST-symbol-sliced SourceMap preserving exact 1-based line numbers for locate().
+
+    Queries resident :18097 /classify_regime (0.05s) and /rank_candidates (0.12s) with deterministic
+    lexical/subtoken fallback, decomposes monolithic classes (>60 lines) into class_header + method
+    spans, retains module-level const_table assignments, and emits kept spans with exact 1-based line
+    numbers and ``# ... [JEPA-AST-SLICE omitted lines X-Y] ...`` markers.
+    """
+    import json
+
+    full_rendered = render_for_model(sm, numbered=numbered, symbols=symbols)
+    full_bytes = len(full_rendered.encode("utf-8"))
+    brief_str = json.dumps(brief, sort_keys=True) if isinstance(brief, dict) else str(brief or "")
+    combined_intent = f"{intent}\n{brief_str}".strip()
+    q_idents = _subtokens(combined_intent)
+
+    regime, regime_lat_ms = _classify_regime_via_jepa(
+        combined_intent, [fm.path for fm in sm.files], timeout_s=0.05
+    )
+    if regime == "FULL_FILE_REQUIRED":
+        return full_rendered, {
+            "procedure": "jepa_ast_sliced",
+            "regime": regime,
+            "full_bytes": full_bytes,
+            "sliced_bytes": full_bytes,
+            "full_chars": len(full_rendered),
+            "sliced_chars": len(full_rendered),
+            "full_est_tokens": full_bytes // 4,
+            "sliced_est_tokens": full_bytes // 4,
+            "token_reduction_pct": 0.0,
+            "symbols_kept": sum(len(fm.symbols) for fm in sm.files),
+            "symbols_total": sum(len(fm.symbols) for fm in sm.files),
+            "jepa_mode": "whole_file_guard_bypass",
+            "jepa_latency_ms": round(regime_lat_ms, 2),
+        }
+
+    parts = []
+    total_symbols = 0
+    kept_symbols = 0
+    jepa_modes = []
+    total_latency_ms = regime_lat_ms
+
+    for fm in sm.files:
+        note = f", {'; '.join(fm.notes)}" if fm.notes else ""
+        parts.append(f"=== FILE {fm.path} (sha256 {fm.sha256[:12]}, {len(fm.lines)} lines{note}) ===")
+        if symbols:
+            parts.append("SYMBOLS (name [kind] line-range):")
+            parts.extend("  " + s for s in symbol_index(fm))
+        parts.append("CODE:")
+        width = max(3, len(str(len(fm.lines))))
+        n_lines = len(fm.lines)
+
+        slice_syms = _jepa_slice_symbols(fm)
+
+        # Short files (< 90 lines) or files with no symbols are rendered in full
+        if n_lines < 90 or not slice_syms:
+            for i, line in enumerate(fm.lines, 1):
+                parts.append(f"{i:0{width}d}| {line}" if numbered else line)
+            parts.append(f"=== END {fm.path} ===")
+            continue
+
+        total_symbols += len(slice_syms)
+        cand_labels = []
+        cand_texts = []
+        for s in slice_syms:
+            lbl = f"{s['name']}:{s['start']}-{s['end']}"
+            snippet = "\n".join(fm.lines[max(0, s["start"] - 1):min(n_lines, s["start"] + 24)])
+            cand_labels.append(lbl)
+            cand_texts.append(f"[SYMBOL: {s['name']} ({s['kind']}) lines {s['start']}-{s['end']}]\n{snippet}")
+
+        header_preview = "\n".join(fm.lines[:min(25, n_lines)])
+        state_desc = f"[FILE: {fm.path}]\n{header_preview}"
+        scores, mode, lat_ms = _rank_ast_blocks_via_jepa(
+            state_desc, combined_intent, cand_texts, cand_labels, timeout_s=0.12
+        )
+        jepa_modes.append(mode)
+        total_latency_ms += lat_ms
+
+        ranked_syms = []
+        for s in slice_syms:
+            lbl = f"{s['name']}:{s['start']}-{s['end']}"
+            base_sc = scores.get(lbl, 0.0)
+            sym_name_low = s["name"].lower()
+            short_low = str(s.get("short_name") or s["name"].split(".")[-1]).lower()
+            sym_subtoks = _subtokens(s["name"])
+            exact_name_hit = 1.0 if (sym_name_low in q_idents or short_low in q_idents) else (
+                0.5 if (sym_subtoks & q_idents) else 0.0
+            )
+            body_text = "\n".join(fm.lines[s["start"] - 1:s["end"]]).lower()
+            id_hits = sum(1 for tok in q_idents if len(tok) >= 4 and tok in body_text)
+            const_boost = 0.25 if s.get("kind") == "const_table" and id_hits > 0 else 0.0
+            combined_sc = base_sc + 1.5 * exact_name_hit + 0.15 * id_hits + const_boost
+            ranked_syms.append((combined_sc, s))
+
+        ranked_syms.sort(key=lambda x: (x[0], -x[1]["start"]), reverse=True)
+
+        line_budget = max(45, int(n_lines * budget_ratio))
+        keep_line_flags = [False] * (n_lines + 1)
+        header_end = min(18, slice_syms[0]["start"] - 1 if slice_syms else 18)
+        for ln in range(1, max(1, header_end) + 1):
+            keep_line_flags[ln] = True
+        used_lines = max(0, header_end)
+
+        chosen_sym_names = set()
+        for sc, s in ranked_syms[:max_symbols_per_file]:
+            class_start = s.get("class_start")
+            if isinstance(class_start, int) and 1 <= class_start <= n_lines:
+                if not keep_line_flags[class_start]:
+                    keep_line_flags[class_start] = True
+                    used_lines += 1
+            span_len = s["end"] - s["start"] + 1
+            if used_lines + span_len > line_budget and chosen_sym_names and sc < 1.2:
+                head_end = min(s["end"], s["start"] + 9)
+                for ln in range(s["start"], head_end + 1):
+                    keep_line_flags[ln] = True
+                used_lines += (head_end - s["start"] + 1)
+                chosen_sym_names.add(s["name"])
+                kept_symbols += 1
+            else:
+                for ln in range(s["start"], min(s["end"], s["start"] + 55) + 1):
+                    keep_line_flags[ln] = True
+                used_lines += min(span_len, 56)
+                chosen_sym_names.add(s["name"])
+                kept_symbols += 1
+
+        i = 1
+        while i <= n_lines:
+            if keep_line_flags[i]:
+                line = fm.lines[i - 1]
+                parts.append(f"{i:0{width}d}| {line}" if numbered else line)
+                i += 1
+            else:
+                omitted_start = i
+                while i <= n_lines and not keep_line_flags[i]:
+                    i += 1
+                omitted_end = i - 1
+                parts.append(f"# ... [JEPA-AST-SLICE omitted lines {omitted_start}-{omitted_end}] ...")
+
+        parts.append(f"=== END {fm.path} ===")
+
+    out = "\n".join(parts) + "\n"
+    sliced_bytes = len(out.encode("utf-8"))
+    if sliced_bytes > PACKET_CAP_BYTES:
+        raise PacketTooLarge(f"rendered packet {sliced_bytes} bytes exceeds cap {PACKET_CAP_BYTES}")
+
+    stats = {
+        "procedure": "jepa_ast_sliced",
+        "regime": regime,
+        "full_bytes": full_bytes,
+        "sliced_bytes": sliced_bytes,
+        "full_chars": len(full_rendered),
+        "sliced_chars": len(out),
+        "full_est_tokens": full_bytes // 4,
+        "sliced_est_tokens": sliced_bytes // 4,
+        "token_reduction_pct": round((1.0 - (sliced_bytes / max(1, full_bytes))) * 100.0, 2),
+        "symbols_kept": kept_symbols,
+        "symbols_total": total_symbols,
+        "jepa_mode": "live_18097" if "live_18097" in jepa_modes else "symbolic_ast_fallback",
+        "jepa_latency_ms": round(total_latency_ms, 2),
+    }
+    return out, stats
 
 
 # Typographic quotes a model substitutes for ASCII ones; folded on both sides, so a source
@@ -546,6 +956,15 @@ def locate_line_reference(sm: SourceMap, reference: str) -> Location:
     return Location(path, line, line, "exact", 1)
 
 
+_LINE_PREFIX_RE = re.compile(r"^\s*\d{3,5}\|\s?", re.MULTILINE)
+
+
+def _strip_line_number_prefix(q: str) -> tuple[str, bool]:
+    """Strip leading ``0042| `` line-number prefixes copied from a ``numbered=True`` packet."""
+    stripped = _LINE_PREFIX_RE.sub("", q)
+    return stripped, (stripped != q)
+
+
 def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
            hint: Optional[str] = None, near: Optional[list] = None) -> Location:
     """Resolve a quote to a Location(path, start, end, match, occurrences). near: [(path, line)] anchors; where no
@@ -570,6 +989,20 @@ def locate(sm: SourceMap, quote: str, threshold: float = FUZZY_THRESHOLD,
             return _prefix_line(texts, q, chars, hint, cands, near) or _short_ambiguous(len(cands))
         fm, s, e = _pick(cands, hint, near)
         return Location(fm.path, s, e, "exact", len(cands))
+
+    q_stripped, prefix_stripped = _strip_line_number_prefix(q)
+    if prefix_stripped and q_stripped.strip():
+        for fm, text in texts:
+            for pos in _find_all(text, q_stripped):
+                cands.append((fm, _line_of(text, pos), _line_of(text, pos + len(q_stripped) - 1)))
+        chars = quote_chars(q_stripped)
+        short = chars < SHORT_QUOTE_CHARS
+        if cands:
+            if short and len(cands) > 1:
+                return _prefix_line(texts, q_stripped, chars, hint, cands, near) or _short_ambiguous(len(cands))
+            fm, s, e = _pick(cands, hint, near)
+            return Location(fm.path, s, e, "normalized", len(cands))
+        q = q_stripped
 
     # Under a JSON schema the 27B writes &quot; &gt; &apos; for the characters themselves (2026-10-03,
     # work_a59bad05: 3 of 5 quotes). Unescaping is a normalization, counted like the quote fold.

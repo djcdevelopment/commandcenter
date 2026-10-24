@@ -339,6 +339,59 @@ class PoolRoutingTests(unittest.TestCase):
             with self.assertRaises(LocalWorkError, msg=declaration):
                 self.submit()
 
+    def test_bolt74_am4_routes_code_and_delivery_across_nemotron_74b_and_am4_vllm(self):
+        repo_root = Path(__file__).resolve().parents[3]
+        prod_backends = repo_root / "host/omen-linux/hearth-production/backends-linux.toml"
+        prod_routes = repo_root / "host/omen-linux/hearth-production/local-work-routes-linux.toml"
+        prod_lab_cfg = repo_root / "host/omen-linux/config/lab-configurations.toml"
+
+        (self.root / "backends.toml").write_text(prod_backends.read_text(encoding="utf-8"), encoding="utf-8")
+        (self.root / "routes.toml").write_text(prod_routes.read_text(encoding="utf-8"), encoding="utf-8")
+        self.qualify(("omen-nemotron-74b", "am4-vllm"))
+
+        with mock.patch.dict("os.environ", {
+            "HEARTH_LAB_CONFIGURATIONS": str(prod_lab_cfg),
+            "HEARTH_LAB_CONFIGURATION": "bolt74-am4",
+        }):
+            # 1. Non-delivery code submission skips absent 27B seats and picks omen-nemotron-74b first.
+            code = dict(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
+            manifest = self.submit(max_tokens=4096, **code)
+            choice = manifest["route"]["backend_choice"]
+            self.assertEqual(manifest["route"]["provider"], "omen-nemotron-74b")
+            self.assertEqual(manifest["route"]["selected_model"], "nemotron-3.5-bolt-74b-a9b")
+            self.assertEqual(choice["by"], "lane_code_backend")
+            self.settle(manifest["work_id"])
+
+            # 2. When omen-nemotron-74b has an active assignment, code submission overflows to am4-vllm.
+            busy = self.root / "runs" / "operator" / "work_busy_bolt74" / "work-manifest.json"
+            busy.parent.mkdir(parents=True, exist_ok=True)
+            busy.write_text(json.dumps({"status": "running", "route": {"provider": "omen-nemotron-74b"}}))
+            manifest_am4 = None
+            try:
+                manifest_am4 = self.submit(max_tokens=4096, **code)
+                self.assertEqual(manifest_am4["route"]["provider"], "am4-vllm")
+                self.assertEqual(manifest_am4["route"]["selected_model"], "am4-dense-27b")
+            finally:
+                if manifest_am4 is not None:
+                    self.settle(manifest_am4["work_id"])
+                busy.unlink(missing_ok=True)
+
+            # 3. Family recommend() and select_backend() resolve to live bolt74-am4 seats instead of absent 27B/30B seats.
+            from hearth.scheduler import families
+            from hearth.toolsurface.backends import select_backend
+            rec = families.recommend("code_generation", prompt_tokens=1500, pool=load_pool())
+            self.assertIsNotNone(rec)
+            self.assertFalse(rec["refused"])
+            self.assertIn(rec["backend_hint"], ("omen-nemotron-74b", "am4-vllm"))
+
+            picked, reason, _ = select_backend(
+                load_pool(),
+                tags=["dense", "reasoning"],
+                occupancy_check=lambda _: {"status": "available"},
+            )
+            self.assertEqual(picked.name, "omen-nemotron-74b")
+            self.assertIn("omen-nemotron-74b", reason)
+
 
 if __name__ == "__main__":
     unittest.main()

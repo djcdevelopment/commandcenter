@@ -487,8 +487,8 @@ class LocalWorkService:
         if revise and brief is None:
             raise LocalWorkError("revise requires a brief (delivery)")
         if procedure is not None:
-            if procedure not in ("carry", "one_call", "items"):
-                raise LocalWorkError("procedure must be 'one_call', 'items' or 'carry' or absent")
+            if procedure not in ("carry", "one_call", "items", "jepa_ast_sliced"):
+                raise LocalWorkError("procedure must be 'one_call', 'items', 'jepa_ast_sliced' or 'carry' or absent")
             if brief is None:
                 raise LocalWorkError(f"procedure {procedure!r} requires a brief (delivery)")
             if procedure == "items" and "items" not in brief:
@@ -718,10 +718,25 @@ class LocalWorkService:
                     if items_run:
                         break
                     work_template = None
+                    jepa_slice_stats = None
                     if delivery:
                         try:
-                            packet = sourcemap.render_for_model(source_map, numbered=carried or quote_mode == "line_reference",
-                                                                symbols=False)
+                            use_jepa_slice = (
+                                procedure == "jepa_ast_sliced"
+                                or os.environ.get("HEARTH_JEPA_PACK", "").lower() in ("1", "auto", "true")
+                                or (isinstance(brief, Mapping) and brief.get("jepa_pack") is True)
+                            )
+                            if use_jepa_slice:
+                                packet, jepa_slice_stats = sourcemap.render_jepa_ast_sliced_for_model(
+                                    source_map,
+                                    intent=intent,
+                                    brief=brief,
+                                    numbered=carried or quote_mode == "line_reference",
+                                    symbols=False,
+                                )
+                            else:
+                                packet = sourcemap.render_for_model(source_map, numbered=carried or quote_mode == "line_reference",
+                                                                    symbols=False)
                         except sourcemap.SourceMapError as exc:
                             raise LocalWorkError(f"delivery brief refused: {exc}") from exc
                         max_tokens = explicit_max if explicit_max is not None else (
@@ -819,8 +834,15 @@ class LocalWorkService:
             if revise:
                 manifest["revise"] = True
             manifest["brief_sha256"] = _digest(json.dumps(brief, sort_keys=True, separators=(",", ":")))
-            manifest["route"]["procedure"] = "items" if items_run else "carry" if carried else "one_call"
+            manifest["route"]["procedure"] = (
+                "items" if items_run
+                else "carry" if carried
+                else "jepa_ast_sliced" if procedure == "jepa_ast_sliced"
+                else "one_call"
+            )
             manifest["route"]["procedure_choice"] = {**choice, **({"fallback": fallback} if fallback else {})}
+            if jepa_slice_stats is not None:
+                manifest["route"]["jepa_context_pack"] = jepa_slice_stats
             if lane_choice:
                 manifest["route"]["lane_choice"] = lane_choice
         if carried:

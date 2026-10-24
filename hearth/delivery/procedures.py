@@ -6,7 +6,7 @@ import json
 import os
 
 SCHEMA = "delivery-procedures.v1"
-KNOWN = ("carry", "one_call")
+KNOWN = ("carry", "one_call", "jepa_ast_sliced")
 COUNT_KEYS = ("accepted", "rejected", "briefs", "accepted_briefs")
 
 

@@ -461,6 +461,69 @@ def _providers_for(model_id: str, pool: Any) -> list:
     return [b for b in found if not getattr(b, "retired", False)]
 
 
+def _is_backend_absent(name: str) -> bool:
+    try:
+        from hearth.execution.lab_config import get_backend_status
+        status, _ = get_backend_status(name)
+        return status == "absent"
+    except Exception:
+        return False
+
+
+def _is_model_absent(model_id: str, pool: Any) -> bool:
+    """True when ``model_id`` is declared by at least one non-retired backend in ``pool``
+    and every such backend is marked ``absent`` under the active lab configuration."""
+    providers = _providers_for(model_id, pool)
+    if not providers:
+        return False
+    return all(_is_backend_absent(b.name) for b in providers)
+
+
+def _fallback_providers_for(pref: FamilyPreference, model_id: str, pool: Any) -> list:
+    """Resolve live fallback backends when ``model_id`` has no live backend under the
+    active lab configuration (e.g. ``bolt74-am4`` where ``omen-vllm`` and
+    ``omen-dense-27b`` are ``absent`` while ``omen-nemotron-74b`` and ``am4-vllm`` are ``live``)."""
+    fb_names: list[str] = []
+    try:
+        from hearth.execution.lab_config import get_active_configuration_name, load_lab_configurations
+        active_cfg = get_active_configuration_name()
+        raw_fb = load_lab_configurations().get(active_cfg, {}).get("default_fallback")
+        if isinstance(raw_fb, list):
+            fb_names = [n for n in raw_fb if isinstance(n, str)]
+    except Exception:
+        fb_names = []
+    fb_live = []
+    for name in fb_names:
+        try:
+            b = pool.by_name(name)
+        except Exception:
+            b = None
+        if b is not None and not getattr(b, "retired", False) and getattr(b, "models", None) and not _is_backend_absent(b.name):
+            if b not in fb_live:
+                fb_live.append(b)
+    family_tags = pref.tags if pref.tags else FAMILY_TAGS.get(pref.name, FAMILY_TAGS[DEFAULT_FAMILY])
+    tag_live = []
+    for tag in family_tags:
+        for b in getattr(pool, "backends", ()):
+            if (tag in getattr(b, "tags", ()) and not getattr(b, "retired", False)
+                    and getattr(b, "models", None) and not _is_backend_absent(b.name)):
+                if b not in tag_live:
+                    tag_live.append(b)
+    if model_id not in ("qwen3.8-27b", "qwen3-30b-a3b") and not tag_live:
+        return []
+    combined = []
+    for b in fb_live:
+        if any(tag in getattr(b, "tags", ()) for tag in family_tags):
+            combined.append(b)
+    for b in fb_live:
+        if b not in combined:
+            combined.append(b)
+    for b in tag_live:
+        if b not in combined:
+            combined.append(b)
+    return combined
+
+
 def recommend(task_family: Optional[str], prompt_tokens: Optional[int] = None,
               families: Optional[Families] = None, *, pool: Any = None) -> dict:
     """Recommend a model (and the rung that serves it) for one task.
@@ -516,14 +579,24 @@ def recommend(task_family: Optional[str], prompt_tokens: Optional[int] = None,
         }
     pick = _pick_model(pref, depth)
     providers = _providers_for(pick.model_id, pool)
-    hint = providers[0] if providers else None
+    model_id = pick.model_id
     reason = pick.reason
+    if _is_model_absent(pick.model_id, pool):
+        fallback_providers = _fallback_providers_for(pref, pick.model_id, pool)
+        if fallback_providers:
+            providers = fallback_providers
+            model_id = providers[0].models[0]
+            reason = (
+                f"{reason} (fallback to {model_id} on {providers[0].name}: "
+                f"{pick.model_id} absent under active lab configuration)"
+            )
+    hint = providers[0] if providers else None
     if hint is None:
-        reason = f"{reason} (no declared, non-retired backend serves {pick.model_id})"
+        reason = f"{reason} (no declared, non-retired backend serves {model_id})"
     return {
         "family": pref.name,
         "requested_family": task_family,
-        "model_id": pick.model_id,
+        "model_id": model_id,
         "backend_hint": hint.name if hint is not None else None,
         "providers": [b.name for b in providers],
         "evidence": pick.evidence,

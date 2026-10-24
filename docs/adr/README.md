@@ -79,6 +79,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | [0062](0062-a-deep-lane-routes-among-qualified-configurations.md) | A deep lane chooses among independently qualified configurations by outstanding assignments, then execution leases; evidence stays backend and recipe specific and retries retain their route | Proposed (2026-10-05); built, pending independent review and deployment |
 
 | 0072 | [Flash-Next remains an isolated research recipe](0072-flash-next-remains-an-isolated-research-recipe.md) | Accepted2026-10-17; documentary disposition, no runtime change |
+| [0075](0075-dual-b70-nemotron-74b-and-3tier-holistic-fleet.md) | Dual-B70 Nemotron-74B and the 3-tier holistic fleet (`bolt74-am4`): `omen-nemotron-74b` on Dual B70 (`_mt_reorder` SYCL kernel), `am4-vllm` TP=2 27B on AM4, and `:18097` NPU+AST context slicing (`jepa_ast_sliced`) with `0042\| ` quote hygiene | Proposed (2026-10-23) |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

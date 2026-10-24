@@ -370,8 +370,40 @@ def _vllm_bearer() -> Optional[str]:
     return None
 
 
+def _fetch_llama_slots_gauges(base_url: str, timeout_s: float = MOE_HTTP_TIMEOUT_S) -> tuple[Optional[dict], Optional[str]]:
+    """Query llama-server /slots and return vLLM-compatible running/waiting gauges."""
+    import json as _json
+    slots_url = base_url.rsplit("/metrics", 1)[0].rstrip("/") + "/slots"
+    request = urllib.request.Request(slots_url)
+    token = _vllm_bearer()
+    if token:
+        request.add_header("Authorization", "Bearer %s" % token)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+            payload = _json.loads(response.read().decode("utf-8", "replace"))
+    except Exception as exc:  # noqa: BLE001
+        return None, "%s: %s" % (type(exc).__name__, exc)
+    if not isinstance(payload, list):
+        return None, "unexpected /slots payload at %s" % slots_url
+    running = float(sum(1 for s in payload if isinstance(s, dict) and s.get("is_processing")))
+    return {"vllm:num_requests_running": running, "vllm:num_requests_waiting": 0.0}, None
+
+
+def _is_bolt74_profile() -> bool:
+    try:
+        from hearth.execution.lab_config import OMEN_PROFILE_PATH
+        return OMEN_PROFILE_PATH.is_file() and OMEN_PROFILE_PATH.read_text(encoding="utf-8").strip() == "bolt74"
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _fetch_vllm_metrics(url: str, timeout_s: float = MOE_HTTP_TIMEOUT_S) -> tuple[Optional[dict], Optional[str]]:
-    """Sum the two request gauges of one vLLM seat from its Prometheus text."""
+    """Sum the two request gauges of one vLLM seat from its Prometheus text (or llama-server /slots under bolt74)."""
+    if _is_bolt74_profile():
+        if ":18092/" in url:
+            return {"vllm:num_requests_running": 0.0, "vllm:num_requests_waiting": 0.0}, None
+        if ":18091/" in url:
+            return _fetch_llama_slots_gauges(url, timeout_s)
     request = urllib.request.Request(url)
     token = _vllm_bearer()
     if token:

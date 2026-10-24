@@ -539,7 +539,14 @@ class ExecutionService:
                     f"policy_refusal: no live seat for {family!r} declares deliberate_max_tokens"
                     + (f" >= {regime['max_tokens']}" if regime else "")
                     + f" (providers {recommendation.get('providers')})")
-            out["backend"] = seats[0]
+            picked_seat = seats[0]
+            for s_name in seats:
+                s_prov = pool.by_name(s_name)
+                s_slots = self._parallel_slots(s_prov) if s_prov is not None else 1
+                if self.leases.active_count(f"provider:{s_name}") < s_slots:
+                    picked_seat = s_name
+                    break
+            out["backend"] = picked_seat
         if regime is None:
             if not isinstance(out.get("thinking"), bool):
                 raise ExecutionServiceError(

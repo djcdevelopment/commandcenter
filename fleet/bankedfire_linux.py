@@ -96,9 +96,10 @@ def _seat_loads(backend: str) -> dict[str, int]:
     """Authoritative load of one seat: the door's capacity leases plus outstanding local-work manifests of EVERY
     caller (the drain's own included: capacity is never exempt), against the seat's declared parallel_slots."""
     from hearth.execution.coordination import CapacityLeaseStore
+    from hearth.execution.lab_config import is_backend_absent
     from hearth.toolsurface.backends import load_pool
     provider = load_pool().by_name(backend)
-    slots = int((provider.settings.get("parallel_slots") if provider is not None else 0) or 0)
+    slots = 0 if is_backend_absent(backend) else int((provider.settings.get("parallel_slots") if provider is not None else 0) or 0)
     db = os.environ.get("HEARTH_COORDINATION_DB") or os.path.join(
         os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production")), "var", "execution", "coordination.sqlite")
     leases = CapacityLeaseStore(db).active_count(f"provider:{backend}")
@@ -866,7 +867,15 @@ def am4_profile_wanted(tool_queued: int, slots: list[dict[str, Any]], live: Opti
     count_tool_dispatchable) gates the switch TO tool-pair; None means "every queued one".
     There is no switch back: tool-pair is AM4's resting profile (lab configuration ``day``,
     2026-10-03). The tick used to return it to dense-tp2 once the tool queue emptied, which pulled
-    the tool seats out from under a caller 9 minutes after they came up (2026-10-03T05:32Z)."""
+    the tool seats out from under a caller 9 minutes after they came up (2026-10-03T05:32Z).
+    Under OMEN profile ``bolt74`` (configuration ``bolt74-am4``), AM4 stays on ``dense-tp2`` as the
+    dedicated 27B Dense companion seat and is not auto-switched to ``tool-pair`` by the drain."""
+    try:
+        omen_prof = AM4_PROFILE_PATH.parent / "profile"
+        if omen_prof.is_file() and omen_prof.read_text(encoding="utf-8").strip() == "bolt74":
+            return None
+    except OSError:
+        pass
     tool_in_flight = any(r.get("lane") == "tool" for r in slots)
     ready = tool_queued if tool_dispatchable is None else tool_dispatchable
     if ready and live == "dense-tp2" and not tool_in_flight:

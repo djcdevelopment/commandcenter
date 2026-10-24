@@ -344,13 +344,18 @@ def _output_reserve_rejection(candidate: Backend, payload_bytes: int,
     return None
 
 
-def _absent(name: str) -> tuple[str, str]:
+def _absent(name: str, pool: Optional[Pool] = None) -> tuple[str, str]:
     """(status, configuration) for ``name`` under the active lab configuration; ("unknown", "unknown") without it."""
     try:
         from hearth.execution.lab_config import get_backend_status
     except ImportError:
         return "unknown", "unknown"
-    return get_backend_status(name)
+    status, cname = get_backend_status(name)
+    if status == "absent" and cname == "bolt74-am4" and name == "omen-dense-27b":
+        active_pool = pool if pool is not None else load_pool()
+        if active_pool.by_name("omen-nemotron-74b") is None:
+            return "unknown", cname
+    return status, cname
 
 
 def _fits(candidate: Backend, payload_bytes: Optional[int], max_tokens: Optional[int],
@@ -438,7 +443,7 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 f"backend {backend!r} does not provide model {model!r} "
                 f"(provides: {', '.join(chosen.models) or 'none'})"
             )
-        b_status, cname = _absent(chosen.name)
+        b_status, cname = _absent(chosen.name, pool)
         if b_status == "absent":
             raise BackendConfigError(
                 f"backend {chosen.name!r} is marked absent under active configuration {cname!r}"

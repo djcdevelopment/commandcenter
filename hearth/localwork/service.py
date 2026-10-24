@@ -330,6 +330,7 @@ class LocalWorkService:
             need, rule = min(8192, max(1024, source_tokens + 512)), "diff_estimate"
         skipped: dict[str, str] = {}
         chosen = None
+        fallback_full = None
         for name in ordered:
             status, configuration = _absent(name)
             if status == "absent":
@@ -340,8 +341,20 @@ class LocalWorkService:
                 skipped[name] = (f"declares max_tokens {declared[name]} < the submission's "
                                  f"{'max_tokens' if max_tokens is not None else 'estimated output need'} {need} ({rule})")
             else:
+                provider = pool.by_name(name)
+                slots = int((provider.settings.get("parallel_slots") if provider else 1) or 1)
+                busy = max(loads.get(name, {}).get("outstanding_assignments", 0),
+                           loads.get(name, {}).get("active_leases", 0))
+                if busy >= slots:
+                    if fallback_full is None:
+                        fallback_full = name
+                    skipped[name] = f"capacity exhausted ({busy}/{slots} slots in use)"
+                    continue
                 chosen = name
                 break
+        if chosen is None and fallback_full is not None:
+            chosen = fallback_full
+            skipped.pop(chosen, None)
         if chosen is None:
             raise LocalWorkError(f"no eligible code backend in lane {lane!r}: {skipped}")
         choice = {"by": "lane_code_backend", "backend": chosen, "considered": list(ordered),
@@ -1357,8 +1370,14 @@ class LocalWorkService:
         if output != self._revision_output(manifest, "revised"):
             raise LocalWorkError("revised output differs from saved revision")
         author = str(manifest["route"]["provider"])
-        backend = "am4-vllm" if author == "omen-dense-27b" else "omen-dense-27b"
-        provider = load_pool().by_name(backend)
+        pool = load_pool()
+        if author in ("omen-dense-27b", "omen-nemotron-74b"):
+            backend = "am4-vllm"
+        elif _absent("omen-dense-27b", pool)[0] == "absent" and pool.by_name("omen-nemotron-74b") is not None:
+            backend = "omen-nemotron-74b"
+        else:
+            backend = "omen-dense-27b"
+        provider = pool.by_name(backend)
         if provider is None or provider.retired or not provider.models:
             raise LocalWorkError(f"coverage judge unavailable: {backend}")
         sm = sourcemap.build(manifest["repo"], manifest["base_commit"], list(manifest["declared_paths"]))

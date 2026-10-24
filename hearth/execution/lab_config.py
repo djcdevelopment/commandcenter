@@ -86,6 +86,8 @@ def active_configuration() -> tuple[str, str]:
     for name, spec in configs.items():
         if spec.get("omen_profile") == omen_profile and spec.get("am4_profile") == am4_profile:
             return name, "profiles"
+    if omen_profile == "bolt74" and "bolt74-am4" in configs:
+        return "bolt74-am4", "profiles"
     return "day", "default"
 
 

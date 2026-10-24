@@ -41,6 +41,7 @@ COST_CLASS_MAP = {
     "omen-vllm": "sunk",      # resident vllm on OMEN
     "omen-dense-27b": "sunk", # resident dense-27b on OMEN
     "omen-dense-27b-b": "sunk", # resident dense-27b-b on OMEN
+    "omen-nemotron-74b": "sunk", # resident Nemotron-74B-Bolt on OMEN dual B70s (ADR-0071)
     "fx99-ollama": "sunk",    # RTX 2070 SUPER sidecar on the monitoring node (ADR-0039)
     "fx99-vllm": "sunk",      # resident vllm on FX99
     "am4-oxen": "sunk",       # ☠ tombstone (cards moved to OMEN 2026-08-20)

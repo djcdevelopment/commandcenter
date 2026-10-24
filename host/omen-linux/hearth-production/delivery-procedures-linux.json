@@ -542,6 +542,104 @@
     }
    }
   },
+  "omen-nemotron-74b": {
+   "all": {
+    "carry": {
+     "accepted": 2,
+     "accepted_briefs": 2,
+     "briefs": 2,
+     "record_ids": [
+      "DEL-3575a6da9a354ddabecfce6506be505e",
+      "DEL-66abfa92daf84658875e2aaeda6b8de6"
+     ],
+     "rejected": 0
+    },
+    "one_call": {
+     "accepted": 2,
+     "accepted_briefs": 2,
+     "briefs": 2,
+     "record_ids": [
+      "DEL-890aa34945474a9a84ceab0ec4de2d51",
+      "DEL-d79eeb073f4f4810ab4c678d1cdfc977"
+     ],
+     "rejected": 0
+    }
+   },
+   "families": {
+    "code_review": {
+     "carry": {
+      "accepted": 2,
+      "accepted_briefs": 2,
+      "briefs": 2,
+      "record_ids": [
+       "DEL-3575a6da9a354ddabecfce6506be505e",
+       "DEL-66abfa92daf84658875e2aaeda6b8de6"
+      ],
+      "rejected": 0
+     },
+     "one_call": {
+      "accepted": 2,
+      "accepted_briefs": 2,
+      "briefs": 2,
+      "record_ids": [
+       "DEL-890aa34945474a9a84ceab0ec4de2d51",
+       "DEL-d79eeb073f4f4810ab4c678d1cdfc977"
+      ],
+      "rejected": 0
+     }
+    }
+   },
+   "profiles": {
+    "d664a44ab9c7b8d1de8b7b14d6527f176fceb6bcedb7c2df5a9184e4e6549572": {
+     "all": {
+      "carry": {
+       "accepted": 2,
+       "accepted_briefs": 2,
+       "briefs": 2,
+       "record_ids": [
+        "DEL-3575a6da9a354ddabecfce6506be505e",
+        "DEL-66abfa92daf84658875e2aaeda6b8de6"
+       ],
+       "rejected": 0
+      },
+      "one_call": {
+       "accepted": 2,
+       "accepted_briefs": 2,
+       "briefs": 2,
+       "record_ids": [
+        "DEL-890aa34945474a9a84ceab0ec4de2d51",
+        "DEL-d79eeb073f4f4810ab4c678d1cdfc977"
+       ],
+       "rejected": 0
+      }
+     },
+     "families": {
+      "code_review": {
+       "carry": {
+        "accepted": 2,
+        "accepted_briefs": 2,
+        "briefs": 2,
+        "record_ids": [
+         "DEL-3575a6da9a354ddabecfce6506be505e",
+         "DEL-66abfa92daf84658875e2aaeda6b8de6"
+        ],
+        "rejected": 0
+       },
+       "one_call": {
+        "accepted": 2,
+        "accepted_briefs": 2,
+        "briefs": 2,
+        "record_ids": [
+         "DEL-890aa34945474a9a84ceab0ec4de2d51",
+         "DEL-d79eeb073f4f4810ab4c678d1cdfc977"
+        ],
+        "rejected": 0
+       }
+      }
+     }
+    }
+   }
+  },
   "omen-vllm": {
    "all": {
     "items": {
@@ -721,7 +819,7 @@
    }
   }
  },
- "records": 219,
+ "records": 223,
  "rule": {
   "min_accepted_briefs": 2
  },

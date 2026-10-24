@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+extra_args=("$@")
+
 LLAMA_SERVER="${OMEN_BOLT_BIN:-/home/derek/work/flash-next-lab-20261017/build-sycl-rpc/bin/llama-server}"
 OMEN_BOLT_MODEL="${OMEN_BOLT_MODEL:-/home/derek/work/dual-b70-moe-lab-20261023/models/nemotron_35_bolt_74b_q4/UD-Q4_K_XL/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-UD-Q4_K_XL-00001-of-00003.gguf}"
 OMEN_BOLT_ALIAS="${OMEN_BOLT_ALIAS:-nemotron-3.5-bolt-74b-a9b}"
@@ -36,12 +38,14 @@ args=(
 )
 
 if [[ ${OMEN_DRY:-0} == 1 ]]; then
-  printf '%s\n' "$LLAMA_SERVER" "${args[@]}" "$@"
+  printf '%s\n' "$LLAMA_SERVER" "${args[@]}" "${extra_args[@]}"
   exit 0
 fi
 
 set +u
-source /opt/intel/oneapi/setvars.sh --force >/dev/null 2>&1 || true
+set -- --force
+source /opt/intel/oneapi/setvars.sh >/dev/null 2>&1 || true
+set --
 set -u
 
 export ONEAPI_DEVICE_SELECTOR="level_zero:0;level_zero:1"
@@ -84,4 +88,4 @@ if [[ -n "$api_token" ]]; then
   args+=(--api-key "$api_token")
 fi
 
-exec "$LLAMA_SERVER" "${args[@]}" "$@"
+exec "$LLAMA_SERVER" "${args[@]}" "${extra_args[@]}"

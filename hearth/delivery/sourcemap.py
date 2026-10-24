@@ -370,14 +370,28 @@ def _classify_regime_via_jepa(
     file_paths: list[str],
     timeout_s: float = 0.05,
 ) -> tuple[str, float]:
-    """Query resident :18097 /classify_regime (0.05s timeout) or fallback deterministically."""
+    """Query resident :18097 /classify_regime (0.05s timeout, cached in /dev/shm) or fallback deterministically."""
     import json
+    import os
+    import threading
     import time
     import urllib.request
 
     t0 = time.perf_counter()
     if _WHOLE_FILE_GUARD_RE.search(intent_text) or "whole_file" in intent_text.lower():
         return "FULL_FILE_REQUIRED", round((time.perf_counter() - t0) * 1000.0, 2)
+    arena = _shm_arena_dir()
+    reg_sig = hashlib.sha256(
+        f"{SHM_AST_ARENA_SCHEMA}:regime:{intent_text}:{','.join(file_paths)}".encode("utf-8", errors="ignore")
+    ).hexdigest()[:24]
+    reg_cache_path = arena / f"sourcemap_regime_{reg_sig}.json"
+    try:
+        if reg_cache_path.is_file():
+            cached = json.loads(reg_cache_path.read_text(encoding="utf-8"))
+            regime = str(cached.get("regime") or "SLICE_SAFE")
+            return regime, round((time.perf_counter() - t0) * 1000.0, 2)
+    except Exception:
+        pass
     try:
         payload = {"intent": intent_text, "files": file_paths}
         req = urllib.request.Request(
@@ -389,10 +403,98 @@ def _classify_regime_via_jepa(
         with urllib.request.urlopen(req, timeout=timeout_s) as resp:
             body = json.loads(resp.read().decode("utf-8"))
             regime = str(body.get("regime") or "SLICE_SAFE")
+            try:
+                arena.mkdir(parents=True, exist_ok=True)
+                tmp_rg = arena / f".tmp.rg.{os.getpid()}.{threading.get_ident()}.json"
+                tmp_rg.write_text(json.dumps({"regime": regime}), encoding="utf-8")
+                os.replace(tmp_rg, reg_cache_path)
+            except Exception:
+                pass
             return regime, round((time.perf_counter() - t0) * 1000.0, 2)
     except Exception:
         pass
     return "SLICE_SAFE", round((time.perf_counter() - t0) * 1000.0, 2)
+
+
+SHM_AST_ARENA_SCHEMA = "mechsuit-sourcemap-ast.v2"
+
+
+def _shm_arena_dir():
+    import os
+    from pathlib import Path
+
+    return Path(os.environ.get("MECHSUIT_AST_ARENA_DIR", "/dev/shm/mechsuit-ast-arena"))
+
+
+def _shm_get_or_build_file_ast(fm: FileMap) -> tuple[list[dict], list[str], list[str], str, bool]:
+    """Load pre-parsed AST slice symbols and candidate snippets from `/dev/shm/mechsuit-ast-arena` by SHA-256,
+    or parse once and atomically populate `/dev/shm/mechsuit-ast-arena` on a cold miss."""
+    import json
+    import os
+    import threading
+
+    n_lines = len(fm.lines)
+    arena = _shm_arena_dir()
+    key = f"sourcemap_sha256_{fm.sha256[:24]}"
+    meta_path = arena / f"{key}.meta.json"
+
+    try:
+        if meta_path.is_file():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if (
+                meta.get("schema") == SHM_AST_ARENA_SCHEMA
+                and meta.get("file_sha256") == fm.sha256
+                and isinstance(meta.get("slice_syms"), list)
+                and isinstance(meta.get("cand_labels"), list)
+                and isinstance(meta.get("cand_texts"), list)
+                and len(meta["cand_labels"]) == len(meta["cand_texts"])
+            ):
+                try:
+                    os.utime(meta_path, None)
+                except OSError:
+                    pass
+                return (
+                    meta["slice_syms"],
+                    meta["cand_labels"],
+                    meta["cand_texts"],
+                    str(meta.get("header_preview") or "\n".join(fm.lines[: min(25, n_lines)])),
+                    True,
+                )
+    except Exception:
+        pass
+
+    slice_syms = _jepa_slice_symbols(fm)
+    cand_labels: list[str] = []
+    cand_texts: list[str] = []
+    for s in slice_syms:
+        lbl = f"{s['name']}:{s['start']}-{s['end']}"
+        snippet = "\n".join(fm.lines[max(0, s["start"] - 1) : min(n_lines, s["start"] + 24)])
+        s["name_subtoks"] = list(_subtokens(s["name"]))
+        s["body_lower"] = "\n".join(fm.lines[s["start"] - 1 : s["end"]]).lower()
+        cand_labels.append(lbl)
+        cand_texts.append(f"[SYMBOL: {s['name']} ({s['kind']}) lines {s['start']}-{s['end']}]\n{snippet}")
+    header_preview = "\n".join(fm.lines[: min(25, n_lines)])
+
+    if slice_syms and n_lines >= 90:
+        try:
+            arena.mkdir(parents=True, exist_ok=True)
+            tmp_path = arena / f".tmp.{key}.{os.getpid()}.{threading.get_ident()}.meta.json"
+            payload = {
+                "schema": SHM_AST_ARENA_SCHEMA,
+                "file_path": fm.path,
+                "file_sha256": fm.sha256,
+                "n_lines": n_lines,
+                "slice_syms": slice_syms,
+                "cand_labels": cand_labels,
+                "cand_texts": cand_texts,
+                "header_preview": header_preview,
+            }
+            tmp_path.write_text(json.dumps(payload), encoding="utf-8")
+            os.replace(tmp_path, meta_path)
+        except Exception:
+            pass
+
+    return slice_syms, cand_labels, cand_texts, header_preview, False
 
 
 def _rank_ast_blocks_via_jepa(
@@ -401,13 +503,41 @@ def _rank_ast_blocks_via_jepa(
     cand_texts: list[str],
     cand_labels: list[str],
     timeout_s: float = 0.12,
+    file_sha256: Optional[str] = None,
 ) -> tuple[dict[str, float], str, float]:
-    """Query resident :18097 JEPA v3 daemon or fallback to identifier+subtoken overlap."""
+    """Query resident :18097 JEPA v3 daemon (with `/dev/shm/mechsuit-ast-arena` tensor & rank caching)
+    or fallback to identifier+subtoken overlap."""
     import json
+    import os
+    import threading
     import time
     import urllib.request
 
     t0 = time.perf_counter()
+    arena = _shm_arena_dir()
+    rank_cache_path = None
+    if file_sha256 and cand_labels:
+        rank_sig = hashlib.sha256(
+            f"{SHM_AST_ARENA_SCHEMA}:{file_sha256}:{len(cand_labels)}:{intent_text}".encode("utf-8", errors="ignore")
+        ).hexdigest()[:24]
+        rank_cache_path = arena / f"sourcemap_rank_{rank_sig}.json"
+        try:
+            if rank_cache_path.is_file():
+                cached = json.loads(rank_cache_path.read_text(encoding="utf-8"))
+                scores = cached.get("scores")
+                if isinstance(scores, dict) and len(scores) == len(cand_labels):
+                    try:
+                        os.utime(rank_cache_path, None)
+                    except OSError:
+                        pass
+                    return (
+                        {str(k): float(v) for k, v in scores.items()},
+                        "live_18097",
+                        round((time.perf_counter() - t0) * 1000.0, 2),
+                    )
+        except Exception:
+            pass
+
     if cand_texts:
         try:
             payload = {
@@ -418,6 +548,8 @@ def _rank_ast_blocks_via_jepa(
                 "candidates": cand_texts,
                 "labels": cand_labels,
             }
+            if file_sha256:
+                payload["file_sha256"] = file_sha256
             req = urllib.request.Request(
                 "http://127.0.0.1:18097/rank_candidates",
                 data=json.dumps(payload).encode("utf-8"),
@@ -434,6 +566,17 @@ def _rank_ast_blocks_via_jepa(
                     if lbl:
                         scores[lbl] = sc
                 if scores:
+                    if rank_cache_path is not None:
+                        try:
+                            arena.mkdir(parents=True, exist_ok=True)
+                            tmp_rk = arena / f".tmp.rk.{os.getpid()}.{threading.get_ident()}.json"
+                            tmp_rk.write_text(
+                                json.dumps({"file_sha256": file_sha256, "scores": scores}),
+                                encoding="utf-8",
+                            )
+                            os.replace(tmp_rk, rank_cache_path)
+                        except Exception:
+                            pass
                     return scores, "live_18097", round((time.perf_counter() - t0) * 1000.0, 2)
         except Exception:
             pass
@@ -626,6 +769,8 @@ def render_jepa_ast_sliced_for_model(
     kept_symbols = 0
     jepa_modes = []
     total_latency_ms = regime_lat_ms
+    shm_hits = 0
+    shm_misses = 0
 
     for fm in sm.files:
         note = f", {'; '.join(fm.notes)}" if fm.notes else ""
@@ -637,44 +782,54 @@ def render_jepa_ast_sliced_for_model(
         width = max(3, len(str(len(fm.lines))))
         n_lines = len(fm.lines)
 
-        slice_syms = _jepa_slice_symbols(fm)
+        if n_lines < 90:
+            for i, line in enumerate(fm.lines, 1):
+                parts.append(f"{i:0{width}d}| {line}" if numbered else line)
+            parts.append(f"=== END {fm.path} ===")
+            continue
 
-        # Short files (< 90 lines) or files with no symbols are rendered in full
-        if n_lines < 90 or not slice_syms:
+        slice_syms, cand_labels, cand_texts, header_preview, is_shm_hit = _shm_get_or_build_file_ast(fm)
+        if is_shm_hit:
+            shm_hits += 1
+        else:
+            shm_misses += 1
+
+        # Files with no sliceable symbols are rendered in full
+        if not slice_syms:
             for i, line in enumerate(fm.lines, 1):
                 parts.append(f"{i:0{width}d}| {line}" if numbered else line)
             parts.append(f"=== END {fm.path} ===")
             continue
 
         total_symbols += len(slice_syms)
-        cand_labels = []
-        cand_texts = []
-        for s in slice_syms:
-            lbl = f"{s['name']}:{s['start']}-{s['end']}"
-            snippet = "\n".join(fm.lines[max(0, s["start"] - 1):min(n_lines, s["start"] + 24)])
-            cand_labels.append(lbl)
-            cand_texts.append(f"[SYMBOL: {s['name']} ({s['kind']}) lines {s['start']}-{s['end']}]\n{snippet}")
-
-        header_preview = "\n".join(fm.lines[:min(25, n_lines)])
         state_desc = f"[FILE: {fm.path}]\n{header_preview}"
+        has_shm_tensors = (_shm_arena_dir() / f"sourcemap_sha256_{fm.sha256[:24]}.tensors.npz").is_file()
         scores, mode, lat_ms = _rank_ast_blocks_via_jepa(
-            state_desc, combined_intent, cand_texts, cand_labels, timeout_s=0.12
+            state_desc,
+            combined_intent,
+            cand_texts,
+            cand_labels,
+            timeout_s=0.12 if has_shm_tensors else 0.85,
+            file_sha256=fm.sha256,
         )
         jepa_modes.append(mode)
         total_latency_ms += lat_ms
 
+        q_idents_ge4 = [tok for tok in q_idents if len(tok) >= 4]
         ranked_syms = []
         for s in slice_syms:
             lbl = f"{s['name']}:{s['start']}-{s['end']}"
             base_sc = scores.get(lbl, 0.0)
             sym_name_low = s["name"].lower()
             short_low = str(s.get("short_name") or s["name"].split(".")[-1]).lower()
-            sym_subtoks = _subtokens(s["name"])
+            sym_subtoks = set(s.get("name_subtoks") or _subtokens(s["name"]))
             exact_name_hit = 1.0 if (sym_name_low in q_idents or short_low in q_idents) else (
                 0.5 if (sym_subtoks & q_idents) else 0.0
             )
-            body_text = "\n".join(fm.lines[s["start"] - 1:s["end"]]).lower()
-            id_hits = sum(1 for tok in q_idents if len(tok) >= 4 and tok in body_text)
+            body_text = s.get("body_lower")
+            if body_text is None:
+                body_text = "\n".join(fm.lines[s["start"] - 1:s["end"]]).lower()
+            id_hits = sum(1 for tok in q_idents_ge4 if tok in body_text)
             const_boost = 0.25 if s.get("kind") == "const_table" and id_hits > 0 else 0.0
             combined_sc = base_sc + 1.5 * exact_name_hit + 0.15 * id_hits + const_boost
             ranked_syms.append((combined_sc, s))
@@ -744,6 +899,8 @@ def render_jepa_ast_sliced_for_model(
         "symbols_total": total_symbols,
         "jepa_mode": "live_18097" if "live_18097" in jepa_modes else "symbolic_ast_fallback",
         "jepa_latency_ms": round(total_latency_ms, 2),
+        "shm_arena_hits": shm_hits,
+        "shm_arena_misses": shm_misses,
     }
     return out, stats
 

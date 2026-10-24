@@ -187,15 +187,15 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | am4-tool@5070 max_num_seqs | `2` | `repo/am4-fleet-node/config/seat-5070.env` | vLLM scheduler | concurrent sequences |  |
 | am4-tool@5070 served model | `am4-tool-5070` | `repo/am4-fleet-node/config/seat-5070.env` | facade alias | which alias answers |  |
 | am4-tool@5070 tool / reasoning parser | `hermes / qwen3` | `repo/am4-fleet-node/config/seat-5070.env` | vLLM | native tool-call parsing |  |
-| am4-vllm (dense-tp2) max_model_len | `16384` | `repo/am4-fleet-node/scripts/run-vllm-canary.sh` | vLLM TP2 | window of the dense profile |  |
-| am4-vllm (dense-tp2) max_num_seqs | `1` | `repo/am4-fleet-node/scripts/run-vllm-canary.sh` | vLLM TP2 | concurrent sequences |  |
+| am4-vllm (dense-tp2) max_model_len | `49152` | `am4:~/run-vllm-canary.sh` | vLLM TP2 | window of the dense profile |  |
+| am4-vllm (dense-tp2) max_num_seqs | `8` | `am4:~/run-vllm-canary.sh` | vLLM TP2 | concurrent sequences |  |
 
 ### client
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
 | claude code hearth timeout (ms) | `2600000` | `~/.claude.json mcpServers.hearth.timeout` | Claude Code | longest door call |  |
-| codex mcp tool_timeout_sec | `2600` | `~/.codex/config.toml:27` | Codex | longest door call |  |
+| codex mcp tool_timeout_sec | `2600` | `~/.codex/config.toml:32` | Codex | longest door call |  |
 
 ### configuration
 
@@ -206,7 +206,7 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | active omen profile | `bolt74` | `~/.config/omen-vllm/profile` | lab-config | active OMEN seat profile |  |
 | config bolt74-dense27 backend am4-tool-4070ti | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config bolt74-dense27 backend am4-tool-5070 | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-dense27 backend am4-vllm | `status=live ctx=49152 slots=1 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 backend am4-vllm | `status=live ctx=49152 slots=8 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config bolt74-dense27 backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config bolt74-dense27 backend omen-dense-27b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config bolt74-dense27 backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
@@ -287,7 +287,7 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | config seat0-qwen3-32b omen/am4/fx99 | `seat0-qwen3-32b / tool-pair / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | Seat 0 Qwen3-32B experiment, AM4 tool-pair |
 | config three-dense backend am4-tool-4070ti | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config three-dense backend am4-tool-5070 | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config three-dense backend am4-vllm | `status=live ctx=49152 slots=1 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense backend am4-vllm | `status=live ctx=49152 slots=8 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config three-dense backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config three-dense backend omen-dense-27b | `status=live ctx=65536 slots=2 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config three-dense backend omen-dense-27b-b | `status=live ctx=65536 slots=2 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
@@ -328,21 +328,21 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| BANKEDFIRE_SLOTS default | `fast=3,deep=1,experiment=1,deepagents=1,tool=2` | `repo/fleet/bankedfire_linux.py:139` | bankedfire_linux.tick | unattended in-flight work per lane | env now: (unset) |
+| BANKEDFIRE_SLOTS default | `fast=3,deep=1,experiment=1,deepagents=1,tool=2` | `repo/fleet/bankedfire_linux.py:140` | bankedfire_linux.tick | unattended in-flight work per lane | env now: (unset) |
 | PRESENCE idle minutes | `20` | `repo/fleet/presence_linux.py:37` | presence.report | away threshold | env now: (unset) |
-| brief deadline_s default | `2400` | `repo/fleet/bankedfire_linux.py:313` | submit_args_from_brief | local-work job deadline |  |
-| door MCP client timeout (s) | `300` | `repo/fleet/bankedfire_linux.py:217` | call_tool | submit / status calls |  |
-| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:560` | proofing_args_from_brief | proposal output / deadline |  |
-| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:506` | candidate_exclusions | failed candidate retry |  |
-| systemd-run launch timeout (s) | `30` | `repo/fleet/bankedfire_linux.py:421` | experiment / deepagents launch | — |  |
+| brief deadline_s default | `2400` | `repo/fleet/bankedfire_linux.py:314` | submit_args_from_brief | local-work job deadline |  |
+| door MCP client timeout (s) | `300` | `repo/fleet/bankedfire_linux.py:218` | call_tool | submit / status calls |  |
+| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:562` | proofing_args_from_brief | proposal output / deadline |  |
+| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:508` | candidate_exclusions | failed candidate retry |  |
+| systemd-run launch timeout (s) | `30` | `repo/fleet/bankedfire_linux.py:423` | experiment / deepagents launch | — |  |
 | tick interval | `30min` | `~/.config/systemd/user/bankedfire-drain.timer` | systemd | how often the night loop looks |  |
 
 ### execution
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:1107` | lease limit | per-rung concurrency |  |
-| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:1240` | _run_job | the '1199' | queue wait counts against the deadline |
+| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:1114` | lease limit | per-rung concurrency |  |
+| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:1247` | _run_job | the '1199' | queue wait counts against the deadline |
 | workers / max_pending | `16 / 256` | `repo/hearth/execution/service.py:133` | executor | concurrent jobs / queue depth |  |
 
 ### experiment
@@ -379,10 +379,10 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
 | auto lane floor (evidence tokens -> deep) | `8192` | `repo/hearth/localwork/service.py:251` | _lane | fast vs deep | quote_retrieval floor 4096; evidence = source pack only, counted with the fast lane's tokenizer |
-| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:772` | submit | refuses at submit |  |
+| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:787` | submit | refuses at submit |  |
 | lane deep | — | `~/hearth-production/local-work-routes-linux.toml:3` | submit_local_work | which rung a lane is |  |
-| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:764` | submit | reserve when the rung declares none |  |
-| submit_local_work deadline_s default | `1800` | `repo/hearth/toolsurface/local_work.py:44` | MCP tool | job deadline when the caller sets none |  |
+| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:779` | submit | reserve when the rung declares none |  |
+| submit_local_work deadline_s default | `1800` | `repo/hearth/toolsurface/local_work.py:47` | MCP tool | job deadline when the caller sets none |  |
 | tokenizer / git / apply timeouts (s) | `30 / 120 / 120` | `repo/hearth/localwork/service.py:137` | submit, validation | submit latency; candidate validation |  |
 
 ### measured
@@ -452,7 +452,7 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | am4-vllm deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:61` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
 | am4-vllm endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:46` | door | which router port |  |
 | am4-vllm max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
-| am4-vllm parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
+| am4-vllm parallel_slots | `8` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-vllm timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | backends-linux.toml KV-pool comment | `76706` | `~/hearth-production/backends-linux.toml:80` | operator | documentation of the dense seat's KV pool | compared against the live kv_cache_size_tokens under --live |
 | default rung | `omen-vllm` | `~/hearth-production/backends-linux.toml:3` | local_generate | where untagged calls land |  |

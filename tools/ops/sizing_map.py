@@ -399,9 +399,10 @@ def collect_am4(live: bool) -> list[Row]:
         rows.append(row("am4-seat", f"am4-tool@{seat} gpu_memory_utilization", float(env.get("AM4_GPU_MEM_UTIL") or 0) or None, src, "vLLM", "VRAM fraction on one card"))
         rows.append(row("am4-seat", f"am4-tool@{seat} tool / reasoning parser", f"{env.get('AM4_TOOL_PARSER')} / {env.get('AM4_REASONING_PARSER')}", src, "vLLM", "native tool-call parsing"))
         rows.append(row("am4-seat", f"am4-tool@{seat} card", env.get("AM4_GPU_UUID"), src, "CUDA_VISIBLE_DEVICES", "the one card this seat may use (UUID, ADR-0042)"))
-    canary = _read(REPO / "am4-fleet-node" / "scripts" / "run-vllm-canary.sh")
-    rows.append(row("am4-seat", "am4-vllm (dense-tp2) max_model_len", _grep(canary, r"--max-model-len (\d+)", cast=int), "repo/am4-fleet-node/scripts/run-vllm-canary.sh", "vLLM TP2", "window of the dense profile"))
-    rows.append(row("am4-seat", "am4-vllm (dense-tp2) max_num_seqs", _grep(canary, r"--max-num-seqs (\d+)", cast=int), "repo/am4-fleet-node/scripts/run-vllm-canary.sh", "vLLM TP2", "concurrent sequences"))
+    canary = (_ssh_am4("cat ~/run-vllm-canary.sh") if live else None) or _read(REPO / "am4-fleet-node" / "scripts" / "run-vllm-canary.sh")
+    canary_src = "am4:~/run-vllm-canary.sh" if live and "--max-num-seqs" in canary else "repo/am4-fleet-node/scripts/run-vllm-canary.sh"
+    rows.append(row("am4-seat", "am4-vllm (dense-tp2) max_model_len", _grep(canary, r"--max-model-len\s+\\?\s*(\d+)", cast=int), canary_src, "vLLM TP2", "window of the dense profile"))
+    rows.append(row("am4-seat", "am4-vllm (dense-tp2) max_num_seqs", _grep(canary, r"--max-num-seqs\s+\\?\s*(\d+)", cast=int), canary_src, "vLLM TP2", "concurrent sequences"))
     if live:
         prof = (_ssh_am4("cat ~/.config/am4-fleet/profile") or "").strip() or "unreadable"
         rows.append(row("am4-live", "am4 profile", prof, "am4:~/.config/am4-fleet/profile", "readiness probe, occupancy probes, DeepAgents wrapper", "which alias set is live"))

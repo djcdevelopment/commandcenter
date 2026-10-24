@@ -660,15 +660,20 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
                 "endpoint": target.endpoint, "model": model}
 
     new_path = messages is not None or thinking is not None or stream
+    cache_prompt_enabled = False
     if messages is None:
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": system})
-        content = ([{"type": "image_url", "image_url": {"url": image_url}},
-                    {"type": "text", "text": prompt}] if image_url else prompt)
-        messages.append({"role": "user", "content": content})
+        from hearth.adapters.openai_server import build_turn_checkpointed_messages
+        messages, cache_prompt_enabled = build_turn_checkpointed_messages(
+            prompt=prompt,
+            system_prompt=system,
+            model_name=model,
+            backend_id=target.backend,
+            image_url=image_url,
+        )
     payload = {"model": model, "messages": messages,
                "max_tokens": max_tokens, "stream": False}
+    if cache_prompt_enabled:
+        payload["cache_prompt"] = True
     if stream:
         payload["stream"] = True
         payload["stream_options"] = {"include_usage": True}

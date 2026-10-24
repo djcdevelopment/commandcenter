@@ -61,7 +61,7 @@ max_tokens = 4096    # Preserve the ordinary delivery budget; deliberate turns d
 deliberate_max_tokens = 24576
 reasoning_effort = "xhigh"    # Explicit AM4 thinking turns; ordinary/attach defaults remain off.
 timeout_s = 1000
-parallel_slots = 1
+parallel_slots = 8
 
 [backend.settings.chat_template_kwargs]
 enable_thinking = false

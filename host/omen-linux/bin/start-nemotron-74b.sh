@@ -13,6 +13,9 @@ OMEN_BOLT_TOTAL_CTX="${OMEN_BOLT_TOTAL_CTX:-$((OMEN_BOLT_SLOTS * OMEN_BOLT_SLOT_
 OMEN_BOLT_SPLIT="${OMEN_BOLT_SPLIT:-53,47}"
 OMEN_BOLT_BATCH="${OMEN_BOLT_BATCH:-4096}"
 OMEN_BOLT_UBATCH="${OMEN_BOLT_UBATCH:-2048}"
+OMEN_BOLT_SLOT_SAVE_PATH="${OMEN_BOLT_SLOT_SAVE_PATH:-/dev/shm/llama-kv-slots}"
+
+mkdir -p "$OMEN_BOLT_SLOT_SAVE_PATH"
 
 llama_args=(
   -m "$OMEN_BOLT_MODEL"
@@ -32,6 +35,7 @@ llama_args=(
   --jinja
   --no-warmup
   --reasoning-format deepseek
+  --slot-save-path "$OMEN_BOLT_SLOT_SAVE_PATH"
   --metrics
   --host 127.0.0.1
   --port "$OMEN_BOLT_PORT"
@@ -51,6 +55,7 @@ set -u
 export ONEAPI_DEVICE_SELECTOR="level_zero:0;level_zero:1"
 export SYCL_CACHE_PERSISTENT=0
 export GGML_SYCL_DISABLE_GRAPH=1
+export GGML_SYCL_MT_MAX_TOKENS="${GGML_SYCL_MT_MAX_TOKENS:-42}"
 export SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1
 export UR_L0_USE_IMMEDIATE_COMMANDLISTS=1
 

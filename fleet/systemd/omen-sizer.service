@@ -10,7 +10,8 @@ After=hearth-production.service
 [Service]
 WorkingDirectory=/home/derek/work/commandcenter-linux-flash
 EnvironmentFile=/home/derek/.config/hearth/hearth-ops.env
-ExecStart=/home/derek/.venvs/npu/bin/python -m tools.sizer.serve --bind 127.0.0.1 --port 8797 --device NPU --fallback CPU --ir /home/derek/models/minilm-ov/int8 --head /home/derek/work/npu-sizer-20260928/head.npz --cache /home/derek/.cache/ov_npu
+Environment="OV_CACHE_DIR=/dev/shm/mechsuit-ov-cache"
+ExecStart=/home/derek/.venvs/npu/bin/python -m tools.sizer.serve --bind 127.0.0.1 --port 8797 --device NPU --fallback CPU --ir /home/derek/models/minilm-ov/int8 --head /home/derek/work/npu-sizer-20260928/head.npz --cache /dev/shm/mechsuit-ov-cache
 Restart=on-failure
 RestartSec=5
 

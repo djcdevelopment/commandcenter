@@ -14,7 +14,16 @@ review costs; handle trivial work directly. Batch related small items into one c
 Seats are profile-bound: `host/lab-configurations.toml` names the live set and `submit_local_work` records it in
 `conditions.lab_configuration`. Since 2026-10-05 the configuration is `three-dense` (G-bench27): `omen-dense-27b`,
 `omen-dense-27b-b`, `am4-vllm` (dense-tp2) and `fx99-vllm` live; `omen-vllm` and the AM4 tool pair absent;
-default-lane calls fall back to the 27B replicas (ADR-0066). Check before pinning a seat another profile serves.
+default-lane calls fall back to the 27B replicas (ADR-0066). Under `bolt74-am4` (ADR-0075), Dual B70 serves
+`omen-nemotron-74b` (`:18080`, 32,768 ctx, 1 slot) alongside `am4-vllm` (`10.44.0.2:18082`, 49,152 ctx, 1 slot) and
+resident Tier-0 NPU+AST context slicing (`:18097`, `procedure="jepa_ast_sliced"` or `HEARTH_JEPA_PACK=1`); switch
+profiles with `~/bin/omen-profile switch bolt74 | three-dense | two-dense`. Check before pinning a seat another profile serves.
+
+- `omen-nemotron-74b` (tags `dense, quality, agent, code, reasoning`; live under `bolt74-am4`, **absent under other
+  profiles**): `nemotron-3.5-bolt-74b-a9b` (`manki-llama-bolt74b-v1.5-Q4_K_M.gguf`) across both B70 cards on `:18080`,
+  32,768 ctx, 1 slot, output reserve 16,384 (`deliberate_max_tokens = 24576`), SYCL `_mt_reorder` kernel (419 tok/s
+  prefill, 24.6 tok/s decode). Primary heavy reasoner and code-work seat under `bolt74-am4`, paired with `am4-vllm`
+  for parallel 27B overflow and cross-seat verification.
 
 - `omen-vllm` (default; tags `default, code, research, reasoning`; profiles `day` and two-lane only, **absent under
   three-dense**): Qwen3-30B-A3B MoE behind HAProxy `:18090`, 40,960 ctx, 8 slots. Sunk local compute, resident: spend it freely on grunt work.

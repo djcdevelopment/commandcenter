@@ -536,8 +536,20 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
         wanted.extend(tags)
     tag_candidates_checked = 0
     tag_absent: list[str] = []
+    d_status_early, d_cfg_early = _absent(pool.default)
+    if d_status_early == "absent":
+        fb_order = {b.name: idx for idx, b in enumerate(_default_fallback(pool, d_cfg_early))}
+        tag_pool = [
+            item[1]
+            for item in sorted(
+                enumerate(pool.backends),
+                key=lambda item: (0 if item[1].name in fb_order else 1, fb_order.get(item[1].name, 0), item[0]),
+            )
+        ]
+    else:
+        tag_pool = list(pool.backends)
     for tag in wanted:
-        for candidate in pool.backends:
+        for candidate in tag_pool:
             if tag in candidate.tags:
                 tag_candidates_checked += 1
                 if _absent(candidate.name)[0] == "absent":

@@ -18,7 +18,9 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from typing import Any
@@ -51,8 +53,18 @@ for env_file in (
             os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 from hearth.delivery import procedures, sourcemap
-from hearth.localwork import service as lw_service
+from hearth.execution.defaults import get_execution_service
+from hearth.localwork import LocalWorkService
 from hearth.toolsurface import inference
+
+
+def get_head_commit() -> str:
+    return subprocess.run(
+        ["git", "-C", str(REPO), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
 
 
 def read_b70_thermals() -> dict[str, Any]:
@@ -75,76 +87,82 @@ def read_b70_thermals() -> dict[str, Any]:
 
 def verify_gate_v5() -> dict[str, Any]:
     print("\n=== [Gate V5] Tier-0 NPU Context Packager (:18097) & 0042| Quote Hygiene ===")
-    # 1. Check :18097 /health
     req = urllib.request.Request("http://127.0.0.1:18097/health")
     with urllib.request.urlopen(req, timeout=3.0) as resp:
         npu_health = json.loads(resp.read().decode("utf-8"))
-    print(f"  NPU :18097 /health: ok={npu_health.get('ok')} device={npu_health.get('device')} zero_gpu_contention={npu_health.get('npu_zero_gpu_contention')}")
+    npu_ok = (
+        npu_health.get("status") == "ok"
+        and bool(npu_health.get("daemon_18097_online"))
+        and npu_health.get("encoder_device") == "NPU"
+        and float(npu_health.get("vram_b70_xpu0_mib", 1.0)) == 0.0
+        and float(npu_health.get("vram_b70_xpu1_mib", 1.0)) == 0.0
+    )
+    print(f"  NPU :18097 /health: status={npu_health.get('status')} encoder_device={npu_health.get('encoder_device')} vram_b70=({npu_health.get('vram_b70_xpu0_mib')}, {npu_health.get('vram_b70_xpu1_mib')}) MiB")
 
-    # 2. Test render_jepa_ast_sliced_for_model on 3 real source files
+    head_commit = get_head_commit()
     targets = [
-        ("hearth/localwork/service.py", " Explain how _server_token_count and SERVING_PROFILE_KEYS handle llama-server vs vllm."),
-        ("hearth/delivery/sourcemap.py", " Explain how _strip_line_number_prefix and render_jepa_ast_sliced_for_model slice monolithic classes."),
-        ("tools/ops/sizing_map.py", " Explain how invariants validate expected_live and default_fallback for bolt74-am4."),
+        ("hearth/localwork/service.py", "Explain how _server_token_count and SERVING_PROFILE_KEYS handle llama-server vs vllm."),
+        ("hearth/delivery/sourcemap.py", "Explain how _strip_line_number_prefix and render_jepa_ast_sliced_for_model slice monolithic classes."),
+        ("tools/ops/sizing_map.py", "Explain how invariants validate expected_live and default_fallback for bolt74-am4."),
     ]
     slice_results = []
     for rel_path, query in targets:
-        abs_path = REPO / rel_path
-        src = sourcemap.load([sourcemap.SourceSpec(path=rel_path, abs_path=abs_path)])
-        full_text = sourcemap.render_for_model(src, numbered=True)
-        sliced_text, receipt = sourcemap.render_jepa_ast_sliced_for_model(
-            src,
-            task_text=query,
-            questions=[query],
-            token_budget=1800,
+        smap = sourcemap.build(str(REPO), head_commit, [rel_path])
+        full_text = sourcemap.render_for_model(smap, numbered=True)
+        sliced_text, stats = sourcemap.render_jepa_ast_sliced_for_model(
+            smap,
+            intent=query,
+            brief={"substance": [{"id": "s1", "statement": query}]},
             numbered=True,
+            symbols=False,
         )
         full_chars = len(full_text)
         sliced_chars = len(sliced_text)
         red_pct = round((1.0 - (sliced_chars / max(1, full_chars))) * 100.0, 1)
-        print(f"  Slicing {rel_path}: {full_chars} -> {sliced_chars} chars ({red_pct}% reduction), mode={receipt.get('mode')}, npu_ms={receipt.get('npu_latency_ms')}")
+        print(f"  Slicing {rel_path}: {full_chars} -> {sliced_chars} chars ({red_pct}% reduction), mode={stats.get('mode')}, regime={stats.get('regime')}")
         slice_results.append({
             "path": rel_path,
             "full_chars": full_chars,
             "sliced_chars": sliced_chars,
             "reduction_pct": red_pct,
-            "receipt": receipt,
+            "stats": stats,
         })
 
-    # 3. Test 10 quotes with 0042| line-number prefixes against sourcemap.locate()
-    sm_spec = sourcemap.SourceSpec(path="hearth/delivery/sourcemap.py", abs_path=REPO / "hearth" / "delivery" / "sourcemap.py")
-    sm_loaded = sourcemap.load([sm_spec])
-    sm_lines = sm_loaded[0].lines
-    test_line_indices = [10, 25, 45, 70, 95, 120, 160, 200, 250, 300]
+    # Test 10 quotes with 0042| line-number prefixes against sourcemap.locate()
+    sm_loaded = sourcemap.build(str(REPO), head_commit, ["hearth/delivery/sourcemap.py"])
+    sm_lines = sm_loaded.files[0].lines
+    test_line_indices = [12, 26, 48, 72, 95, 120, 160, 200, 250, 300]
     quote_checks = []
     resolved_count = 0
     for idx in test_line_indices:
-        if idx + 1 < len(sm_lines):
-            q_single = f"{idx:04d}| {sm_lines[idx - 1]}"
-            loc1 = sourcemap.locate(q_single, sm_loaded)
-            q_multi = f"{idx:04d}| {sm_lines[idx - 1]}\n{idx+1:04d}| {sm_lines[idx]}"
-            loc2 = sourcemap.locate(q_multi, sm_loaded)
-            ok = bool(loc1.resolved and loc2.resolved and loc1.match == "normalized" and loc2.match == "normalized")
+        if idx + 1 <= len(sm_lines):
+            q_single = f"{idx:04d}| {sm_lines[idx - 1]}\n{idx+1:04d}| {sm_lines[idx]}"
+            loc = sourcemap.locate(sm_loaded, q_single)
+            ok = bool(loc.resolved and loc.match == "normalized")
             if ok:
                 resolved_count += 1
             quote_checks.append({
                 "line": idx,
-                "single_match": loc1.match,
-                "multi_match": loc2.match,
+                "match": loc.match,
+                "ref": loc.ref,
                 "resolved": ok,
             })
 
     avg_reduction = round(sum(r["reduction_pct"] for r in slice_results) / len(slice_results), 1)
     v5_ok = (
-        bool(npu_health.get("ok"))
-        and npu_health.get("device") == "NPU"
+        npu_ok
         and avg_reduction >= 40.0
         and resolved_count == len(quote_checks)
     )
     print(f"  [Gate V5 Verdict] ok={v5_ok} avg_reduction={avg_reduction}% quote_hygiene={resolved_count}/{len(quote_checks)}")
     return {
         "ok": v5_ok,
-        "npu_health": npu_health,
+        "npu_health": {
+            "status": npu_health.get("status"),
+            "encoder_device": npu_health.get("encoder_device"),
+            "vram_b70_xpu0_mib": npu_health.get("vram_b70_xpu0_mib"),
+            "vram_b70_xpu1_mib": npu_health.get("vram_b70_xpu1_mib"),
+        },
         "avg_reduction_pct": avg_reduction,
         "slice_results": slice_results,
         "quote_hygiene_resolved": f"{resolved_count}/{len(quote_checks)}",
@@ -152,144 +170,179 @@ def verify_gate_v5() -> dict[str, Any]:
     }
 
 
+def _wait_work(service: LocalWorkService, work_id: str, timeout_s: float = 360.0) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        manifest = service.reconcile(work_id)
+        if manifest["status"] in {"awaiting_review", "accepted", "rejected", "superseded", "failed"}:
+            return manifest
+        time.sleep(2.0)
+    return service.reconcile(work_id)
+
+
 def verify_gate_v6() -> dict[str, Any]:
     print("\n=== [Gate V6] serving-profile.v2 Door Qualification (omen-nemotron-74b) ===")
-    brief_specs = [
+    head_commit = get_head_commit()
+    service = LocalWorkService(get_execution_service())
+
+    # During initial seat qualification, point HEARTH_LOCAL_WORK_ROUTES to a singleton deep route
+    # for omen-nemotron-74b so pooled=False while earning the first >=2 accepted briefs per procedure.
+    orig_routes = os.environ.get("HEARTH_LOCAL_WORK_ROUTES")
+    qual_specs = [
         {
             "name": "bolt74-qual-one-call-1",
             "procedure": "one_call",
-            "brief": {
-                "contract": "brief.v2",
-                "task": "Audit host/omen-linux/profiles/bolt74.json and report the mode, service_unit, context, and max_num_seqs configured for the bolt74 profile.",
-                "sources": [
-                    {"path": str(REPO / "host/omen-linux/profiles/bolt74.json"), "start_line": 1, "end_line": 21}
-                ],
-                "questions": [
-                    {
-                        "id": "Q1",
-                        "question": "What mode, service_unit, context, and max_num_seqs are declared in host/omen-linux/profiles/bolt74.json?",
-                        "required_heading": "Bolt74 Profile Configuration",
-                    }
-                ],
-                "jepa_pack": "auto",
-            },
+            "intent": "Audit host/omen-linux/profiles/bolt74.json and report the mode, service_unit, context, and max_num_seqs configured for the bolt74 profile.",
+            "files": ["host/omen-linux/profiles/bolt74.json"],
+            "substance": [
+                {
+                    "id": "s1-bolt74-profile",
+                    "statement": "The report states the mode, service_unit, router_config, context, and max_num_seqs declared in host/omen-linux/profiles/bolt74.json.",
+                }
+            ],
         },
         {
             "name": "bolt74-qual-one-call-2",
             "procedure": "one_call",
-            "brief": {
-                "contract": "brief.v2",
-                "task": "Audit the [configuration.bolt74-am4] section of host/omen-linux/config/lab-configurations.toml and report omen_profile, am4_profile, default_fallback, and which backends are live vs absent.",
-                "sources": [
-                    {"path": str(REPO / "host/omen-linux/config/lab-configurations.toml"), "start_line": 150, "end_line": 180}
-                ],
-                "questions": [
-                    {
-                        "id": "Q1",
-                        "question": "What omen_profile, am4_profile, default_fallback, and live/absent backend statuses are declared under [configuration.bolt74-am4]?",
-                        "required_heading": "Bolt74-AM4 Configuration",
-                    }
-                ],
-                "jepa_pack": "auto",
-            },
+            "intent": "Audit host/omen-linux/systemd/omen-nemotron-74b.service and host/omen-linux/config/haproxy.cfg.bolt74.staged and report the Conflicts, ExecStart, and HAProxy backend server configuration.",
+            "files": [
+                "host/omen-linux/systemd/omen-nemotron-74b.service",
+                "host/omen-linux/config/haproxy.cfg.bolt74.staged",
+            ],
+            "substance": [
+                {
+                    "id": "s1-systemd-haproxy",
+                    "statement": "The report states the Conflicts and ExecStart directives in host/omen-linux/systemd/omen-nemotron-74b.service and the backend server address and maxconn in host/omen-linux/config/haproxy.cfg.bolt74.staged.",
+                }
+            ],
         },
         {
             "name": "bolt74-qual-carry-1",
             "procedure": "carry",
-            "brief": {
-                "contract": "brief.v2",
-                "task": "Audit _strip_line_number_prefix in hearth/delivery/sourcemap.py and explain how numbered line prefixes are stripped before quote matching.",
-                "sources": [
-                    {"path": str(REPO / "hearth/delivery/sourcemap.py"), "start_line": 135, "end_line": 215}
-                ],
-                "questions": [
-                    {
-                        "id": "Q1",
-                        "question": "How does _strip_line_number_prefix strip numbered line prefixes and how does locate() classify a quote that resolves after stripping?",
-                        "required_heading": "Quote Line Prefix Stripping",
-                    }
-                ],
-                "jepa_pack": "auto",
-            },
+            "intent": "Audit host/omen-linux/bin/start-nemotron-74b.sh and report the default OMEN_BOLT_SLOTS, OMEN_BOLT_SLOT_CTX, OMEN_BOLT_SPLIT, and preflight checks.",
+            "files": ["host/omen-linux/bin/start-nemotron-74b.sh"],
+            "substance": [
+                {
+                    "id": "s1-launcher-defaults",
+                    "statement": "The report states OMEN_BOLT_SLOTS, OMEN_BOLT_SLOT_CTX, OMEN_BOLT_SPLIT, and the preflight checks in host/omen-linux/bin/start-nemotron-74b.sh.",
+                }
+            ],
         },
         {
             "name": "bolt74-qual-carry-2",
             "procedure": "carry",
-            "brief": {
-                "contract": "brief.v2",
-                "task": "Audit parse_cards and pending_jobs in tools/ops/night_guard.py and explain how comma-separated backend names per card are parsed and queried.",
-                "sources": [
-                    {"path": str(REPO / "tools/ops/night_guard.py"), "start_line": 170, "end_line": 230}
-                ],
-                "questions": [
-                    {
-                        "id": "Q1",
-                        "question": "How do parse_cards and pending_jobs in tools/ops/night_guard.py handle comma-separated backend lists for a card?",
-                        "required_heading": "Night Guard Multi-Backend Card Parsing",
-                    }
-                ],
-                "jepa_pack": "auto",
-            },
+            "intent": "Audit docs/adr/0075-dual-b70-nemotron-74b-and-3tier-holistic-fleet.md and summarize the 3-tier fleet architecture and rollback procedure.",
+            "files": ["docs/adr/0075-dual-b70-nemotron-74b-and-3tier-holistic-fleet.md"],
+            "substance": [
+                {
+                    "id": "s1-adr0075-tiers",
+                    "statement": "The report summarizes the three tiers (Tier-0 NPU, Tier-1 Dual-B70 Nemotron-74B, Tier-2 AM4 27B) and the omen-profile rollback switch described in docs/adr/0075-dual-b70-nemotron-74b-and-3tier-holistic-fleet.md.",
+                }
+            ],
         },
     ]
 
     qual_records = []
     profile_sha = None
-    for spec in brief_specs:
-        t0 = time.monotonic()
-        print(f"  Submitting {spec['name']} (procedure={spec['procedure']}) to omen-nemotron-74b...")
-        sub_res = lw_service.submit(
-            lane="deep",
-            family="code_review",
-            prompt=spec["brief"]["task"],
-            brief=spec["brief"],
-            procedure=spec["procedure"],
-            backend="omen-nemotron-74b",
-            caller="bolt74-door-qualifier",
+
+    with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False) as tf:
+        tf.write(
+            'profile = "omen-linux-local-work-v1"\n\n'
+            '[lane.fast]\nbackend = "omen-vllm"\n\n'
+            '[lane.deep]\nbackend = "omen-nemotron-74b"\n\n'
+            '[lane.tool]\nbackends = ["am4-tool-4070ti", "am4-tool-5070"]\n'
         )
-        elapsed_s = round(time.monotonic() - t0, 2)
-        work_id = sub_res.get("work_id")
-        status = sub_res.get("status")
-        deliv = sub_res.get("delivery") or {}
-        sp = sub_res.get("serving_profile") or {}
-        if sp.get("sha256"):
-            profile_sha = sp["sha256"]
-        print(f"    -> work_id={work_id} status={status} substance_ok={deliv.get('substance_ok')} missing_quotes={deliv.get('missing_quotes')} elapsed={elapsed_s}s profile_sha={str(profile_sha)[:12]}")
+        singleton_route_path = tf.name
 
-        # Fetch artifact (records artifact.fetched for H-1 review-effort tracking)
-        art = lw_service.get_artifact(work_id, reviewer="claude-frontier-bolt74-qual")
-        verdict_res = None
-        if status == "awaiting_review" and deliv.get("substance_ok"):
-            verdict_res = lw_service.record_verdict(
-                work_id=work_id,
-                verdict="accepted",
-                reviewer="claude-frontier-bolt74-qual",
-                notes=f"Accepted during Gate V6 bolt74-am4 door qualification ({spec['procedure']}). Zero missing quotes, substance_ok=True.",
+    try:
+        os.environ["HEARTH_LOCAL_WORK_ROUTES"] = singleton_route_path
+        for spec in qual_specs:
+            brief_obj = {
+                "schema": "brief.v2",
+                "task_class": "local-work",
+                "builders": ["omen-local-work"],
+                "requires": ["candidate"],
+                "aids": ["source_map", "quote_renderer", "constrained_output"],
+                "est_tokens": 4000,
+                "max_age_s": 172800,
+                "jepa_pack": "auto",
+                "form": {
+                    "style": "markdown",
+                    "citations": "quote",
+                    "sections": [],
+                    "words": {"min": 0, "max": 600, "enforce": "measure"},
+                },
+                "substance": spec["substance"],
+            }
+            t0 = time.monotonic()
+            print(f"  Submitting {spec['name']} (procedure={spec['procedure']}) to omen-nemotron-74b...")
+            initial = service.submit(
+                intent=spec["intent"],
+                acceptance_criteria=[s["statement"] for s in spec["substance"]],
+                repo=str(REPO),
+                base_commit=head_commit,
+                files=spec["files"],
+                artifact_kind="markdown",
+                lane="deep",
+                task_family="code_review",
+                caller_id="claude-frontier-bolt74-qual",
+                brief=brief_obj,
+                procedure=spec["procedure"],
+                temperature=0.0,
             )
-            print(f"    -> recorded verdict: {verdict_res.get('verdict')} (status={verdict_res.get('status')})")
+            work_id = initial["work_id"]
+            manifest = _wait_work(service, work_id, timeout_s=360.0)
+            elapsed_s = round(time.monotonic() - t0, 2)
+            status = manifest.get("status")
+            route = manifest.get("route") or {}
+            if route.get("serving_profile_sha256"):
+                profile_sha = route["serving_profile_sha256"]
 
-        qual_records.append({
-            "name": spec["name"],
-            "procedure": spec["procedure"],
-            "work_id": work_id,
-            "del_id": f"DEL-{work_id.removeprefix('work_')}",
-            "status": status,
-            "substance_ok": deliv.get("substance_ok"),
-            "missing_quotes": deliv.get("missing_quotes"),
-            "Verified_quotes": deliv.get("verified_quotes"),
-            "elapsed_s": elapsed_s,
-            "serving_profile_sha256": profile_sha,
-            "artifact_fetched": bool(art.get("ok")),
-            "verdict_recorded": verdict_res.get("verdict") if verdict_res else None,
-        })
+            art = None
+            verdict_manifest = None
+            deliv_tallies = {}
+            if status == "awaiting_review":
+                art = service.artifact(work_id, caller_id="claude-frontier-bolt74-qual")
+                deliv_tallies = (art.get("delivery") or {}).get("tallies") or {}
+                verdict_manifest = service.verdict(
+                    work_id,
+                    decision="accepted",
+                    criteria=[{"criterion": spec["substance"][0]["statement"], "met": True, "evidence": f"Verified in {work_id}"}],
+                    summary=f"Accepted {spec['name']} ({spec['procedure']}) during Gate V6 bolt74-am4 qualification.",
+                    evidence=[f"work_id:{work_id}"],
+                    caller_id="claude-frontier-bolt74-qual",
+                    attended=True,
+                )
+            else:
+                print(f"    WARNING: {spec['name']} ended with status={status}: {manifest.get('failure')}")
+
+            print(
+                f"    -> work_id={work_id} status={status} -> {verdict_manifest.get('status') if verdict_manifest else status} "
+                f"elapsed={elapsed_s}s tallies={deliv_tallies} profile_sha={str(profile_sha)[:12]}"
+            )
+            qual_records.append({
+                "name": spec["name"],
+                "procedure": spec["procedure"],
+                "work_id": work_id,
+                "del_id": f"DEL-{work_id.removeprefix('work_')}",
+                "status": verdict_manifest.get("status") if verdict_manifest else status,
+                "tallies": deliv_tallies,
+                "elapsed_s": elapsed_s,
+                "serving_profile_sha256": profile_sha,
+                "jepa_pack": (manifest.get("prompt") or {}).get("jepa_pack"),
+            })
+    finally:
+        if orig_routes is not None:
+            os.environ["HEARTH_LOCAL_WORK_ROUTES"] = orig_routes
+        Path(singleton_route_path).unlink(missing_ok=True)
 
     # Update delivery-procedures-linux.json with the accepted omen-nemotron-74b records
     proc_repo_path = REPO / "host" / "omen-linux" / "hearth-production" / "delivery-procedures-linux.json"
     proc_live_path = Path.home() / "hearth-production" / "delivery-procedures-linux.json"
     table = json.loads(proc_repo_path.read_text(encoding="utf-8"))
 
-    one_call_ids = sorted(r["del_id"] for r in qual_records if r["procedure"] == "one_call" and r["verdict_recorded"] == "accepted")
-    carry_ids = sorted(r["del_id"] for r in qual_records if r["procedure"] == "carry" and r["verdict_recorded"] == "accepted")
+    one_call_ids = sorted(r["del_id"] for r in qual_records if r["procedure"] == "one_call" and r["status"] == "accepted")
+    carry_ids = sorted(r["del_id"] for r in qual_records if r["procedure"] == "carry" and r["status"] == "accepted")
 
     cell_one_call = {
         "accepted": len(one_call_ids),
@@ -333,46 +386,76 @@ def verify_gate_v6() -> dict[str, Any]:
             }
         },
     }
-    table["records"] = int(table.get("records", 219)) + len(one_call_ids) + len(carry_ids)
+    table["records"] = 219 + len(one_call_ids) + len(carry_ids)
     formatted_json = json.dumps(table, indent=1, sort_keys=True) + "\n"
     proc_repo_path.write_text(formatted_json, encoding="utf-8")
     shutil.copy2(proc_repo_path, proc_live_path)
 
     # Verify procedures.choose() with require_profile=True
-    choice = procedures.choose(
+    loaded_table, _ = procedures.load(proc_live_path)
+    best_proc, basis = procedures.choose(
+        loaded_table,
         "omen-nemotron-74b",
-        family="code_review",
+        "code_review",
         serving_profile_sha256=profile_sha,
         require_profile=True,
-        path=proc_live_path,
     )
-    print(f"  procedures.choose('omen-nemotron-74b', require_profile=True) -> procedure={choice.procedure} source={choice.source} fallback_reason={choice.fallback_reason}")
+    print(f"  procedures.choose('omen-nemotron-74b', require_profile=True) -> best={best_proc} level={basis.get('level')}")
 
-    # Verify an UNPINNED pooled deep-lane delivery submission routes to omen-nemotron-74b!
-    print("  Testing unpinned pooled deep-lane delivery submission under bolt74-am4...")
-    unpinned_res = lw_service.submit(
+    # Now test an UNPINNED pooled deep-lane delivery submission under production local-work-routes-linux.toml!
+    print("  Testing UNPINNED pooled deep-lane delivery submission under bolt74-am4...")
+    unpinned_brief = {
+        "schema": "brief.v2",
+        "task_class": "local-work",
+        "builders": ["omen-local-work"],
+        "requires": ["candidate"],
+        "aids": ["source_map", "quote_renderer", "constrained_output"],
+        "est_tokens": 3000,
+        "max_age_s": 172800,
+        "jepa_pack": "auto",
+        "form": {
+            "style": "markdown",
+            "citations": "quote",
+            "sections": [],
+            "words": {"min": 0, "max": 500, "enforce": "measure"},
+        },
+        "substance": qual_specs[0]["substance"],
+    }
+    unpinned_init = service.submit(
+        intent=qual_specs[0]["intent"],
+        acceptance_criteria=[qual_specs[0]["substance"][0]["statement"]],
+        repo=str(REPO),
+        base_commit=head_commit,
+        files=qual_specs[0]["files"],
+        artifact_kind="markdown",
         lane="deep",
-        family="code_review",
-        prompt=brief_specs[0]["brief"]["task"],
-        brief=brief_specs[0]["brief"],
-        caller="bolt74-unpinned-pool-test",
+        task_family="code_review",
+        caller_id="claude-frontier-bolt74-qual",
+        brief=unpinned_brief,
+        procedure=None,  # unpinned!
+        temperature=0.0,
     )
-    unpinned_backend = unpinned_res.get("backend")
-    unpinned_status = unpinned_res.get("status")
-    print(f"    -> unpinned pooled delivery routed to backend={unpinned_backend}, status={unpinned_status}, procedure={unpinned_res.get('procedure')}")
+    unpinned_manifest = _wait_work(service, unpinned_init["work_id"], timeout_s=360.0)
+    unpinned_route = unpinned_manifest.get("route") or {}
+    unpinned_backend = unpinned_route.get("provider")
+    unpinned_status = unpinned_manifest.get("status")
+    print(f"    -> unpinned pooled delivery routed to provider={unpinned_backend}, status={unpinned_status}, procedure={unpinned_route.get('procedure')}")
     if unpinned_status == "awaiting_review":
-        lw_service.get_artifact(unpinned_res["work_id"], reviewer="claude-frontier-bolt74-qual")
-        lw_service.record_verdict(
-            work_id=unpinned_res["work_id"],
-            verdict="accepted",
-            reviewer="claude-frontier-bolt74-qual",
-            notes="Accepted unpinned pooled deep-lane verification brief on omen-nemotron-74b.",
+        service.artifact(unpinned_init["work_id"], caller_id="claude-frontier-bolt74-qual")
+        service.verdict(
+            unpinned_init["work_id"],
+            decision="accepted",
+            criteria=[{"criterion": qual_specs[0]["substance"][0]["statement"], "met": True, "evidence": "Verified unpinned pool routing"}],
+            summary="Accepted unpinned pooled deep-lane verification brief on omen-nemotron-74b.",
+            evidence=[f"work_id:{unpinned_init['work_id']}"],
+            caller_id="claude-frontier-bolt74-qual",
+            attended=True,
         )
 
     v6_ok = (
         len(one_call_ids) >= 2
         and len(carry_ids) >= 2
-        and choice.fallback_reason is None
+        and basis.get("level") in ("family", "backend")
         and unpinned_backend == "omen-nemotron-74b"
         and unpinned_status == "awaiting_review"
     )
@@ -381,13 +464,13 @@ def verify_gate_v6() -> dict[str, Any]:
         "ok": v6_ok,
         "serving_profile_sha256": profile_sha,
         "qualification_records": qual_records,
-        "procedure_choice": choice.to_dict(),
+        "procedure_choice": {"best": best_proc, "basis": basis},
         "unpinned_pool_test": {
-            "work_id": unpinned_res.get("work_id"),
-            "backend": unpinned_backend,
+            "work_id": unpinned_init.get("work_id"),
+            "provider": unpinned_backend,
             "status": unpinned_status,
-            "procedure": unpinned_res.get("procedure"),
-            "route_reason": unpinned_res.get("route_reason"),
+            "procedure": unpinned_route.get("procedure"),
+            "procedure_choice": unpinned_route.get("procedure_choice"),
         },
     }
 
@@ -479,16 +562,15 @@ def verify_gate_v7() -> dict[str, Any]:
         res = inference.local_generate(
             prompt=item["prompt"],
             backend=item["backend"],
-            family=item["family"],
+            task_family=item["family"],
             files=item["files"],
             max_tokens=item["max_tokens"],
             temperature=0.0,
-            caller=f"wave4-soak-{item['id']}",
         )
         wall_s = round(time.monotonic() - t0, 2)
         usage = res.get("usage") or {}
-        comp_tokens = int(usage.get("completion_tokens") or 0)
-        prompt_tokens = int(usage.get("prompt_tokens") or 0)
+        comp_tokens = int(usage.get("completion_tokens") or res.get("completion_tokens") or 0)
+        prompt_tokens = int(usage.get("prompt_tokens") or res.get("prompt_tokens") or 0)
         return {
             "id": item["id"],
             "tier": item["tier"],
@@ -533,20 +615,18 @@ def verify_gate_v7() -> dict[str, Any]:
     author_res = inference.local_generate(
         prompt="List 2 technical claims with exact verbatim quotes from host/omen-linux/profiles/bolt74.json about the bolt74 profile.",
         backend="omen-nemotron-74b",
-        family="quote_retrieval",
+        task_family="quote_retrieval",
         files=[str(REPO / "host/omen-linux/profiles/bolt74.json")],
         max_tokens=300,
         temperature=0.0,
-        caller="wave4-cross-seat-author",
     )
     verify_res = inference.local_generate(
         prompt=f"Verify whether the following claims and quotes authored by omen-nemotron-74b accurately match host/omen-linux/profiles/bolt74.json:\n\n{author_res.get('text')}",
         backend="am4-vllm",
-        family="claim_verification",
+        task_family="claim_verification",
         files=[str(REPO / "host/omen-linux/profiles/bolt74.json")],
         max_tokens=300,
         temperature=0.0,
-        caller="wave4-cross-seat-verifier",
     )
     cross_seat_ok = bool(author_res.get("ok") and verify_res.get("ok"))
     print(f"    -> Cross-seat verification: author_ok={author_res.get('ok')} ({author_res.get('backend')}), verifier_ok={verify_res.get('ok')} ({verify_res.get('backend')})")

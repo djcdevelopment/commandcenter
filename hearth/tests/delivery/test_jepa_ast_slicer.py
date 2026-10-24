@@ -157,6 +157,40 @@ class JepaAstSlicerTests(unittest.TestCase):
         self.assertEqual(loc.end, line_no)
         self.assertTrue(loc.repaired)
 
+    def test_csharp_harmony_patch_symbol_decomposition(self):
+        cs_code = "\n".join([
+            "using BepInEx;",
+            "using HarmonyLib;",
+            "",
+            "[BepInPlugin(\"com.test.plugin\", \"Test\", \"1.0.0\")]",
+            "public sealed class TestPlugin : BaseUnityPlugin",
+            "{",
+            "    private void Awake()",
+            "    {",
+            *[f"        int x{i} = {i};" for i in range(65)],
+            "    }",
+            "}",
+            "",
+            "[HarmonyPatch(typeof(Player), nameof(Player.GetMaxCarryWeight))]",
+            "public static class CarryWeightPatch",
+            "{",
+            "    [HarmonyPostfix]",
+            "    public static void Postfix(ref float __result)",
+            "    {",
+            "        __result += 150f;",
+            "    }",
+            "}",
+        ]).encode("utf-8")
+        fm = sourcemap.file_map("TestPlugin.cs", cs_code)
+        self.assertEqual(fm.symbols_from, "ast")
+        slice_syms = sourcemap._jepa_slice_symbols(fm)
+        names_and_kinds = [(s["name"], s["kind"]) for s in slice_syms]
+        self.assertIn(("TestPlugin", "class_header"), names_and_kinds)
+        self.assertIn(("TestPlugin.Awake", "method"), names_and_kinds)
+        self.assertIn(("CarryWeightPatch", "class"), names_and_kinds)
+        cw = next(s for s in slice_syms if s["name"] == "CarryWeightPatch")
+        self.assertIn("[HarmonyPatch", fm.lines[cw["start"] - 1])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -241,6 +241,201 @@ def _python_symbols(text: str) -> list:
     return sorted(out, key=lambda s: (s["start"], -s["end"], s["name"]))
 
 
+_CS_KEYWORDS = frozenset({
+    "if", "else", "for", "foreach", "while", "do", "switch", "case", "catch", "finally",
+    "try", "using", "lock", "fixed", "checked", "unchecked", "return", "throw", "new",
+    "nameof", "typeof", "sizeof", "default", "delegate", "where", "when", "base", "this",
+    "get", "set", "init", "add", "remove", "value", "yield", "await",
+})
+_CS_TYPE_RE = re.compile(
+    r"^\s*(?:(?:public|private|protected|internal|static|sealed|abstract|partial|readonly|unsafe|new|ref)\s+)*"
+    r"(class|struct|interface|enum)\s+([A-Za-z_]\w*)"
+)
+_CS_METHOD_RE = re.compile(
+    r"^\s*(?:(?:public|private|protected|internal|static|virtual|override|abstract|sealed|extern|async|unsafe|new|partial)\s+)+"
+    r"(?:[A-Za-z_][\w.<>,\[\]\?\s\*]*?\s+)?([A-Za-z_]\w*)\s*(?:<[A-Za-z0-9_,\s]+>)?\s*\("
+)
+_CS_ATTR_OR_DOC_RE = re.compile(r"^\s*(?:\[[A-Za-z_]|///)")
+
+
+def _strip_cs_line(line: str, in_block_comment: bool) -> tuple[str, bool]:
+    """Strip C# comments and string literals from a line while preserving brace characters in code."""
+    out: list[str] = []
+    i, n = 0, len(line)
+    in_str = False
+    verbatim = False
+    in_char = False
+    while i < n:
+        ch = line[i]
+        nxt = line[i + 1] if i + 1 < n else ""
+        if in_block_comment:
+            if ch == "*" and nxt == "/":
+                in_block_comment = False
+                i += 2
+            else:
+                i += 1
+            continue
+        if in_str:
+            if verbatim:
+                if ch == '"' and nxt == '"':
+                    i += 2
+                    continue
+                if ch == '"':
+                    in_str = False
+                    verbatim = False
+            else:
+                if ch == "\\":
+                    i += 2
+                    continue
+                if ch == '"':
+                    in_str = False
+            i += 1
+            continue
+        if in_char:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == "'":
+                in_char = False
+            i += 1
+            continue
+        if ch == "/" and nxt == "/":
+            break
+        if ch == "/" and nxt == "*":
+            in_block_comment = True
+            i += 2
+            continue
+        if ch == "@" and nxt == '"':
+            in_str = True
+            verbatim = True
+            i += 2
+            continue
+        if ch == '"':
+            in_str = True
+            verbatim = False
+            i += 1
+            continue
+        if ch == "'":
+            in_char = True
+            i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out), in_block_comment
+
+
+def _csharp_symbols(lines: list) -> list:
+    """Brace-balanced C# symbol extractor that preserves leading [HarmonyPatch]/[BepInPlugin] attributes."""
+    out: list[dict] = []
+    in_block = False
+    brace_depth = 0
+    attr_start: Optional[int] = None
+    type_stack: list[dict] = []
+    pending_type: Optional[dict] = None
+    active_method: Optional[dict] = None
+    pending_method: Optional[dict] = None
+
+    for lineno, raw_line in enumerate(lines, 1):
+        clean, in_block = _strip_cs_line(raw_line, in_block)
+        stripped = clean.strip()
+
+        if _CS_ATTR_OR_DOC_RE.match(raw_line) and not in_block:
+            if attr_start is None:
+                attr_start = lineno
+        elif stripped and not stripped.startswith("["):
+            pass
+
+        # Check for type declaration
+        m_type = _CS_TYPE_RE.match(clean)
+        if m_type and active_method is None and pending_method is None:
+            kind_tok, t_name = m_type.group(1), m_type.group(2)
+            parent_name = type_stack[-1]["name"] if type_stack else ""
+            full_name = f"{parent_name}.{t_name}" if parent_name else t_name
+            start_line = attr_start if attr_start is not None else lineno
+            attr_start = None
+            pending_type = {
+                "name": full_name,
+                "short_name": t_name,
+                "kind": "class" if kind_tok in ("class", "struct", "interface") else "enum",
+                "start": start_line,
+                "end": lineno,
+                "parent_class": parent_name,
+                "target_depth": brace_depth + 1,
+            }
+
+        # Check for method declaration inside a class/struct
+        elif type_stack and active_method is None and pending_method is None and pending_type is None:
+            cur_type = type_stack[-1]
+            if brace_depth == cur_type["target_depth"]:
+                m_meth = _CS_METHOD_RE.match(clean)
+                if m_meth:
+                    m_name = m_meth.group(1)
+                    if m_name not in _CS_KEYWORDS and "=" not in clean.split("(", 1)[0]:
+                        start_line = attr_start if attr_start is not None else lineno
+                        attr_start = None
+                        pending_method = {
+                            "name": f"{cur_type['name']}.{m_name}",
+                            "short_name": m_name,
+                            "kind": "method",
+                            "start": start_line,
+                            "end": lineno,
+                            "parent_class": cur_type["name"],
+                            "target_depth": brace_depth + 1,
+                            "expr_bodied": "=>" in clean,
+                        }
+
+        opens = clean.count("{")
+        closes = clean.count("}")
+        prev_depth = brace_depth
+        brace_depth = max(0, brace_depth + opens - closes)
+
+        if pending_type is not None:
+            if opens > 0 and brace_depth >= pending_type["target_depth"]:
+                type_stack.append(pending_type)
+                pending_type = None
+            elif ";" in clean and opens == 0:
+                pending_type["end"] = lineno
+                out.append(pending_type)
+                pending_type = None
+
+        if pending_method is not None:
+            if "=>" in clean:
+                pending_method["expr_bodied"] = True
+            if opens > 0 and brace_depth >= pending_method["target_depth"] and not pending_method["expr_bodied"]:
+                active_method = pending_method
+                pending_method = None
+            elif ";" in clean and (pending_method["expr_bodied"] or opens == 0):
+                pending_method["end"] = lineno
+                out.append(pending_method)
+                pending_method = None
+            elif opens > 0 and closes > 0 and prev_depth == brace_depth:
+                pending_method["end"] = lineno
+                out.append(pending_method)
+                pending_method = None
+
+        if active_method is not None and brace_depth < active_method["target_depth"]:
+            active_method["end"] = lineno
+            out.append(active_method)
+            active_method = None
+            attr_start = None
+
+        while type_stack and brace_depth < type_stack[-1]["target_depth"]:
+            finished_type = type_stack.pop()
+            finished_type["end"] = lineno
+            out.append(finished_type)
+            attr_start = None
+
+        if stripped and not _CS_ATTR_OR_DOC_RE.match(raw_line) and pending_type is None and pending_method is None:
+            attr_start = None
+
+    while type_stack:
+        finished_type = type_stack.pop()
+        finished_type["end"] = len(lines)
+        out.append(finished_type)
+
+    return sorted(out, key=lambda s: (s["start"], -(s["end"] - s["start"]), s["name"]))
+
+
 _FALLBACK = [
     (re.compile(r"^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)"), "function", False),
     (re.compile(r"^\s*(?:export\s+)?class\s+([A-Za-z_$][\w$]*)"), "class", False),
@@ -253,10 +448,13 @@ _FALLBACK = [
 def _fallback_symbols(lines: list, path: str = "") -> list:
     """Line/regex symbols for non-Python text; section-like symbols run to the next one."""
     out, last_section = [], None
+    is_c_family = path.endswith((".cs", ".js", ".ts", ".jsx", ".tsx", ".c", ".cpp", ".h", ".hpp", ".java", ".rs", ".go"))
     for i, line in enumerate(lines, 1):
         for rx, kind, is_section in _FALLBACK:
             if kind == "heading" and not path.endswith((".md", ".markdown")):
                 continue  # "# x" is a comment in toml/py/sh, not a heading
+            if kind == "section" and is_c_family:
+                continue  # "[HarmonyPostfix]" in C# or array literals in JS are not TOML sections
             m = rx.match(line)
             if not m:
                 continue
@@ -292,6 +490,13 @@ def file_map(path: str, data: bytes) -> FileMap:
             symbols, source = _python_symbols("\n".join(lines)), "ast"
         except (SyntaxError, ValueError, RecursionError, MemoryError):
             notes.append("python did not parse; regex symbols")
+    elif path.endswith(".cs"):
+        try:
+            cs_syms = _csharp_symbols(lines)
+            if cs_syms:
+                symbols, source = cs_syms, "ast"
+        except Exception:
+            notes.append("csharp did not parse; regex symbols")
     if symbols is None:
         symbols = _fallback_symbols(lines, path)
     return FileMap(path=path, sha256=hashlib.sha256(data).hexdigest(), lines=lines,
@@ -794,16 +999,24 @@ def _jepa_slice_symbols(fm: FileMap) -> list[dict]:
         except Exception:
             pass
 
-    # Fallback decomposition over fm.symbols (including monolithic classes > 60 lines with child methods)
+    # Fallback decomposition over fm.symbols (including monolithic classes > 60 lines with child methods/classes)
     out: list[dict] = []
     raw_syms = sorted(fm.symbols, key=lambda x: (x["start"], -(x["end"] - x["start"])))
+    class_starts: dict[str, int] = {
+        s["name"]: int(s["start"]) for s in raw_syms if s.get("kind") == "class" and s.get("name")
+    }
     i = 0
     while i < len(raw_syms):
         s = raw_syms[i]
         c_start, c_end = int(s["start"]), int(s["end"])
+        if out and c_end <= int(out[-1]["end"]):
+            i += 1
+            continue
         children = [
             ch for ch in raw_syms[i + 1:]
-            if int(ch["start"]) >= c_start and int(ch["end"]) <= c_end and ch.get("kind") == "method"
+            if int(ch["start"]) >= c_start
+            and int(ch["end"]) <= c_end
+            and ch.get("kind") in ("method", "class")
         ]
         if s.get("kind") == "class" and (c_end - c_start) > 60 and children:
             first_m = min(int(ch["start"]) for ch in children)
@@ -814,21 +1027,16 @@ def _jepa_slice_symbols(fm: FileMap) -> list[dict]:
                 "end": min(c_end, max(c_start, first_m - 1)),
                 "class_start": c_start,
             })
-            for ch in children:
-                out.append({
-                    "name": ch["name"],
-                    "short_name": ch["name"].split(".")[-1],
-                    "kind": "method",
-                    "start": int(ch["start"]),
-                    "end": int(ch["end"]),
-                    "class_name": s["name"],
-                    "class_start": c_start,
-                })
-            while i + 1 < len(raw_syms) and int(raw_syms[i + 1]["end"]) <= c_end:
-                i += 1
         else:
             if not out or c_start > int(out[-1]["end"]):
-                out.append(dict(s))
+                entry = dict(s)
+                if entry.get("kind") == "method":
+                    p_cls = entry.get("parent_class") or (entry["name"].rsplit(".", 1)[0] if "." in entry.get("name", "") else "")
+                    if p_cls:
+                        entry.setdefault("class_name", p_cls)
+                        entry.setdefault("class_start", class_starts.get(p_cls, c_start))
+                    entry.setdefault("short_name", entry["name"].split(".")[-1])
+                out.append(entry)
         i += 1
     return out
 

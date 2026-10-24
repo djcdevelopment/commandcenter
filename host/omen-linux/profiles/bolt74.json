@@ -1,0 +1,21 @@
+{
+  "name": "bolt74",
+  "description": "Dual-B70 NVIDIA Nemotron 3.5 Bolt 74B-A9B (llama-server SYCL0,SYCL1, 8 slots, 65536 ctx/slot)",
+  "evidence_status": "Wave 3 promoted (2026-10-23): 15/15 Gate 2, 15/15 Gate 3 hybrid carry, 104.25 tok/s decode at c=8, 70/66 C peak VRAM",
+  "mode": "dual-b70-llama",
+  "service_unit": "omen-nemotron-74b.service",
+  "router_config": "haproxy.cfg.bolt74.staged",
+  "require_recipe_parity": false,
+  "seats": {
+    "0": {
+      "model_dir": "/home/derek/work/dual-b70-moe-lab-20261023/models/nemotron_35_bolt_74b_q4/UD-Q4_K_XL",
+      "served_name": "nemotron-3.5-bolt-74b-a9b",
+      "context": 65536,
+      "max_num_seqs": 8,
+      "haproxy_backend": "omen-nemotron-74b",
+      "haproxy_port": 18095,
+      "seat_port": 18091,
+      "dropins": []
+    }
+  }
+}

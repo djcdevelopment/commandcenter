@@ -1,7 +1,6 @@
 [Unit]
 Description=OMEN vLLM two-B70 router
-After=omen-vllm@0.service omen-vllm@1.service
-Wants=omen-vllm@0.service omen-vllm@1.service
+After=omen-vllm@0.service omen-vllm@1.service omen-nemotron-74b.service
 
 [Service]
 Type=simple

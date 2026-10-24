@@ -112,7 +112,11 @@ def sample_am4():
 
 
 def pending_jobs(db, backend, principal_id):
-    """Read projection read-only; find non-terminal jobs for given backend and principal id."""
+    """Read projection read-only; find non-terminal jobs for given backend(s) and principal id."""
+    if isinstance(backend, (list, tuple, set)):
+        backends = {str(b).strip() for b in backend if str(b).strip()}
+    else:
+        backends = {b.strip() for b in str(backend).split(',') if b.strip()}
     with closing(sqlite3.connect(f'file:{db}?mode=ro', uri=True, timeout=2)) as conn:
         rows = conn.execute(
             "SELECT state_json FROM jobs WHERE status NOT IN "
@@ -123,7 +127,7 @@ def pending_jobs(db, backend, principal_id):
             job = json.loads(raw)
             args = (job.get('desired') or {}).get('arguments') or {}
             owner = job.get('principal') or {}
-            if ((args.get('backend') == backend or job.get('provider') == backend)
+            if ((args.get('backend') in backends or job.get('provider') in backends)
                     and owner.get('id') == principal_id):
                 jobs.append(job['job_id'])
         return jobs
@@ -287,13 +291,14 @@ def main():
     if not math.isfinite(a.am4_limit) or not 0 < a.am4_limit <= 150:
         ap.error('am4-limit must be in (0,150]')
 
-    # Parse card mappings
+    # Parse card mappings (supports comma-separated backend names per card, e.g. card2=omen-dense-27b,omen-nemotron-74b)
     card_mappings = {}
     for pair in a.card:
         card, sep, backend = pair.partition('=')
-        if not sep or card not in ('card2', 'card3') or not backend or card in card_mappings:
-            ap.error('unique --card card2|card3=backend entries required')
-        card_mappings[card] = backend
+        backends_list = [b.strip() for b in backend.split(',') if b.strip()]
+        if not sep or card not in ('card2', 'card3') or not backends_list or card in card_mappings:
+            ap.error('unique --card card2|card3=backend[,backend2] entries required')
+        card_mappings[card] = ','.join(backends_list)
 
     am4_backend = a.am4
     guarded_cards = list(card_mappings.keys())

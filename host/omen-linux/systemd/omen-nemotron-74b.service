@@ -1,0 +1,16 @@
+[Unit]
+Description=NVIDIA Nemotron 3.5 Bolt 74B-A9B on Dual OMEN B70 (llama-server SYCL0,SYCL1)
+Conflicts=omen-vllm@0.service omen-vllm@1.service
+After=omen-vllm@0.service omen-vllm@1.service
+
+[Service]
+Type=simple
+EnvironmentFile=/home/derek/.config/omen-vllm/omen-api.env
+ExecStart=/home/derek/bin/start-nemotron-74b.sh
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

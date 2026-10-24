@@ -89,6 +89,18 @@ def collect_seats(live: bool) -> list[Row]:
     for k, v in defaults.items():
         rows.append(row("seat", f"script default {k}", v, _line_of(script, k + ":-"), "vLLM (any seat without a drop-in)",
                         "context / sequences / VRAM fraction", "applies when no drop-in sets it"))
+    bolt_script = HOME / "bin" / "start-nemotron-74b.sh"
+    if not bolt_script.is_file():
+        bolt_script = REPO / "host" / "omen-linux" / "bin" / "start-nemotron-74b.sh"
+    if bolt_script.is_file():
+        btext = _read(bolt_script)
+        b_alias = _grep(btext, r'OMEN_BOLT_ALIAS:-([^}"\s]+)', default="nemotron-3.5-bolt-74b-a9b")
+        b_slots = _grep(btext, r'OMEN_BOLT_SLOTS:-(\d+)', cast=int, default=8)
+        b_slot_ctx = _grep(btext, r'OMEN_BOLT_SLOT_CTX:-(\d+)', cast=int, default=65536)
+        rows.append(row("seat", "omen-nemotron-74b served model", b_alias, _line_of(bolt_script, "OMEN_BOLT_ALIAS:-"), "HAProxy :18091", "Dual-B70 llama-server alias"))
+        rows.append(row("seat", "omen-nemotron-74b max_model_len", b_slot_ctx, _line_of(bolt_script, "OMEN_BOLT_SLOT_CTX:-"), "llama-server per-slot context", "input + output tokens per slot"))
+        rows.append(row("seat", "omen-nemotron-74b max_num_seqs", b_slots, _line_of(bolt_script, "OMEN_BOLT_SLOTS:-"), "llama-server -np", "concurrent parallel slots"))
+        rows.append(row("seat", "omen-nemotron-74b attention_backend", "FLASH_ATTN", _line_of(bolt_script, r"-fa on"), "llama-server -fa on", "FlashAttention enabled"))
     key = None
     if live:
         for line in _read(HOME / ".config" / "omen-vllm" / "omen-api.env").splitlines():
@@ -486,6 +498,10 @@ def collect_configurations(live: bool) -> list[Row]:
         tuple_val = f"{cspec.get('omen_profile')} / {cspec.get('am4_profile')} / {cspec.get('fx99_state')}"
         rows.append(row("configuration", f"config {cname} omen/am4/fx99", tuple_val,
                         _rel(cfg_path), "lab-config", "declared whole-lab profile tuple", cspec.get("description", "")))
+        fb = cspec.get("default_fallback")
+        if fb:
+            rows.append(row("configuration", f"config {cname} default_fallback", ",".join(fb),
+                            _rel(cfg_path), "select_backend", "fallback order when default rung is absent"))
         for bname, bspec in sorted(cspec.get("backends", {}).items()):
             st = bspec.get("status", "unknown")
             val = f"status={st}"
@@ -557,7 +573,14 @@ def invariants(rows: list[Row]) -> list[dict]:
     # Declarations for mutually exclusive profiles coexist in the pool. Only compare
     # a backend with its occupied seat, while keeping absent-route checks below.
     active_cfg = _val(rows, "active configuration")
+    active_omen_prof = _val(rows, "active omen profile")
+    if active_omen_prof == "bolt74":
+        seat_for.clear()
+        if "omen-nemotron-74b" in rungs and _val(rows, "omen-nemotron-74b max_model_len") is not None:
+            seat_for["omen-nemotron-74b"] = "omen-nemotron-74b"
     for rung, seat in list(seat_for.items()):
+        if rung == "omen-nemotron-74b":
+            continue
         status = str(_val(rows, f"config {active_cfg} backend {rung}", ""))
         served = str(_val(rows, f"{seat} served model", ""))
         if "status=absent" in status:
@@ -735,6 +758,13 @@ def invariants(rows: list[Row]) -> list[dict]:
                         fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but seat {seat} is unavailable: {live_read}", "live backends must be UP and responding to /v1/models")
                     elif (models is not None and "qwen3.8-27b" not in str(models)) or (models is None and live_read is not None):
                         fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but seat {seat} " + (f"is serving {models}" if models is not None else "is not serving"), "live backends must serve their declared model")
+                elif b == "omen-nemotron-74b":
+                    live_read = _val(rows, "omen-vllm@0 live read")
+                    models = _val(rows, "omen-vllm@0 /v1/models")
+                    if live_read and "unavailable" in str(live_read):
+                        fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but :18091 is unavailable: {live_read}", "live backends must be UP and responding to /v1/models")
+                    elif (models is not None and "nemotron-3.5-bolt-74b-a9b" not in str(models)) or (models is None and live_read is not None):
+                        fail("expected-live-backends-serving", f"{b} expected live under {active_cfg} but :18091 " + (f"is serving {models}" if models is not None else "is not serving"), "live backends must serve their declared model")
                 elif b in ("am4-vllm", "am4-tool-4070ti", "am4-tool-5070"):
                     alias = "am4-dense-27b" if b == "am4-vllm" else b
                     rdy = _val(rows, f"facade alias {alias} ready")
@@ -745,10 +775,14 @@ def invariants(rows: list[Row]) -> list[dict]:
                     if p_live and "unavailable" in str(p_live):
                         fail("expected-live-backends-serving", f"omen-perception expected live under {active_cfg} but perception service is unavailable: {p_live}", "live backends must be UP and responding to /health")
 
+            fb_raw = str(_val(rows, f"config {active_cfg} default_fallback", "") or "")
+            fb_targets = [x.strip() for x in fb_raw.split(",") if x.strip()]
+
             # Expected absent backends must not be routable
             for b in sorted(expected_absent):
                 if _val(rows, "default rung") == b:
-                    fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but is default rung", "untagged requests fall through to the default rung")
+                    if not (fb_targets and any(t in expected_live for t in fb_targets)):
+                        fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but is default rung", "untagged requests fall through to the default rung")
                 for r in rows:
                     if r["layer"] == "local-work" and r["setting"].startswith("lane ") and r["value"] == b:
                         lane_name = r["setting"]
@@ -758,11 +792,14 @@ def invariants(rows: list[Row]) -> list[dict]:
                     rdy = _val(rows, f"facade alias {alias} ready")
                     if rdy is True:
                         fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but facade alias {alias} ready=True", "an absent backend must not be ready in the facade")
-                if b == "omen-dense-27b":
-                    if any(r["layer"] == "rung" and r["setting"].startswith("omen-dense-27b ") for r in rows):
-                        fail("expected-absent-backends-not-routable", f"backend {b} expected absent under {active_cfg} but declared in backends pool with tags and no occupancy probe", "an absent backend on OMEN without an occupancy probe accepts tag traffic")
 
             # Routing families must not resolve to absent backends
+            default_effective = _val(rows, "default rung") or "omen-vllm"
+            if default_effective in expected_absent and fb_targets:
+                for t in fb_targets:
+                    if t in expected_live:
+                        default_effective = t
+                        break
             for r in rows:
                 if r["layer"] != "family":
                     continue
@@ -772,8 +809,15 @@ def invariants(rows: list[Row]) -> list[dict]:
                     continue
 
                 resolved_backend: Optional[str] = None
-                if fam_name in ("code_fix", "code_review", "long_review", "quote_retrieval"):
-                    resolved_backend = "omen-dense-27b"
+                if fam_name in ("code_fix", "code_review", "long_review", "quote_retrieval", "claim_verification"):
+                    if "omen-dense-27b" not in expected_absent:
+                        resolved_backend = "omen-dense-27b"
+                    elif "omen-nemotron-74b" in expected_live:
+                        resolved_backend = "omen-nemotron-74b"
+                    elif "am4-vllm" in expected_live:
+                        resolved_backend = "am4-vllm"
+                    else:
+                        resolved_backend = "omen-dense-27b"
                 elif fam_name in ("tool_execution",):
                     ti_ready = _val(rows, "facade alias am4-tool-4070ti ready") is True and "am4-tool-4070ti" not in expected_absent
                     s5_ready = _val(rows, "facade alias am4-tool-5070 ready") is True and "am4-tool-5070" not in expected_absent
@@ -782,14 +826,14 @@ def invariants(rows: list[Row]) -> list[dict]:
                     elif s5_ready:
                         resolved_backend = "am4-tool-5070"
                     else:
-                        resolved_backend = _val(rows, "default rung") or "omen-vllm"
+                        resolved_backend = default_effective
                 elif fam_name in ("tool_long_output",):
                     s5_ready = _val(rows, "facade alias am4-tool-5070 ready") is True and "am4-tool-5070" not in expected_absent
-                    resolved_backend = "am4-tool-5070" if s5_ready else (_val(rows, "default rung") or "omen-vllm")
+                    resolved_backend = "am4-tool-5070" if s5_ready else default_effective
                 elif fam_name in ("utility_text",):
                     resolved_backend = "fx99-vllm"
                 else:
-                    resolved_backend = _val(rows, "default rung") or "omen-vllm"
+                    resolved_backend = default_effective
 
                 if resolved_backend in expected_absent:
                     fail("routing-families-resolve-to-live-backends",

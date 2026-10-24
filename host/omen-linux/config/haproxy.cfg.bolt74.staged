@@ -1,0 +1,31 @@
+global
+    log stdout format raw local0
+    maxconn 512
+    stats socket /home/derek/.local/share/omen-vllm/haproxy.sock mode 600 level admin
+
+defaults
+    mode http
+    log global
+    option httplog
+    timeout connect 5s
+    # 2026-09-27 sizing-map: cover HEARTH's deadline ceiling (2400 s) and queue overflow at the
+    # router instead of inside the serving process (per-server maxconn = the seat's max_num_seqs).
+    timeout client 2400s
+    timeout server 2400s
+    timeout queue 60s
+
+# Lane 1: default/MoE frontend routed to Dual-B70 Nemotron 3.5 Bolt 74B-A9B under bolt74 profile.
+frontend omen_vllm
+    bind 127.0.0.1:18090
+    default_backend bolt74_seats
+
+# Lane 2: quality frontend routed to Dual-B70 Nemotron 3.5 Bolt 74B-A9B under bolt74 profile.
+frontend omen_dense
+    bind 127.0.0.1:18095
+    default_backend bolt74_seats
+
+backend bolt74_seats
+    balance leastconn
+    option httpchk GET /health
+    http-check expect status 200
+    server b70_0 127.0.0.1:18091 maxconn 8 check inter 2s fall 2 rise 2

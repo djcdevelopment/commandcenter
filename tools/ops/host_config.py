@@ -26,6 +26,7 @@ HOME = Path.home()
 MANIFEST: list[tuple[str, Path]] = [
     # systemd user units
     ("systemd/omen-vllm@.service", HOME / ".config" / "systemd" / "user" / "omen-vllm@.service"),
+    ("systemd/omen-nemotron-74b.service", HOME / ".config" / "systemd" / "user" / "omen-nemotron-74b.service"),
     ("systemd/omen-vllm-router.service", HOME / ".config" / "systemd" / "user" / "omen-vllm-router.service"),
     ("systemd/hearth-production.service", HOME / ".config" / "systemd" / "user" / "hearth-production.service"),
     ("systemd/hearth-operator-web.service", HOME / ".config" / "systemd" / "user" / "hearth-operator-web.service"),
@@ -107,6 +108,7 @@ MANIFEST: list[tuple[str, Path]] = [
 
     # bin
     ("bin/start-vllm-seat.sh", HOME / "bin" / "start-vllm-seat.sh"),
+    ("bin/start-nemotron-74b.sh", HOME / "bin" / "start-nemotron-74b.sh"),
     ("bin/wait-vllm-seat.sh", HOME / "bin" / "wait-vllm-seat.sh"),
     ("bin/preflight-vllm-seat.sh", HOME / "bin" / "preflight-vllm-seat.sh"),
     ("bin/hearth-env", HOME / "bin" / "hearth-env"),
@@ -130,6 +132,10 @@ MANIFEST: list[tuple[str, Path]] = [
     ("profiles/two-dense.json", HOME / ".config" / "omen-vllm" / "profiles" / "two-dense.json"),
     ("config/haproxy.cfg.two-dense.staged", HOME / ".config" / "omen-vllm" / "haproxy.cfg.two-dense.staged"),
     ("systemd/omen-vllm@1.service.d/stage9-two-dense.conf.staged", HOME / ".config" / "systemd" / "user" / "omen-vllm@1.service.d" / "stage9-two-dense.conf.staged"),
+
+    # Dual-B70 Nemotron 3.5 Bolt 74B-A9B profile
+    ("profiles/bolt74.json", HOME / ".config" / "omen-vllm" / "profiles" / "bolt74.json"),
+    ("config/haproxy.cfg.bolt74.staged", HOME / ".config" / "omen-vllm" / "haproxy.cfg.bolt74.staged"),
 
     # hearth-production
     ("hearth-production/backends-linux.toml", HOME / "hearth-production" / "backends-linux.toml"),

@@ -47,8 +47,41 @@ SNAPSHOT_DIR = HOME / ".config" / "omen-vllm" / "snapshots"
 ROUTER_CONFIG = HOME / ".config" / "omen-vllm" / "haproxy.cfg"
 HAPROXY = HOME / "opt" / "haproxy" / "usr" / "sbin" / "haproxy"
 START_SCRIPT = HOME / "bin" / "start-vllm-seat.sh"
+START_NEMOTRON_SCRIPT = HOME / "bin" / "start-nemotron-74b.sh"
 WAIT_SCRIPT = HOME / "bin" / "wait-vllm-seat.sh"
 POOL_RESOURCE = "omen-b70-pool"
+
+
+def resolve_nemotron_script() -> Path:
+    if START_NEMOTRON_SCRIPT.is_file():
+        return START_NEMOTRON_SCRIPT
+    local = Path(__file__).resolve().parent / "start-nemotron-74b.sh"
+    if local.is_file():
+        return local
+    return START_NEMOTRON_SCRIPT
+
+
+def is_dual_llama_profile(profile: dict[str, Any] | None) -> bool:
+    if not profile:
+        return False
+    return profile.get("mode") == "dual-b70-llama" or profile.get("service_unit") == "omen-nemotron-74b.service"
+
+
+def wait_for_http_models(port: int, expected_model: str, key: str, unit: str, timeout_s: int = 300) -> list[str]:
+    deadline = time.monotonic() + timeout_s
+    last_models: list[str] = []
+    while time.monotonic() < deadline:
+        last_models = query_live_models(port, key)
+        if expected_model in last_models:
+            return last_models
+        state = subprocess.run(
+            ["systemctl", "--user", "show", unit, "-p", "ActiveState", "-p", "Result", "--value"],
+            capture_output=True, text=True
+        ).stdout.splitlines()
+        if len(state) >= 2 and state[0].strip() in ("failed", "inactive") and state[1].strip() not in ("success", ""):
+            raise RuntimeError(f"{unit} failed during startup (ActiveState={state[0].strip()}, Result={state[1].strip()})")
+        time.sleep(2)
+    raise RuntimeError(f"timed out after {timeout_s}s waiting for {expected_model} on :{port} (got {last_models})")
 
 
 def utc_now() -> str:
@@ -145,9 +178,11 @@ def query_live_metrics(port: int, key: str) -> dict[str, str]:
     try:
         with urllib.request.urlopen(req, timeout=3) as resp:
             for line in resp.read().decode("utf-8", errors="ignore").splitlines():
-                if "vllm:num_requests_running{" in line:
+                if line.startswith("#"):
+                    continue
+                if "vllm:num_requests_running{" in line or line.startswith("llamacpp:requests_processing"):
                     out["running"] = line.split()[-1]
-                elif "vllm:gpu_cache_usage_factor{" in line:
+                elif "vllm:gpu_cache_usage_factor{" in line or line.startswith("llamacpp:kv_cache_usage_ratio"):
                     out["cache_factor"] = line.split()[-1]
     except Exception:
         pass
@@ -186,6 +221,27 @@ def cmd_status() -> int:
         pdata = None
 
     key = get_vllm_key()
+    nemotron_active = subprocess.run(
+        ["systemctl", "--user", "is-active", "omen-nemotron-74b.service"],
+        capture_output=True, text=True
+    ).stdout.strip()
+    if is_dual_llama_profile(pdata) or nemotron_active == "active":
+        unit = (pdata or {}).get("service_unit", "omen-nemotron-74b.service")
+        sinfo = (pdata or {}).get("seats", {}).get("0", {})
+        port = int(sinfo.get("seat_port", 18091))
+        expected_model = sinfo.get("served_name", "nemotron-3.5-bolt-74b-a9b")
+        haproxy_info = f" -> {sinfo.get('haproxy_backend', 'omen-nemotron-74b')}:{sinfo.get('haproxy_port', 18095)}"
+        live_models = query_live_models(port, key)
+        metrics = query_live_metrics(port, key)
+        matches = (expected_model in live_models) and (nemotron_active == "active")
+        status_str = f"matches {expected_model}" if matches else f"expected {expected_model}, got {live_models}"
+        running_metric = metrics.get("running", "?")
+        cache_metric = metrics.get("cache_factor", "?")
+        print(f"  dual-b70 (port {port}, {unit} {nemotron_active}{haproxy_info}):")
+        print(f"    models:  {live_models} ({status_str})")
+        print(f"    metrics: running_reqs={running_metric}, gpu_cache_factor={cache_metric}")
+        return 0 if matches else 1
+
     all_match = True
     for seat in (0, 1):
         port = 18091 + seat
@@ -336,7 +392,14 @@ def router_target(profile: dict) -> Path | None:
     if staged_name:
         if Path(staged_name).name != staged_name:
             raise ValueError("router_config must be a filename")
-        return ROUTER_CONFIG.parent / staged_name
+        candidate = ROUTER_CONFIG.parent / staged_name
+        if candidate.is_file():
+            return candidate
+        for pdir in PROFILE_DIRS:
+            alt = pdir.parent / "config" / staged_name
+            if alt.is_file():
+                return alt
+        return candidate
     return original
 
 
@@ -420,20 +483,38 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
         print(f"[DRY-RUN] Switching to profile: {name}")
         print(f"[DRY-RUN] Description: {profile.get('description')}")
         print(f"[DRY-RUN] Context limit verification: PASSED (all seats inside model limits)")
-        for seat in (0, 1):
-            sdata = profile.get("seats", {}).get(str(seat), {})
-            print(f"\n--- Seat {seat} Plan ({sdata.get('served_name')}) ---")
+        if is_dual_llama_profile(profile):
+            sdata = profile.get("seats", {}).get("0", {})
+            print(f"\n--- Dual-B70 llama-server Plan ({sdata.get('served_name')}) ---")
+            print(f"Service:   {profile.get('service_unit', 'omen-nemotron-74b.service')}")
             print(f"Model dir: {sdata.get('model_dir')}")
-            print(f"Context:   {sdata.get('context')}")
+            print(f"Context:   {sdata.get('context')} per slot")
             print(f"Max seqs:  {sdata.get('max_num_seqs')}")
-            env = build_seat_dry_env(seat, sdata)
-            res = subprocess.run([str(START_SCRIPT), str(seat)], env=env, capture_output=True, text=True)
+            env = dict(os.environ)
+            env["OMEN_DRY"] = "1"
+            script = resolve_nemotron_script()
+            res = subprocess.run([str(script)], env=env, capture_output=True, text=True)
             if res.returncode != 0:
-                print(f"[DRY-RUN] start-vllm-seat.sh failed:\n{res.stderr}", file=sys.stderr)
+                print(f"[DRY-RUN] {script.name} failed:\n{res.stderr}", file=sys.stderr)
                 return 1
-            print("vLLM argv (from start-vllm-seat.sh OMEN_DRY=1):")
+            print(f"llama-server argv (from {script.name} OMEN_DRY=1):")
             argv_lines = [l.strip() for l in res.stdout.splitlines() if l.strip()]
-            print("  vllm " + " \\\n    ".join(argv_lines))
+            print("  " + " \\\n    ".join(argv_lines))
+        else:
+            for seat in (0, 1):
+                sdata = profile.get("seats", {}).get(str(seat), {})
+                print(f"\n--- Seat {seat} Plan ({sdata.get('served_name')}) ---")
+                print(f"Model dir: {sdata.get('model_dir')}")
+                print(f"Context:   {sdata.get('context')}")
+                print(f"Max seqs:  {sdata.get('max_num_seqs')}")
+                env = build_seat_dry_env(seat, sdata)
+                res = subprocess.run([str(START_SCRIPT), str(seat)], env=env, capture_output=True, text=True)
+                if res.returncode != 0:
+                    print(f"[DRY-RUN] start-vllm-seat.sh failed:\n{res.stderr}", file=sys.stderr)
+                    return 1
+                print("vLLM argv (from start-vllm-seat.sh OMEN_DRY=1):")
+                argv_lines = [l.strip() for l in res.stdout.splitlines() if l.strip()]
+                print("  vllm " + " \\\n    ".join(argv_lines))
         print("\n[DRY-RUN] Preflight verification successful. No changes made.")
         return 0
 
@@ -480,6 +561,11 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
         atomic_bytes(snap_dir / "router-replacement.json", router_journal_before)
     restarted_seats: set[int] = set()
     router_attempted = False
+    nemotron_was_active = (
+        subprocess.run(["systemctl", "--user", "is-active", "omen-nemotron-74b.service"], capture_output=True, text=True).stdout.strip()
+        == "active"
+    )
+    nemotron_touched = False
     for seat in (0, 1):
         s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
         seat_snap_dir = snap_dir / f"seat_{seat}"
@@ -494,6 +580,10 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
 
     def restore_snapshot() -> None:
         print("Restoring drop-ins from snapshot...", file=sys.stderr)
+        if nemotron_was_active:
+            subprocess.run(["systemctl", "--user", "stop", "omen-vllm@0.service", "omen-vllm@1.service"], check=False)
+        elif nemotron_touched:
+            subprocess.run(["systemctl", "--user", "stop", "omen-nemotron-74b.service"], check=False)
         for seat in (0, 1):
             s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
             seat_snap_dir = snap_dir / f"seat_{seat}"
@@ -518,8 +608,13 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
             else:
                 journal.unlink(missing_ok=True)
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-            subprocess.run(["systemctl", "--user", "restart", f"omen-vllm@{seat}.service"], check=True)
-            subprocess.run([str(WAIT_SCRIPT), str(seat), "900"], check=True)
+            if not nemotron_was_active:
+                subprocess.run(["systemctl", "--user", "restart", f"omen-vllm@{seat}.service"], check=True)
+                subprocess.run([str(WAIT_SCRIPT), str(seat), "900"], check=True)
+        if nemotron_was_active and nemotron_touched:
+            subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+            subprocess.run(["systemctl", "--user", "restart", "omen-nemotron-74b.service"], check=True)
+            wait_for_http_models(18091, "nemotron-3.5-bolt-74b-a9b", get_vllm_key(), "omen-nemotron-74b.service", timeout_s=300)
         if router_attempted and router_before is not None:
             atomic_bytes(ROUTER_CONFIG, router_before)
             if router_journal_before is None:
@@ -533,70 +628,104 @@ def cmd_switch(name: str, dry_run: bool = False) -> int:
         else:
             atomic_bytes(PROFILE_STATE_FILE, profile_before)
 
-    # Apply profile seat by seat
+    # Apply profile
     key = get_vllm_key()
     try:
-        for seat in (0, 1):
-            sdata = profile.get("seats", {}).get(str(seat), {})
-            s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
-            expected_model = sdata.get("served_name")
-            changed = apply_replacement(seat, sdata)
-            if seat == 0 and name != "seat0-27b-vision":
-                vision_dropin = s_dir / "stage8-27b-vision.conf"
-                if vision_dropin.exists():
-                    vision_dropin.unlink()
-                    changed = True
-                if "stage2-27b-mtp.conf" in sdata.get("dropins", []):
-                    base = s_dir / "stage2-27b-mtp.conf"
-                    if not base.exists():
-                        source = FLASH_DIR / "host" / "omen-linux" / "systemd" / "omen-vllm@0.service.d" / base.name
-                        if not source.is_file():
-                            raise RuntimeError(f"base drop-in {source} does not exist")
-                        shutil.copy2(source, base)
-                        changed = True
-            if "staged_dropin" in sdata and not sdata.get("replace_dropins"):
-                staged = s_dir / sdata["staged_dropin"]
-                target = s_dir / sdata.get("active_dropin", sdata["staged_dropin"].replace(".staged", ""))
-                if not staged.is_file():
-                    raise RuntimeError(f"staged drop-in {staged} does not exist")
-                if name == "seat0-27b-vision" and seat == 0:
-                    # Stage 8 replaces the complete Stage 2 recipe. Keeping both
-                    # creates duplicate Environment keys and hides the live value.
-                    base = s_dir / "stage2-27b-mtp.conf"
-                    if base.exists():
-                        base.unlink()
-                        changed = True
-                shutil.copy2(staged, target)
-                changed = True
-            elif seat == 0:
-                # Leaving a vision profile must also remove its model override.
-                for candidate in list(s_dir.glob("stage[45678]*.conf")):
-                    candidate.unlink()
-                    changed = True
+        if is_dual_llama_profile(profile):
+            unit = profile.get("service_unit", "omen-nemotron-74b.service")
+            sdata = profile.get("seats", {}).get("0", {})
+            expected_model = sdata.get("served_name", "nemotron-3.5-bolt-74b-a9b")
+            seat_port = int(sdata.get("seat_port", 18091))
+            haproxy_port = int(sdata.get("haproxy_port", 18095))
 
-            live_models = query_live_models(18091 + seat, key)
-            if not changed and expected_model and expected_model in live_models:
-                print(f"Seat {seat} already serves {expected_model} and configuration is unchanged; skipping restart.")
-                continue
+            print("Stopping omen-vllm@0.service and omen-vllm@1.service for dual-B70 llama-server...")
+            restarted_seats.update({0, 1})
+            for seat in (0, 1):
+                restore_replacement(seat)
+            subprocess.run(["systemctl", "--user", "stop", "omen-vllm@0.service", "omen-vllm@1.service"], check=True)
 
-            print(f"Applying profile changes to seat {seat}...")
-            restarted_seats.add(seat)
+            router_attempted = router_target(profile) is not None
+            apply_router(profile)
+
+            nemotron_touched = True
             subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-            subprocess.run(["systemctl", "--user", "restart", f"omen-vllm@{seat}.service"], check=True)
-            
-            print(f"Waiting for seat {seat} to become healthy...")
-            wait_res = subprocess.run([str(WAIT_SCRIPT), str(seat), "900"], capture_output=True, text=True)
-            if wait_res.returncode != 0:
-                raise RuntimeError(f"seat {seat} did not become healthy: {wait_res.stdout} {wait_res.stderr}")
+            live_models = query_live_models(seat_port, key)
+            if nemotron_was_active and expected_model in live_models:
+                print(f"{unit} already active and serving {expected_model}; skipping restart.")
+            else:
+                print(f"Starting {unit}...")
+                subprocess.run(["systemctl", "--user", "restart", unit], check=True)
 
-            # Verify served model
-            live_models = query_live_models(18091 + seat, key)
-            if expected_model and expected_model not in live_models:
-                raise RuntimeError(f"seat {seat} serves {live_models}, expected {expected_model}")
+            print(f"Waiting for {unit} on :{seat_port} and router on :{haproxy_port} to serve {expected_model}...")
+            wait_for_http_models(seat_port, expected_model, key, unit, timeout_s=300)
+            wait_for_http_models(haproxy_port, expected_model, key, "omen-vllm-router.service", timeout_s=60)
+        else:
+            if nemotron_was_active:
+                print("Stopping omen-nemotron-74b.service before starting vLLM seats...")
+                nemotron_touched = True
+                subprocess.run(["systemctl", "--user", "stop", "omen-nemotron-74b.service"], check=True)
 
-        # Publish routing only after both target seats have verified healthy.
-        router_attempted = router_target(profile) is not None
-        apply_router(profile)
+            for seat in (0, 1):
+                sdata = profile.get("seats", {}).get(str(seat), {})
+                s_dir = UNIT_DIR / f"omen-vllm@{seat}.service.d"
+                expected_model = sdata.get("served_name")
+                changed = apply_replacement(seat, sdata)
+                if seat == 0 and name != "seat0-27b-vision":
+                    vision_dropin = s_dir / "stage8-27b-vision.conf"
+                    if vision_dropin.exists():
+                        vision_dropin.unlink()
+                        changed = True
+                    if "stage2-27b-mtp.conf" in sdata.get("dropins", []):
+                        base = s_dir / "stage2-27b-mtp.conf"
+                        if not base.exists():
+                            source = FLASH_DIR / "host" / "omen-linux" / "systemd" / "omen-vllm@0.service.d" / base.name
+                            if not source.is_file():
+                                raise RuntimeError(f"base drop-in {source} does not exist")
+                            shutil.copy2(source, base)
+                            changed = True
+                if "staged_dropin" in sdata and not sdata.get("replace_dropins"):
+                    staged = s_dir / sdata["staged_dropin"]
+                    target = s_dir / sdata.get("active_dropin", sdata["staged_dropin"].replace(".staged", ""))
+                    if not staged.is_file():
+                        raise RuntimeError(f"staged drop-in {staged} does not exist")
+                    if name == "seat0-27b-vision" and seat == 0:
+                        # Stage 8 replaces the complete Stage 2 recipe. Keeping both
+                        # creates duplicate Environment keys and hides the live value.
+                        base = s_dir / "stage2-27b-mtp.conf"
+                        if base.exists():
+                            base.unlink()
+                            changed = True
+                    shutil.copy2(staged, target)
+                    changed = True
+                elif seat == 0:
+                    # Leaving a vision profile must also remove its model override.
+                    for candidate in list(s_dir.glob("stage[45678]*.conf")):
+                        candidate.unlink()
+                        changed = True
+
+                live_models = query_live_models(18091 + seat, key)
+                if not changed and expected_model and expected_model in live_models:
+                    print(f"Seat {seat} already serves {expected_model} and configuration is unchanged; skipping restart.")
+                    continue
+
+                print(f"Applying profile changes to seat {seat}...")
+                restarted_seats.add(seat)
+                subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+                subprocess.run(["systemctl", "--user", "restart", f"omen-vllm@{seat}.service"], check=True)
+                
+                print(f"Waiting for seat {seat} to become healthy...")
+                wait_res = subprocess.run([str(WAIT_SCRIPT), str(seat), "900"], capture_output=True, text=True)
+                if wait_res.returncode != 0:
+                    raise RuntimeError(f"seat {seat} did not become healthy: {wait_res.stdout} {wait_res.stderr}")
+
+                # Verify served model
+                live_models = query_live_models(18091 + seat, key)
+                if expected_model and expected_model not in live_models:
+                    raise RuntimeError(f"seat {seat} serves {live_models}, expected {expected_model}")
+
+            # Publish routing only after both target seats have verified healthy.
+            router_attempted = router_target(profile) is not None
+            apply_router(profile)
 
         # Update profile state file
         PROFILE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)

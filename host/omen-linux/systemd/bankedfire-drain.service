@@ -6,6 +6,7 @@ ConditionPathExists=/home/derek/hearth-production/var/bankedfire_drain_arm.json
 [Service]
 Type=oneshot
 WorkingDirectory=/home/derek/work/commandcenter-linux-flash
+Environment=PATH=%h/.local/bin:%h/.cargo/bin:%h/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 EnvironmentFile=/home/derek/.config/hearth/hearth-ops.env
 EnvironmentFile=/home/derek/.config/omen-vllm/hearth-backends.env
 EnvironmentFile=/home/derek/.config/hearth/bankedfire.env

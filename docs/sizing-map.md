@@ -166,10 +166,10 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| am4 profile | `tool-pair` | `am4:~/.config/am4-fleet/profile` | readiness probe, occupancy probes, DeepAgents wrapper | which alias set is live |  |
-| facade alias am4-dense-27b ready | `unavailable: HTTPError` | — | — | — |  |
-| facade alias am4-tool-4070ti ready | `True` | `http://10.44.0.2:8090/oxen/ready?alias=am4-tool-4070ti` | HEARTH rung occupancy | live readiness of the alias |  |
-| facade alias am4-tool-5070 ready | `True` | `http://10.44.0.2:8090/oxen/ready?alias=am4-tool-5070` | HEARTH rung occupancy | live readiness of the alias |  |
+| am4 profile | `dense-tp2` | `am4:~/.config/am4-fleet/profile` | readiness probe, occupancy probes, DeepAgents wrapper | which alias set is live |  |
+| facade alias am4-dense-27b ready | `True` | `http://10.44.0.2:8090/oxen/ready?alias=am4-dense-27b` | HEARTH rung occupancy | live readiness of the alias |  |
+| facade alias am4-tool-4070ti ready | `unavailable: HTTPError` | — | — | — |  |
+| facade alias am4-tool-5070 ready | `unavailable: HTTPError` | — | — | — |  |
 
 ### am4-seat
 
@@ -195,20 +195,33 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
 | claude code hearth timeout (ms) | `2600000` | `~/.claude.json mcpServers.hearth.timeout` | Claude Code | longest door call |  |
-| codex mcp tool_timeout_sec | `2600` | `~/.codex/config.toml:23` | Codex | longest door call |  |
+| codex mcp tool_timeout_sec | `2600` | `~/.codex/config.toml:27` | Codex | longest door call |  |
 
 ### configuration
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| active am4 profile | `tool-pair` | `am4:~/.config/am4-fleet/profile` | lab-config | active AM4 seat profile |  |
-| active configuration | `day` | `omen-profile + am4-profile` | sizing_map invariants | omen=two-lane, am4=tool-pair |  |
-| active omen profile | `two-lane` | `~/.config/omen-vllm/profile` | lab-config | active OMEN seat profile |  |
+| active am4 profile | `dense-tp2` | `am4:~/.config/am4-fleet/profile` | lab-config | active AM4 seat profile |  |
+| active configuration | `bolt74-am4` | `omen-profile + am4-profile` | sizing_map invariants | omen=bolt74, am4=dense-tp2 |  |
+| active omen profile | `bolt74` | `~/.config/omen-vllm/profile` | lab-config | active OMEN seat profile |  |
+| config bolt74-am4 backend am4-tool-4070ti | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-am4 backend am4-tool-5070 | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-am4 backend am4-vllm | `status=live ctx=49152 slots=1 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-am4 backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-am4 backend omen-dense-27b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-am4 backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-am4 backend omen-nemotron-74b | `status=live ctx=65536 slots=8 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-am4 backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-am4 backend omen-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-am4 default_fallback | `omen-nemotron-74b,am4-vllm` | `repo/host/lab-configurations.toml` | select_backend | fallback order when default rung is absent |  |
+| config bolt74-am4 omen/am4/fx99 | `bolt74 / dense-tp2 / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | 3-Tier Holistic Fleet: Dual-B70 NVIDIA Nemotron 3.5 Bolt 74B-A9B (8 slots, SYCL _mt_reorder), AM4 Qwen3.8-27B Dense TP=2, FX99 utility, NPU :18097 context packager |
 | config day backend am4-tool-4070ti | `status=live ctx=24576 slots=3 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config day backend am4-tool-5070 | `status=live ctx=16384 slots=1 max_tokens=6144` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config day backend am4-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config day backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config day backend omen-dense-27b | `status=live ctx=65536 slots=2 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config day backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config day backend omen-nemotron-74b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config day backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config day backend omen-vllm | `status=live ctx=40960 slots=8 max_tokens=8192` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config day omen/am4/fx99 | `two-lane / tool-pair / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | Default configuration: OMEN dual-lane (27B quality + 30B MoE), AM4 tool-pair (two 8B seats on the CUDA cards: fast prefill for tool calls and rapid calls), FX99 utility |
@@ -217,6 +230,8 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | config memsplice backend am4-vllm | `status=live ctx=16384 slots=1 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config memsplice backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config memsplice backend omen-dense-27b | `status=live ctx=65536 slots=2 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config memsplice backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config memsplice backend omen-nemotron-74b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config memsplice backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config memsplice backend omen-vllm | `status=live ctx=40960 slots=8 max_tokens=8192` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config memsplice omen/am4/fx99 | `two-lane / dense-tp2 / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | MemSplice research shape: OMEN dual-lane, AM4 dense-tp2 (the 27B on the CUDA pair, the prefill side of a CUDA-to-Arc KV hand-off; tool seats absent), FX99 utility |
@@ -225,6 +240,8 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | config seat0-27b-vision backend am4-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-27b-vision backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-27b-vision backend omen-dense-27b | `status=live ctx=65536 slots=2 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-27b-vision backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-27b-vision backend omen-nemotron-74b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-27b-vision backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-27b-vision backend omen-vllm | `status=live ctx=40960 slots=8 max_tokens=8192` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-27b-vision omen/am4/fx99 | `seat0-27b-vision / tool-pair / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | Seat 0 Qwen3.8-27B vision lane (LANGUAGE_MODEL_ONLY unset, vision tower active); Seat 1 MoE throughput. No download. Task 12 vision lab configuration. |
@@ -233,6 +250,8 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | config seat0-devstral-small-2 backend am4-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral-small-2 backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral-small-2 backend omen-dense-27b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-devstral-small-2 backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-devstral-small-2 backend omen-nemotron-74b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral-small-2 backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral-small-2 backend omen-vllm | `status=live ctx=40960 slots=8 max_tokens=8192` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral-small-2 omen/am4/fx99 | `seat0-devstral-small-2 / tool-pair / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | Seat 0 Devstral Small 2 24B experiment, AM4 tool-pair |
@@ -241,6 +260,8 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | config seat0-devstral2507 backend am4-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral2507 backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral2507 backend omen-dense-27b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-devstral2507 backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-devstral2507 backend omen-nemotron-74b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral2507 backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral2507 backend omen-vllm | `status=live ctx=40960 slots=8 max_tokens=8192` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-devstral2507 omen/am4/fx99 | `seat0-devstral2507 / tool-pair / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | Seat 0 Devstral 2507 experiment, AM4 tool-pair |
@@ -249,6 +270,8 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | config seat0-gemma4 backend am4-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-gemma4 backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-gemma4 backend omen-dense-27b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-gemma4 backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-gemma4 backend omen-nemotron-74b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-gemma4 backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-gemma4 backend omen-vllm | `status=live ctx=40960 slots=8 max_tokens=8192` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-gemma4 omen/am4/fx99 | `seat0-gemma4 / tool-pair / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | Seat 0 Gemma 4 31B experiment, AM4 tool-pair |
@@ -257,9 +280,32 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | config seat0-qwen3-32b backend am4-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-qwen3-32b backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-qwen3-32b backend omen-dense-27b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-qwen3-32b backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config seat0-qwen3-32b backend omen-nemotron-74b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-qwen3-32b backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-qwen3-32b backend omen-vllm | `status=live ctx=40960 slots=8 max_tokens=8192` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config seat0-qwen3-32b omen/am4/fx99 | `seat0-qwen3-32b / tool-pair / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | Seat 0 Qwen3-32B experiment, AM4 tool-pair |
+| config three-dense backend am4-tool-4070ti | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense backend am4-tool-5070 | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense backend am4-vllm | `status=live ctx=49152 slots=1 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense backend omen-dense-27b | `status=live ctx=65536 slots=2 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense backend omen-dense-27b-b | `status=live ctx=65536 slots=2 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense backend omen-nemotron-74b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense backend omen-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config three-dense default_fallback | `omen-dense-27b,omen-dense-27b-b` | `repo/host/lab-configurations.toml` | select_backend | fallback order when default rung is absent |  |
+| config three-dense omen/am4/fx99 | `two-dense / dense-tp2 / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | G-bench27: two OMEN 27B replicas, AM4 dense-tp2, FX99 utility; 30B fast lane absent. Restore day after the campaign. |
+| config two-dense backend am4-tool-4070ti | `status=live ctx=24576 slots=3 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config two-dense backend am4-tool-5070 | `status=live ctx=16384 slots=1 max_tokens=6144` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config two-dense backend am4-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config two-dense backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config two-dense backend omen-dense-27b | `status=live ctx=65536 slots=2 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config two-dense backend omen-dense-27b-b | `status=live ctx=65536 slots=2 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config two-dense backend omen-nemotron-74b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config two-dense backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config two-dense backend omen-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config two-dense omen/am4/fx99 | `two-dense / tool-pair / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | G-bench27: two OMEN 27B replicas, AM4 tool-pair, FX99 utility; 30B fast lane absent. Restore day after the campaign. |
 
 ### deepagents-lane
 
@@ -271,84 +317,82 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| family depth estimate | `payload_bytes // 4` | `repo/hearth/toolsurface/inference.py:1061` | families.recommend | prompt_tokens for depth rules |  |
+| family depth estimate | `payload_bytes // 4` | `repo/hearth/toolsurface/inference.py:1125` | families.recommend | prompt_tokens for depth rules |  |
 | files= per-file / total cap (bytes) | `256 * 1024 / 1024 * 1024` | `repo/hearth/toolsurface/inference.py:68` | _pack_files | packed file bytes | unreachable on Linux: every rung's context_bytes is smaller |
 | gateway tool dispatch | `threaded (asyncio.to_thread per call)` | `~/.config/systemd/user/hearth-production.service` | FastMCP | how many door calls run at once | measured 2026-09-28: 8 parallel 5 s calls took 45 s serialized, 12 s threaded |
 | local_generate DEFAULT_TIMEOUT_S | `1000` | `repo/hearth/toolsurface/inference.py:63` | local_generate | HTTP timeout when neither caller nor rung says | never used on the execution path: it passes deadline - now |
-| local_generate default max_tokens (no rung value) | `1024` | `repo/hearth/toolsurface/inference.py:1047` | local_generate | output when neither caller nor rung says |  |
-| payload admission rule (pin and tag route) | `payload_bytes <= context_bytes AND payload_bytes // 4 + max_tokens <= context_tokens` | `repo/hearth/toolsurface/backends.py:320` | select_backend | admission | reserve = caller max_tokens else the rung's |
+| local_generate default max_tokens (no rung value) | `1024` | `repo/hearth/toolsurface/inference.py:1111` | local_generate | output when neither caller nor rung says |  |
+| payload admission rule (pin and tag route) | `payload_bytes <= context_bytes AND payload_bytes // 4 + max_tokens <= context_tokens` | `repo/hearth/toolsurface/backends.py:323` | select_backend | admission | reserve = caller max_tokens else the rung's |
 
 ### drain
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| BANKEDFIRE_SLOTS default | `fast=3,deep=1,experiment=1,deepagents=1,tool=2` | `repo/fleet/bankedfire_linux.py:72` | bankedfire_linux.tick | unattended in-flight work per lane | env now: (unset) |
+| BANKEDFIRE_SLOTS default | `fast=3,deep=1,experiment=1,deepagents=1,tool=2` | `repo/fleet/bankedfire_linux.py:139` | bankedfire_linux.tick | unattended in-flight work per lane | env now: (unset) |
 | PRESENCE idle minutes | `20` | `repo/fleet/presence_linux.py:37` | presence.report | away threshold | env now: (unset) |
-| brief deadline_s default | `2400` | `repo/fleet/bankedfire_linux.py:223` | submit_args_from_brief | local-work job deadline |  |
-| door MCP client timeout (s) | `300` | `repo/fleet/bankedfire_linux.py:141` | call_tool | submit / status calls |  |
-| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:414` | proofing_args_from_brief | proposal output / deadline |  |
-| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:360` | candidate_exclusions | failed candidate retry |  |
-| systemd-run launch timeout (s) | `30` | `repo/fleet/bankedfire_linux.py:275` | experiment / deepagents launch | — |  |
+| brief deadline_s default | `2400` | `repo/fleet/bankedfire_linux.py:313` | submit_args_from_brief | local-work job deadline |  |
+| door MCP client timeout (s) | `300` | `repo/fleet/bankedfire_linux.py:217` | call_tool | submit / status calls |  |
+| proofing max_tokens / deadline_s | `6144 / 2400` | `repo/fleet/bankedfire_linux.py:560` | proofing_args_from_brief | proposal output / deadline |  |
+| skip backoff (days) | `7` | `repo/fleet/bankedfire_linux.py:506` | candidate_exclusions | failed candidate retry |  |
+| systemd-run launch timeout (s) | `30` | `repo/fleet/bankedfire_linux.py:421` | experiment / deepagents launch | — |  |
 | tick interval | `30min` | `~/.config/systemd/user/bankedfire-drain.timer` | systemd | how often the night loop looks |  |
 
 ### execution
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:986` | lease limit | per-rung concurrency |  |
-| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:1117` | _run_job | the '1199' | queue wait counts against the deadline |
+| parallel_slots clamp | `1..128` | `repo/hearth/execution/service.py:1107` | lease limit | per-rung concurrency |  |
+| provider HTTP timeout | `max(1, deadline - now)` | `repo/hearth/execution/service.py:1240` | _run_job | the '1199' | queue wait counts against the deadline |
 | workers / max_pending | `16 / 256` | `repo/hearth/execution/service.py:133` | executor | concurrent jobs / queue depth |  |
 
 ### experiment
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| RESTORE_MARGIN_MIN / DEFAULT_MAX_MINUTES / DEFAULT_RESTORE_BY | `20 / 240 / 06:30` | `repo/fleet/experiment_linux.py:69` | Experiment.campaign_budget_s | campaign wall clock |  |
-| seat wait (s) | `900` | `repo/fleet/experiment_linux.py:269` | restart_and_wait | seat restart |  |
+| RESTORE_MARGIN_MIN / DEFAULT_MAX_MINUTES / DEFAULT_RESTORE_BY | `20 / 240 / 06:30` | `repo/fleet/experiment_linux.py:70` | Experiment.campaign_budget_s | campaign wall clock |  |
+| seat wait (s) | `900` | `repo/fleet/experiment_linux.py:270` | restart_and_wait | seat restart |  |
 
 ### family
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
 | family chart_diagram | `qwen3.8-27b; tags ['vision']` | `~/hearth-production/routing-families-linux.toml:149` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family claim_verification | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:217` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family claim_verification | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:230` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family classification | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:83` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family code_fix | `qwen3.8-27b; tags ['agent']` | `~/hearth-production/routing-families-linux.toml:183` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family code_review | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:190` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family code_review | `qwen3.8-27b; tags ['quality']` | `~/hearth-production/routing-families-linux.toml:196` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family default | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:170` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family document_ocr | `tesseract-ocr; tags ['ocr']` | `~/hearth-production/routing-families-linux.toml:142` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family drafting | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:92` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family extraction | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:74` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family long_review | `qwen3.8-27b; >= 8192 -> qwen3.8-27b else qwen3-30b-a3b; tags ['dense']` | `~/hearth-production/routing-families-linux.toml:197` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family long_review | `qwen3.8-27b; >= 8192 -> qwen3.8-27b else qwen3-30b-a3b; tags ['dense']` | `~/hearth-production/routing-families-linux.toml:210` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family quote_retrieval | `qwen3.8-27b; >= 4096 -> qwen3.8-27b else qwen3-30b-a3b` | `~/hearth-production/routing-families-linux.toml:50` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family reasoning_planning | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:101` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family screenshot_grounded | `qwen3.8-27b; tags ['vision']` | `~/hearth-production/routing-families-linux.toml:157` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family summarization | `qwen3-30b-a3b; >= 8192 prompt tokens -> qwen3.8-27b` | `~/hearth-production/routing-families-linux.toml:65` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family tool_execution | `am4-tool-4070ti; tags ['tool-use']` | `~/hearth-production/routing-families-linux.toml:117` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 | family tool_long_output | `am4-tool-5070; tags ['tool-long']` | `~/hearth-production/routing-families-linux.toml:129` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
-| family utility_text | `qwen2.5-coder-7b; tags ['utility']` | `~/hearth-production/routing-families-linux.toml:206` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
+| family utility_text | `qwen2.5-coder-7b; tags ['utility']` | `~/hearth-production/routing-families-linux.toml:219` | families.recommend (advisory) / local_generate tag route | model + depth threshold (prompt tokens = payload bytes // 4) |  |
 
 ### local-work
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| auto lane floor (evidence tokens -> deep) | `8192` | `repo/hearth/localwork/service.py:185` | _lane | fast vs deep | quote_retrieval floor 4096; evidence = source pack only, counted with the fast lane's tokenizer |
-| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:414` | submit | refuses at submit |  |
-| lane deep | `omen-dense-27b` | `~/hearth-production/local-work-routes-linux.toml:10` | submit_local_work | which rung a lane is |  |
-| lane fast | `omen-vllm` | `~/hearth-production/local-work-routes-linux.toml:7` | submit_local_work | which rung a lane is |  |
-| lane tool | `am4-tool-4070ti` | `~/hearth-production/local-work-routes-linux.toml:14` | submit_local_work | which rung a lane is |  |
-| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:406` | submit | reserve when the rung declares none |  |
+| auto lane floor (evidence tokens -> deep) | `8192` | `repo/hearth/localwork/service.py:251` | _lane | fast vs deep | quote_retrieval floor 4096; evidence = source pack only, counted with the fast lane's tokenizer |
+| exact context check | `input_tokens + output_reserve <= context_tokens` | `repo/hearth/localwork/service.py:772` | submit | refuses at submit |  |
+| lane deep | — | `~/hearth-production/local-work-routes-linux.toml:3` | submit_local_work | which rung a lane is |  |
+| output_reserve fallback | `4096` | `repo/hearth/localwork/service.py:764` | submit | reserve when the rung declares none |  |
 | submit_local_work deadline_s default | `1800` | `repo/hearth/toolsurface/local_work.py:44` | MCP tool | job deadline when the caller sets none |  |
-| tokenizer / git / apply timeouts (s) | `30 / 120 / 120` | `repo/hearth/localwork/service.py:95` | submit, validation | submit latency; candidate validation |  |
+| tokenizer / git / apply timeouts (s) | `30 / 120 / 120` | `repo/hearth/localwork/service.py:137` | submit, validation | submit latency; candidate validation |  |
 
 ### measured
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| omen-dense-27b decode tok/s median | `32.1` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
-| omen-dense-27b duration_ms p90 / max | `5117 / 1253405` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
-| omen-dense-27b invocations (n) | `6647` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
-| omen-dense-27b tokens_out p90 / max | `114 / 14401` | `~/hearth-production/var/execution/events.ndjson` | — | how close outputs come to the cap |  |
+| omen-dense-27b decode tok/s median | `33.5` | `~/hearth-production/var/execution/events.ndjson` | deadline derivation | output / duration (prefill included, so a floor) |  |
+| omen-dense-27b duration_ms p90 / max | `11937 / 1253405` | `~/hearth-production/var/execution/events.ndjson` | — | how close jobs come to the deadline |  |
+| omen-dense-27b invocations (n) | `9756` | `~/hearth-production/var/execution/events.ndjson` | sizing rules | sample |  |
+| omen-dense-27b tokens_out p90 / max | `365 / 24576` | `~/hearth-production/var/execution/events.ndjson` | — | how close outputs come to the cap |  |
 
 ### operation
 
@@ -378,9 +422,8 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| backend dense_seats server b70_0 | `127.0.0.1:18091 maxconn 4` | `~/.config/omen-vllm/haproxy.cfg:37` | haproxy | seat behind the lane; per-server maxconn queues overflow at the router |  |
-| backend moe_seats server b70_1 | `127.0.0.1:18092 maxconn 8` | `~/.config/omen-vllm/haproxy.cfg:26` | haproxy | seat behind the lane; per-server maxconn queues overflow at the router |  |
-| frontend omen_dense | `18095` | `~/.config/omen-vllm/haproxy.cfg:29` | HEARTH rung endpoint | which lane a port is |  |
+| backend bolt74_seats server b70_0 | `127.0.0.1:18091 maxconn 8` | `~/.config/omen-vllm/haproxy.cfg:31` | haproxy | seat behind the lane; per-server maxconn queues overflow at the router |  |
+| frontend omen_dense | `18095` | `~/.config/omen-vllm/haproxy.cfg:23` | HEARTH rung endpoint | which lane a port is |  |
 | frontend omen_vllm | `18090` | `~/.config/omen-vllm/haproxy.cfg:18` | HEARTH rung endpoint | which lane a port is |  |
 | haproxy global maxconn | `512` | `~/.config/omen-vllm/haproxy.cfg:3` | haproxy | total open connections |  |
 | haproxy timeout client | `2400` | `~/.config/omen-vllm/haproxy.cfg:13` | haproxy | idle per request (client side) |  |
@@ -394,23 +437,24 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 |---|---|---|---|---|---|
 | am4-tool-4070ti context_bytes | `86016` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | am4-tool-4070ti context_tokens | `24576` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| am4-tool-4070ti endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:99` | door | which router port |  |
+| am4-tool-4070ti endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:128` | door | which router port |  |
 | am4-tool-4070ti max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-tool-4070ti parallel_slots | `3` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-tool-4070ti timeout_s | `600` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | am4-tool-5070 context_bytes | `57344` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | am4-tool-5070 context_tokens | `16384` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| am4-tool-5070 endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:120` | door | which router port |  |
+| am4-tool-5070 endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:149` | door | which router port |  |
 | am4-tool-5070 max_tokens | `6144` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-tool-5070 parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-tool-5070 timeout_s | `600` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
-| am4-vllm context_bytes | `57344` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
-| am4-vllm context_tokens | `16384` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
+| am4-vllm context_bytes | `172032` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
+| am4-vllm context_tokens | `49152` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
+| am4-vllm deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:61` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
 | am4-vllm endpoint | `http://10.44.0.2:8090` | `~/hearth-production/backends-linux.toml:46` | door | which router port |  |
 | am4-vllm max_tokens | `4096` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | am4-vllm parallel_slots | `1` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | am4-vllm timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
-| backends-linux.toml KV-pool comment | `76706` | `~/hearth-production/backends-linux.toml:77` | operator | documentation of the dense seat's KV pool | compared against the live kv_cache_size_tokens under --live |
+| backends-linux.toml KV-pool comment | `76706` | `~/hearth-production/backends-linux.toml:80` | operator | documentation of the dense seat's KV pool | compared against the live kv_cache_size_tokens under --live |
 | default rung | `omen-vllm` | `~/hearth-production/backends-linux.toml:3` | local_generate | where untagged calls land |  |
 | fx99-vllm context_bytes | `14336` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | fx99-vllm context_tokens | `4096` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
@@ -420,16 +464,33 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | fx99-vllm timeout_s | `300` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | omen-dense-27b context_bytes | `229376` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
 | omen-dense-27b context_tokens | `65536` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
-| omen-dense-27b deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:81` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
-| omen-dense-27b endpoint | `http://127.0.0.1:18095` | `~/hearth-production/backends-linux.toml:67` | door | which router port |  |
+| omen-dense-27b deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:61` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
+| omen-dense-27b endpoint | `http://127.0.0.1:18095` | `~/hearth-production/backends-linux.toml:70` | door | which router port |  |
 | omen-dense-27b flash_attention | `True` | `~/hearth-production/backends-linux.toml:23` | backends pool | declared attention backend of the seat (true = FLASH_ATTN) |  |
 | omen-dense-27b max_tokens | `16384` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
 | omen-dense-27b parallel_slots | `2` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
-| omen-dense-27b speculative | `mtp-k2` | `~/hearth-production/backends-linux.toml:86` | backends pool | declared MTP draft depth of the seat (mtp-k<N>) |  |
+| omen-dense-27b speculative | `mtp-k2` | `~/hearth-production/backends-linux.toml:89` | backends pool | declared MTP draft depth of the seat (mtp-k<N>) |  |
 | omen-dense-27b timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
-| omen-perception endpoint | `http://127.0.0.1:18099` | `~/hearth-production/backends-linux.toml:144` | door | which router port |  |
-| omen-perception images_per_second | `4.15` | `~/hearth-production/backends-linux.toml:153` | backends pool | measured perception throughput on CPU |  |
-| omen-perception max_image_bytes | `10485760` | `~/hearth-production/backends-linux.toml:154` | backends pool | largest image payload accepted |  |
+| omen-dense-27b-b context_bytes | `229376` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
+| omen-dense-27b-b context_tokens | `65536` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
+| omen-dense-27b-b deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:61` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
+| omen-dense-27b-b endpoint | `http://127.0.0.1:18096` | `~/hearth-production/backends-linux.toml:96` | door | which router port |  |
+| omen-dense-27b-b flash_attention | `True` | `~/hearth-production/backends-linux.toml:23` | backends pool | declared attention backend of the seat (true = FLASH_ATTN) |  |
+| omen-dense-27b-b max_tokens | `16384` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
+| omen-dense-27b-b parallel_slots | `2` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
+| omen-dense-27b-b speculative | `mtp-k2` | `~/hearth-production/backends-linux.toml:89` | backends pool | declared MTP draft depth of the seat (mtp-k<N>) |  |
+| omen-dense-27b-b timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
+| omen-nemotron-74b context_bytes | `229376` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
+| omen-nemotron-74b context_tokens | `65536` | `~/hearth-production/backends-linux.toml:17` | backends pool | input + output tokens the seat holds |  |
+| omen-nemotron-74b deliberate_max_tokens | `24576` | `~/hearth-production/backends-linux.toml:61` | backends pool | largest output a streamed inference.deliberate turn may ask for on this rung |  |
+| omen-nemotron-74b endpoint | `http://127.0.0.1:18095` | `~/hearth-production/backends-linux.toml:188` | door | which router port |  |
+| omen-nemotron-74b flash_attention | `True` | `~/hearth-production/backends-linux.toml:23` | backends pool | declared attention backend of the seat (true = FLASH_ATTN) |  |
+| omen-nemotron-74b max_tokens | `16384` | `~/hearth-production/backends-linux.toml:19` | backends pool | default output budget = the reserve local-work subtracts |  |
+| omen-nemotron-74b parallel_slots | `8` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
+| omen-nemotron-74b timeout_s | `1000` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
+| omen-perception endpoint | `http://127.0.0.1:18099` | `~/hearth-production/backends-linux.toml:173` | door | which router port |  |
+| omen-perception images_per_second | `4.15` | `~/hearth-production/backends-linux.toml:182` | backends pool | measured perception throughput on CPU |  |
+| omen-perception max_image_bytes | `10485760` | `~/hearth-production/backends-linux.toml:183` | backends pool | largest image payload accepted |  |
 | omen-perception parallel_slots | `2` | `~/hearth-production/backends-linux.toml:21` | backends pool | HEARTH lease slots on this rung |  |
 | omen-perception timeout_s | `60` | `~/hearth-production/backends-linux.toml:20` | backends pool | HTTP timeout when the caller sets none (execution path always overrides) |  |
 | omen-vllm context_bytes | `143360` | `~/hearth-production/backends-linux.toml:18` | backends pool | payload bytes admitted by the door (3.5 B/token, no output reserve) |  |
@@ -469,6 +530,10 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
+| omen-nemotron-74b attention_backend | `FLASH_ATTN` | `~/bin/start-nemotron-74b.sh:30` | llama-server -fa on | FlashAttention enabled |  |
+| omen-nemotron-74b max_model_len | `65536` | `~/bin/start-nemotron-74b.sh:11` | llama-server per-slot context | input + output tokens per slot |  |
+| omen-nemotron-74b max_num_seqs | `8` | `~/bin/start-nemotron-74b.sh:10` | llama-server -np | concurrent parallel slots |  |
+| omen-nemotron-74b served model | `nemotron-3.5-bolt-74b-a9b` | `~/bin/start-nemotron-74b.sh:8` | HAProxy :18091 | Dual-B70 llama-server alias |  |
 | omen-vllm@0 attention_backend | `FLASH_ATTN` | `~/.config/systemd/user/omen-vllm@0.service.d/{max-num-seqs.conf,stage0-recipe.conf,stage2-27b-mtp.conf,stage2b-batched.conf,stage2d-prefix-unit.conf}` | vLLM | attention kernel (prefill and decode rate at depth) |  |
 | omen-vllm@0 gpu_memory_utilization | `0.9` | `~/.config/systemd/user/omen-vllm@0.service.d/{max-num-seqs.conf,stage0-recipe.conf,stage2-27b-mtp.conf,stage2b-batched.conf,stage2d-prefix-unit.conf}` | vLLM | VRAM fraction (weights + KV) |  |
 | omen-vllm@0 max_model_len | `65536` | `~/.config/systemd/user/omen-vllm@0.service.d/{max-num-seqs.conf,stage0-recipe.conf,stage2-27b-mtp.conf,stage2b-batched.conf,stage2d-prefix-unit.conf}` | vLLM | input + output tokens per request |  |
@@ -492,17 +557,9 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
-| omen-perception live read | `unavailable: URLError` | — | — | — |  |
-| omen-vllm@0 /v1/models | `qwen3.8-27b max_model_len=65536` | `http://127.0.0.1:18091/v1/models` | clients | live window |  |
-| omen-vllm@0 block_size | `832` | `http://127.0.0.1:18091/metrics cache_config_info` | vLLM | block / dtype |  |
-| omen-vllm@0 cache_dtype | `auto` | `http://127.0.0.1:18091/metrics cache_config_info` | vLLM | block / dtype |  |
-| omen-vllm@0 kv_cache_max_concurrency | `1.46` | `http://127.0.0.1:18091/metrics cache_config_info` | vLLM | KV pool |  |
-| omen-vllm@0 kv_cache_size_tokens | `95783` | `http://127.0.0.1:18091/metrics cache_config_info` | vLLM | KV pool |  |
-| omen-vllm@1 /v1/models | `qwen3-30b-a3b max_model_len=40960` | `http://127.0.0.1:18092/v1/models` | clients | live window |  |
-| omen-vllm@1 block_size | `64` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | block / dtype |  |
-| omen-vllm@1 cache_dtype | `auto` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | block / dtype |  |
-| omen-vllm@1 kv_cache_max_concurrency | `3.26` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | KV pool |  |
-| omen-vllm@1 kv_cache_size_tokens | `133632` | `http://127.0.0.1:18092/metrics cache_config_info` | vLLM | KV pool |  |
+| omen-perception health | `status=ok ips=4.15` | `http://127.0.0.1:18099/health` | door | CPU perception lane health |  |
+| omen-vllm@0 /v1/models | `nemotron-3.5-bolt-74b-a9b max_model_len=None` | `http://127.0.0.1:18091/v1/models` | clients | live window |  |
+| omen-vllm@1 live read | `unavailable: URLError` | — | — | — |  |
 
 ### sizer
 
@@ -516,8 +573,6 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 
 ### invariants
 
-| rule | violation | earned by |
-|---|---|---|
-| `expected-live-backends-serving` | omen-perception expected live under day but perception service is unavailable: unavailable: URLError | live backends must be UP and responding to /health |
+All invariants hold.
 
 <!-- sizing-map:end -->

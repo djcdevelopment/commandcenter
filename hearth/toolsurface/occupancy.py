@@ -509,7 +509,7 @@ def probe_omen_vllm() -> dict:
     if multi_slot_dev:
         if (counts["external"] + counts["drain"]) >= max_active and counts["external"] > 0:
             signals.append("external_jobs=%d" % counts["external"])
-        if running >= max_active and running > counts["drain"]:
+        if running >= max_active and running > counts["drain"] and (counts["external"] > 0 or running >= 8):
             signals.append("running=%d>drain_jobs=%d" % (int(running), counts["drain"]))
     else:
         if counts["external"] > 0:

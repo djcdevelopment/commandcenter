@@ -27,7 +27,10 @@ from hearth.scheduler.ontology import (
     load_runner_classes,
     lookup_duration_s,
 )
-from hearth.scheduler.solve import solve_schedule
+try:
+    from hearth.scheduler.solve import solve_schedule
+except ModuleNotFoundError:
+    solve_schedule = None
 from hearth.scheduler.decision import build_scheduler_decision, validate_decision
 
 __all__ = [

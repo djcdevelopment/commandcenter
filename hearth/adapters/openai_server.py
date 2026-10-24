@@ -28,6 +28,7 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -40,6 +41,14 @@ SHARED_PACK_END_MARKERS: tuple[str, ...] = (
     "=== END REPOSITORY SOURCE PACK ===",
     "[/ARCH_PACK]",
     "<!-- SHARED_CONTEXT_END -->",
+    "</jepa_context_pack>",
+)
+
+_DELIVERY_SOURCE_FILES_RE = re.compile(
+    r"(?:^|\n)(SOURCE FILES \([^\n]*\):\n=== FILE [^\n]+ ===[\s\S]*\n=== END [^\n]+ ===)(?=\n|$)"
+)
+_SOURCEMAP_BLOCK_RE = re.compile(
+    r"(?:^|\n)(=== FILE [^\n]+ ===[\s\S]*\n=== END [^\n]+ ===)(?=\n|$)"
 )
 
 MAMBA_HYBRID_BACKENDS: frozenset[str] = frozenset({
@@ -74,8 +83,22 @@ def is_mamba_hybrid_target(
 def split_shared_context_pack(prompt: str) -> Optional[tuple[str, str]]:
     """Split ``prompt`` at the end of a shared repository/architecture context pack.
 
+    Supports:
+    1. Explicit shared-pack markers (``=== END REPOSITORY SOURCE PACK ===``, ``[/ARCH_PACK]``,
+       ``<!-- SHARED_CONTEXT_END -->``, ``</jepa_context_pack>``).
+    2. ``local_generate(files=[...])`` ``<file path="...">...</file>`` blocks followed by task text.
+    3. ``LocalWorkService`` delivery prompts (``one_call``, ``jepa_ast_sliced``, ``carry`` ``work``/``attach``,
+       ``repair``, ``revision``) containing ``SOURCE FILES (...):\\n=== FILE ... === ... === END ... ===``:
+       extracts the ``SOURCE FILES`` block as Turn 1 (``shared_context_pack``) and combines the request
+       header + any trailing step/repair/revision instructions as Turn 2 (``task_instruction``), so all
+       steps and briefs against the same files share an identical Turn 1 Mamba-2 state checkpoint.
+    4. Direct ``SourceMap`` renders (``=== FILE ... === ... === END ... ===``) with surrounding task text.
+    5. ``LocalWorkService`` code/patch prompts with ``CONTEXT PACK:\\n--- SOURCE ...`` (and optional
+       trailing ``REPAIR:`` block): extracts ``CONTEXT PACK:\\n...`` as Turn 1 and the task/intent
+       (+ any ``REPAIR:`` suffix) as Turn 2.
+
     Returns ``(shared_context_pack, task_instruction)`` if a supported delimiter is
-    present and followed by a non-empty task instruction; otherwise returns ``None``.
+    present and yields non-empty shared context + task instruction; otherwise returns ``None``.
     """
     if not isinstance(prompt, str) or not prompt:
         return None
@@ -88,7 +111,103 @@ def split_shared_context_pack(prompt: str) -> Optional[tuple[str, str]]:
         task_instruction = prompt[split_pos:].strip()
         if shared_context_pack and task_instruction:
             return shared_context_pack, task_instruction
+
+    # Shape 2: <file path="...">...</file> blocks from inference._pack_files
+    stripped = prompt.lstrip()
+    if stripped.startswith("<file path=") and "</file>" in prompt:
+        last_close = prompt.rfind("</file>")
+        split_pos = last_close + len("</file>")
+        shared_context_pack = prompt[:split_pos].strip()
+        task_instruction = prompt[split_pos:].strip()
+        if shared_context_pack and task_instruction:
+            return shared_context_pack, task_instruction
+
+    # Shape 3: LocalWorkService delivery prompts with SOURCE FILES (...):\n=== FILE ... === ... === END ... ===
+    m_deliv = _DELIVERY_SOURCE_FILES_RE.search(prompt)
+    if m_deliv is not None:
+        shared_context_pack = m_deliv.group(1).strip()
+        prefix = prompt[: m_deliv.start(1)].strip()
+        suffix = prompt[m_deliv.end(1) :].strip()
+        task_instruction = "\n\n".join(part for part in (prefix, suffix) if part)
+        if shared_context_pack and task_instruction:
+            return shared_context_pack, task_instruction
+
+    # Shape 4: Direct SourceMap render (=== FILE ... === ... === END ... ===) with task text
+    m_sm = _SOURCEMAP_BLOCK_RE.search(prompt)
+    if m_sm is not None:
+        shared_context_pack = m_sm.group(1).strip()
+        prefix = prompt[: m_sm.start(1)].strip()
+        suffix = prompt[m_sm.end(1) :].strip()
+        task_instruction = "\n\n".join(part for part in (prefix, suffix) if part)
+        if shared_context_pack and task_instruction:
+            return shared_context_pack, task_instruction
+
+    # Shape 5: LocalWorkService non-delivery code/patch prompts with CONTEXT PACK:\n--- SOURCE ...
+    if "\n\nCONTEXT PACK:\n" in prompt:
+        head, rest = prompt.split("\n\nCONTEXT PACK:\n", 1)
+        if "--- SOURCE " in rest or "FILE: " in rest:
+            if "\n\nREPAIR:\n" in rest:
+                pack_body, repair_tail = rest.split("\n\nREPAIR:\n", 1)
+                shared_context_pack = f"CONTEXT PACK:\n{pack_body.strip()}"
+                task_instruction = f"{head.strip()}\n\nREPAIR:\n{repair_tail.strip()}"
+            else:
+                shared_context_pack = f"CONTEXT PACK:\n{rest.strip()}"
+                task_instruction = head.strip()
+            if shared_context_pack and task_instruction:
+                return shared_context_pack, task_instruction
+
     return None
+
+
+def checkpoint_messages_list(
+    messages: list[dict[str, Any]],
+    model_name: Optional[str] = None,
+    backend_id: Optional[str] = None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Apply Turn-Boundary Mamba-2 State Checkpointing to an explicit ``messages`` list
+    (such as ``LocalWorkService`` ``carry`` ``work``, ``check``, and ``attach`` stages)
+    when targeting a Hybrid Mamba-2 / ``llama-server`` seat.
+
+    If the first ``user`` message contains a splittable shared context pack and is not
+    already followed by ``TURN_CHECKPOINT_ACK``, splits that ``user`` message into:
+        ``[{"role": "user", "content": shared_context_pack},
+          {"role": "assistant", "content": TURN_CHECKPOINT_ACK},
+          {"role": "user", "content": task_instruction}]``
+    so ``work``, ``check``, and ``attach`` stages share the exact same Turn 1 Mamba-2
+    checkpoint and ``check`` also reuses the ``work`` turn's KV prefix.
+    """
+    if not messages or not is_mamba_hybrid_target(model_name=model_name, backend_id=backend_id):
+        return messages, False
+
+    out: list[dict[str, Any]] = []
+    checkpointed = False
+    for idx, msg in enumerate(messages):
+        if (
+            not checkpointed
+            and isinstance(msg, dict)
+            and msg.get("role") == "user"
+            and isinstance(msg.get("content"), str)
+        ):
+            next_msg = messages[idx + 1] if idx + 1 < len(messages) else None
+            if isinstance(next_msg, dict) and next_msg.get("role") == "assistant" and next_msg.get("content") == TURN_CHECKPOINT_ACK:
+                checkpointed = True
+                out.append(msg)
+                continue
+            split = split_shared_context_pack(msg["content"])
+            if split is not None:
+                shared_context_pack, task_instruction = split
+                out.extend([
+                    {"role": "user", "content": shared_context_pack},
+                    {"role": "assistant", "content": TURN_CHECKPOINT_ACK},
+                    {"role": "user", "content": task_instruction},
+                ])
+                checkpointed = True
+                continue
+        out.append(msg)
+
+    if checkpointed or len(out) >= 3:
+        return out, True
+    return out, False
 
 
 def build_turn_checkpointed_messages(

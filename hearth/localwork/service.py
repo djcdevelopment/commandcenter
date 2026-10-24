@@ -179,7 +179,17 @@ class LocalWorkService:
         self.root = Path(root).resolve() if root else paths.operator_home()
         self.token_counter = token_counter or self._server_token_count
         self._lock = threading.RLock()
+        self._work_locks: dict[str, threading.RLock] = {}
+        self._terminal_manifest_mtimes: dict[str, int] = {}
         self._admission_lock = threading.Lock()
+
+    def _work_lock(self, work_id: str) -> threading.RLock:
+        with self._lock:
+            lock = self._work_locks.get(work_id)
+            if lock is None:
+                lock = threading.RLock()
+                self._work_locks[work_id] = lock
+            return lock
 
     def _run_dir(self, work_id: str) -> Path:
         if not re.fullmatch(r"work_[a-f0-9]{32}", work_id):
@@ -484,7 +494,6 @@ class LocalWorkService:
             raise LocalWorkError("exact tokenizer endpoint returned no token count")
         return count
 
-    @_serialized_submission
     def submit(self, *, intent: str, acceptance_criteria: list[str], repo: str,
                base_commit: str, files: list[str], artifact_kind: str,
                target_path: str | None, lane: str, task_family: str | None,
@@ -531,6 +540,8 @@ class LocalWorkService:
         target = _safe_relative(target_path) if target_path else None
         source_pack, source_meta = self._source_pack(repo_path, base, declared)
         delivery = brief is not None
+        source_map = None
+        quote_mode = "text"
         if delivery:   # brief refusals come before any seat is asked to count tokens
             brief = {**brief, "sources": [{"path": name, "commit": base} for name in declared]}
             try:
@@ -539,6 +550,27 @@ class LocalWorkService:
             except (contract.ContractError, sourcemap.SourceMapError) as exc:
                 raise LocalWorkError(f"delivery brief refused: {exc}") from exc
             quote_mode = contract.form_defaults(brief)["quote_mode"]
+        return self._submit_admitted(
+            intent=intent, acceptance_criteria=acceptance_criteria, repo_path=repo_path,
+            base=base, declared=declared, target=target, source_pack=source_pack,
+            source_meta=source_meta, delivery=delivery, source_map=source_map,
+            quote_mode=quote_mode, items_run=items_run, artifact_kind=artifact_kind,
+            lane=lane, task_family=task_family, deadline_s=deadline_s,
+            max_tokens=max_tokens, receipt_id=receipt_id, idempotency_key=idempotency_key,
+            caller_id=caller_id, brief=brief, temperature=temperature, revise=revise,
+            procedure=procedure,
+        )
+
+    @_serialized_submission
+    def _submit_admitted(self, *, intent: str, acceptance_criteria: list[str], repo_path: Path,
+                         base: str, declared: list[str], target: str | None, source_pack: str,
+                         source_meta: list[dict[str, Any]], delivery: bool, source_map: Any,
+                         quote_mode: str, items_run: bool, artifact_kind: str,
+                         lane: str, task_family: str | None, deadline_s: int,
+                         max_tokens: int | None, receipt_id: str | None,
+                         idempotency_key: str | None, caller_id: str,
+                         brief: Mapping[str, Any] | None, temperature: float | None,
+                         revise: bool, procedure: str | None) -> dict[str, Any]:
         work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
                    if idempotency_key else f"work_{uuid.uuid4().hex}")
         prior = self._read(work_id) if idempotency_key and self._manifest_path(work_id).is_file() else None
@@ -623,14 +655,22 @@ class LocalWorkService:
         names, pooled, backend_choice = self._candidates(route_sets, code_backends, selected_lane, delivery, existing)
         outstanding = {name: 0 for name in names}
         for path in (self.root / "runs" / "operator").glob("work_*/work-manifest.json"):
+            path_str = str(path)
             try:
+                mtime_ns = path.stat().st_mtime_ns
+                if self._terminal_manifest_mtimes.get(path_str) == mtime_ns:
+                    continue
                 recorded = json.loads(path.read_text(encoding="utf-8"))
                 if not isinstance(recorded, dict) or not isinstance(recorded.get("route", {}), dict):
                     raise ValueError("manifest and route must be objects")
             except (OSError, ValueError) as exc:
                 raise LocalWorkError(f"outstanding work manifest unreadable: {path.name} in {path.parent.name}: {exc}") from exc
+            status = recorded.get("status")
+            if status in FINAL | {"awaiting_review"}:
+                self._terminal_manifest_mtimes[path_str] = mtime_ns
+                continue
             name = recorded.get("route", {}).get("provider")
-            if name in outstanding and recorded.get("status") not in FINAL | {"awaiting_review"}:
+            if name in outstanding:
                 outstanding[name] += 1
         loads = {name: {"outstanding_assignments": outstanding[name],
                         "active_leases": self.execution.leases.active_count(f"provider:{name}"),
@@ -871,7 +911,7 @@ class LocalWorkService:
                                  "readers": [{k: r[k] for k in ("backend", "model")} for r in roster[:2]],
                                  "settler": {k: roster[2][k] for k in ("backend", "model")}, "deadline_s": deadline_s,
                                  "jobs": [], "failure": None}
-        with self._lock:
+        with self._work_lock(work_id):
             self._write(manifest)
             envelope.store_envelope(env, work_id, raw_prompt=prompt)
             if items_run:
@@ -2062,7 +2102,7 @@ class LocalWorkService:
         self._finish_delivery(manifest, str(job["job_id"]))
 
     def reconcile(self, work_id: str) -> dict[str, Any]:
-        with self._lock:
+        with self._work_lock(work_id):
             manifest = self._read(work_id)
             if manifest["status"] in FINAL or manifest["status"] == "awaiting_review":
                 return manifest
@@ -2166,15 +2206,21 @@ class LocalWorkService:
         if not base.is_dir():
             return 0
         for target in base.glob("work_*/work-manifest.json"):
+            t_str = str(target)
             try:
+                mtime_ns = target.stat().st_mtime_ns
+                if self._terminal_manifest_mtimes.get(t_str) == mtime_ns:
+                    continue
                 manifest = json.loads(target.read_text(encoding="utf-8"))
             except Exception:
                 continue
-            if manifest.get("status") not in FINAL and manifest.get("status") != "awaiting_review":
-                reconciled = self.reconcile(str(manifest["work_id"]))
-                if reconciled.get("status") in {"queued", "running"} and reconciled.get("job_id"):
-                    self._spawn_auto_reconcile(str(reconciled["work_id"]), str(reconciled["job_id"]))
-                count += 1
+            if manifest.get("status") in FINAL or manifest.get("status") == "awaiting_review":
+                self._terminal_manifest_mtimes[t_str] = mtime_ns
+                continue
+            reconciled = self.reconcile(str(manifest["work_id"]))
+            if reconciled.get("status") in {"queued", "running"} and reconciled.get("job_id"):
+                self._spawn_auto_reconcile(str(reconciled["work_id"]), str(reconciled["job_id"]))
+            count += 1
         return count
 
     def watch(self, work_id: str, after_sequence: int = 0, wait_seconds: float = 0) -> dict[str, Any]:
@@ -2187,7 +2233,7 @@ class LocalWorkService:
     def _note_fetch(self, manifest: Mapping[str, Any], caller_id: str) -> None:
         """One `artifact.fetched` per (work, caller): the first read dates the start of that caller's review (labels
         contract section 2, ADR-0071). A read appends to history and never rewrites the manifest."""
-        with self._lock:   # read-then-append: two fetches by one caller at once would otherwise both write
+        with self._work_lock(str(manifest["work_id"])):   # read-then-append: two fetches by one caller at once would otherwise both write
             for event in history.read_run_history(str(manifest["work_id"])):
                 if event.get("event_type") == "artifact.fetched" and (event.get("payload") or {}).get("by") == caller_id:
                     return
@@ -2267,7 +2313,7 @@ class LocalWorkService:
                 "write a wait for a person or an attended lane to record it"
                 + ("; attended=true from the unattended class "
                    f"{caller_id!r} is recorded, not honoured (ADR-0071)" if attended_declared else ""))
-        with self._lock:
+        with self._work_lock(work_id):
             manifest = self.reconcile(work_id)
             if manifest["status"] != "awaiting_review":
                 raise LocalWorkError("only awaiting_review work can receive a verdict")
@@ -2322,7 +2368,7 @@ class LocalWorkService:
         """Apply an accepted candidate's diff or file content to the repository worktree."""
         if not environment.bool_knob("LOCAL_WORK_AUTO_APPLY", True) and not environment.is_dev():
             raise LocalWorkError("apply_local_work is disabled in prod mode (LOCAL_WORK_AUTO_APPLY=0)")
-        with self._lock:
+        with self._work_lock(work_id):
             manifest = self.reconcile(work_id)
             if manifest["status"] != "accepted":
                 raise LocalWorkError(

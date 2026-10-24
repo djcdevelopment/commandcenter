@@ -92,6 +92,9 @@ def _lane_backends(lane: str) -> list[str]:
     return [str(n) for n in names]
 
 
+_TERMINAL_MANIFEST_MTIMES: dict[str, int] = {}
+
+
 def _seat_loads(backend: str) -> dict[str, int]:
     """Authoritative load of one seat: the door's capacity leases plus outstanding local-work manifests of EVERY
     caller (the drain's own included: capacity is never exempt), against the seat's declared parallel_slots."""
@@ -105,11 +108,19 @@ def _seat_loads(backend: str) -> dict[str, int]:
     leases = CapacityLeaseStore(db).active_count(f"provider:{backend}")
     outstanding = 0
     for m in (_REPO_ROOT / "runs" / "operator").glob("work_*/work-manifest.json"):
+        m_str = str(m)
         try:
+            mtime_ns = m.stat().st_mtime_ns
+            if _TERMINAL_MANIFEST_MTIMES.get(m_str) == mtime_ns:
+                continue
             d = json.loads(m.read_text())
         except Exception:  # noqa: BLE001
             continue
-        if d.get("status") in {"queued", "running"} and (d.get("route") or {}).get("provider") == backend:
+        st = d.get("status")
+        if st in DONE:
+            _TERMINAL_MANIFEST_MTIMES[m_str] = mtime_ns
+            continue
+        if st in {"queued", "running"} and (d.get("route") or {}).get("provider") == backend:
             outstanding += 1
     return {"slots": slots, "leases": leases, "outstanding": outstanding}
 
@@ -703,9 +714,17 @@ def queue_status() -> dict[str, Any]:
     root = _REPO_ROOT / "runs" / "operator"
     try:
         for m in root.glob("work_*/work-manifest.json"):
+            m_str = str(m)
             try:
+                mtime_ns = m.stat().st_mtime_ns
+                if _TERMINAL_MANIFEST_MTIMES.get(m_str) == mtime_ns:
+                    continue
                 d = json.loads(m.read_text())
-                if d.get("status") in {"queued", "running"}:
+                st = d.get("status")
+                if st in DONE:
+                    _TERMINAL_MANIFEST_MTIMES[m_str] = mtime_ns
+                    continue
+                if st in {"queued", "running"}:
                     if (d.get("caller") or {}).get("submitted_by") != DRAIN_CALLER_ID:
                         running += 1   # a human/frontier caller is running on this lane
                     else:
@@ -775,11 +794,19 @@ def in_use_by_lane(slots: list[dict[str, Any]]) -> dict[str, int]:
         counts[rec.get("lane", "deep")] = counts.get(rec.get("lane", "deep"), 0) + 1
         seen.add(rec.get("plan_id"))
     for m in (_REPO_ROOT / "runs" / "operator").glob("work_*/work-manifest.json"):
+        m_str = str(m)
         try:
+            mtime_ns = m.stat().st_mtime_ns
+            if _TERMINAL_MANIFEST_MTIMES.get(m_str) == mtime_ns:
+                continue
             d = json.loads(m.read_text())
         except Exception:  # noqa: BLE001
             continue
-        if d.get("status") in {"queued", "running"} and (d.get("caller") or {}).get("submitted_by") == DRAIN_CALLER_ID \
+        st = d.get("status")
+        if st in DONE:
+            _TERMINAL_MANIFEST_MTIMES[m_str] = mtime_ns
+            continue
+        if st in {"queued", "running"} and (d.get("caller") or {}).get("submitted_by") == DRAIN_CALLER_ID \
                 and d.get("work_id") not in seen:
             lane = (d.get("route") or {}).get("selected_lane") or "deep"
             counts[lane] = counts.get(lane, 0) + 1

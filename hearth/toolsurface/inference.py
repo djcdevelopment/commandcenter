@@ -189,8 +189,7 @@ def _pack_files(files: list[str], intent: Optional[str] = None,
     if whole_file_guard and jepa_pack is not True:
         use_jepa = False
     primary = scope_root()
-    packed_blocks = []
-    files_packed = []
+    raw_items: list[tuple[str, int, bytes, str]] = []
     total_bytes = 0
     for path in files:
         resolved = resolve_in_scope(path)
@@ -213,28 +212,56 @@ def _pack_files(files: list[str], intent: Optional[str] = None,
             label = resolved.relative_to(primary).as_posix()
         else:
             label = resolved.as_posix()
+        raw_items.append((label, size, raw_bytes, content))
 
-        entry: dict = {"path": label, "bytes": size}
-        if use_jepa and size >= 2400:
+    slice_results: dict[int, tuple[str, dict]] = {}
+    if use_jepa:
+        sliceable = [(idx, label, size, raw_bytes) for idx, (label, size, raw_bytes, _) in enumerate(raw_items) if size >= 2400]
+        if sliceable:
             try:
                 from hearth.delivery import sourcemap as _sm
-                fmap = _sm.file_map(label, raw_bytes)
-                smap = _sm.SourceMap(repo=primary.as_posix(), commit="WORKTREE", files=[fmap])
-                sliced_text, slice_stats = _sm.render_jepa_ast_sliced_for_model(
-                    smap, intent=intent or "", numbered=True, symbols=False
-                )
-                content = sliced_text
-                packed_sz = len(content.encode("utf-8"))
-                entry = {
-                    "path": label,
-                    "bytes": packed_sz,
-                    "raw_bytes": size,
-                    "jepa_sliced": True,
-                    "token_reduction_pct": slice_stats.get("token_reduction_pct", 0.0),
-                    "jepa_mode": slice_stats.get("jepa_mode", "symbolic_ast_fallback"),
-                }
+
+                def _slice_one(item: tuple[int, str, int, bytes]) -> tuple[int, Optional[tuple[str, dict]]]:
+                    idx, label, _sz, rbytes = item
+                    try:
+                        fmap = _sm.file_map(label, rbytes)
+                        smap = _sm.SourceMap(repo=primary.as_posix(), commit="WORKTREE", files=[fmap])
+                        sliced_text, slice_stats = _sm.render_jepa_ast_sliced_for_model(
+                            smap, intent=intent or "", numbered=True, symbols=False
+                        )
+                        return idx, (sliced_text, slice_stats)
+                    except Exception:
+                        return idx, None
+
+                if len(sliceable) == 1:
+                    idx0, res0 = _slice_one(sliceable[0])
+                    if res0 is not None:
+                        slice_results[idx0] = res0
+                else:
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(sliceable))) as pool:
+                        for idx_r, res_r in pool.map(_slice_one, sliceable):
+                            if res_r is not None:
+                                slice_results[idx_r] = res_r
             except Exception:
                 pass
+
+    packed_blocks = []
+    files_packed = []
+    for idx, (label, size, _raw_bytes, content) in enumerate(raw_items):
+        entry: dict = {"path": label, "bytes": size}
+        if idx in slice_results:
+            sliced_text, slice_stats = slice_results[idx]
+            content = sliced_text
+            packed_sz = len(content.encode("utf-8"))
+            entry = {
+                "path": label,
+                "bytes": packed_sz,
+                "raw_bytes": size,
+                "jepa_sliced": True,
+                "token_reduction_pct": slice_stats.get("token_reduction_pct", 0.0),
+                "jepa_mode": slice_stats.get("jepa_mode", "symbolic_ast_fallback"),
+            }
 
         packed_blocks.append(f'<file path="{label}">\n{content}\n</file>')
         files_packed.append(entry)
@@ -669,6 +696,13 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
             model_name=model,
             backend_id=target.backend,
             image_url=image_url,
+        )
+    else:
+        from hearth.adapters.openai_server import checkpoint_messages_list
+        messages, cache_prompt_enabled = checkpoint_messages_list(
+            messages=messages,
+            model_name=model,
+            backend_id=target.backend,
         )
     payload = {"model": model, "messages": messages,
                "max_tokens": max_tokens, "stream": False}

@@ -71,26 +71,77 @@ def am4_profile() -> str:
     return "dense-tp2"
 
 
-def main() -> int:
-    profile = am4_profile()
-    checks = [
-        probe("hearth", "http://127.0.0.1:8710/healthz", kind="hearth"),
+def omen_profile() -> str:
+    """The profile OMEN says is live (~/.config/omen-vllm/profile, written by omen-profile); two-lane if unreadable."""
+    path = Path.home() / ".config/omen-vllm/profile"
+    try:
+        name = path.read_text(encoding="utf-8").strip()
+        if name:
+            return name
+    except OSError:
+        pass
+    return "two-lane"
+
+
+def omen_checks(omen_prof: str) -> list[dict]:
+    arc_token = token_from_host_file("OMEN_ARC_TOKEN")
+    if omen_prof == "bolt74":
+        return [
+            probe("omen-router", "http://127.0.0.1:18090/health"),
+            probe("omen-dense-router", "http://127.0.0.1:18095/health"),
+            probe("omen-seat-0", "http://127.0.0.1:18091/health"),
+            probe("omen-router-model", "http://127.0.0.1:18090/v1/models",
+                  bearer=arc_token, kind="models", expect="nemotron-3.5-bolt-74b-a9b"),
+            probe("omen-dense-router-model", "http://127.0.0.1:18095/v1/models",
+                  bearer=arc_token, kind="models", expect="nemotron-3.5-bolt-74b-a9b"),
+        ]
+    if omen_prof == "two-dense":
+        return [
+            probe("omen-dense-router", "http://127.0.0.1:18095/health"),
+            probe("omen-dense-router-b", "http://127.0.0.1:18096/health"),
+            probe("omen-seat-0", "http://127.0.0.1:18091/health"),
+            probe("omen-seat-1", "http://127.0.0.1:18092/health"),
+            probe("omen-dense-router-model", "http://127.0.0.1:18095/v1/models",
+                  bearer=arc_token, kind="models", expect="qwen3.8-27b"),
+            probe("omen-dense-router-b-model", "http://127.0.0.1:18096/v1/models",
+                  bearer=arc_token, kind="models", expect="qwen3.8-27b"),
+        ]
+    seat0_model = "qwen3.8-27b"
+    seat1_model = "qwen3-30b-a3b"
+    prof_file = Path.home() / f".config/omen-vllm/profiles/{omen_prof}.json"
+    try:
+        seats = json.loads(prof_file.read_text(encoding="utf-8")).get("seats") or {}
+        seat0_model = (seats.get("0") or {}).get("served_name") or seat0_model
+        seat1_model = (seats.get("1") or {}).get("served_name") or seat1_model
+    except (OSError, ValueError):
+        pass
+    return [
         probe("omen-router", "http://127.0.0.1:18090/health"),
         probe("omen-dense-router", "http://127.0.0.1:18095/health"),
         probe("omen-seat-0", "http://127.0.0.1:18091/health"),
         probe("omen-seat-1", "http://127.0.0.1:18092/health"),
+        probe("omen-router-model", "http://127.0.0.1:18090/v1/models",
+              bearer=arc_token, kind="models", expect=seat1_model),
+        probe("omen-dense-router-model", "http://127.0.0.1:18095/v1/models",
+              bearer=arc_token, kind="models", expect=seat0_model),
+    ]
+
+
+def main() -> int:
+    profile = am4_profile()
+    omen_prof = omen_profile()
+    checks = [
+        probe("hearth", "http://127.0.0.1:8710/healthz", kind="hearth"),
+        *omen_checks(omen_prof),
         *[probe(alias, f"http://10.44.0.2:8090/oxen/ready?alias={alias}",
                 bearer=token_from_host_file("AM4_VLLM_TOKEN"), kind="am4", expect=alias)
           for alias in AM4_PROFILE_ALIASES[profile]],
         probe("fx99-utility", "http://192.168.12.220:18093/health"),
-        probe("omen-router-model", "http://127.0.0.1:18090/v1/models",
-              bearer=token_from_host_file("OMEN_ARC_TOKEN"), kind="models", expect="qwen3-30b-a3b"),
-        probe("omen-dense-router-model", "http://127.0.0.1:18095/v1/models",
-              bearer=token_from_host_file("OMEN_ARC_TOKEN"), kind="models", expect="qwen3.8-27b"),
     ]
     document = {
         "schema": "mechnet-linux-readiness.v1",
         "at": datetime.now(timezone.utc).isoformat(),
+        "omen_profile": omen_prof,
         "am4_profile": profile,
         "ready": all(row["ready"] for row in checks),
         "checks": checks,

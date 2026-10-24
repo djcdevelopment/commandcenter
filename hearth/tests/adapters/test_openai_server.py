@@ -11,6 +11,7 @@ from hearth.adapters.openai_server import (
     TURN_CHECKPOINT_ACK,
     OpenAIServerAdapter,
     build_turn_checkpointed_messages,
+    checkpoint_messages_list,
     is_mamba_hybrid_target,
     split_shared_context_pack,
 )
@@ -198,6 +199,88 @@ class TestOpenAIServerTurnCheckpointing(unittest.TestCase):
         self.assertTrue(res["wire_request"]["cache_prompt"])
         self.assertEqual(len(res["wire_request"]["messages"]), 3)
         self.assertEqual(res["wire_request"]["messages"][1]["content"], TURN_CHECKPOINT_ACK)
+
+    def test_real_hearth_delivery_and_carry_prompts_share_identical_turn1_checkpoint(self) -> None:
+        source_files_block = (
+            "SOURCE FILES (exact 1-based line numbers; quote from the text AFTER the \"NNN| \" prefix):\n"
+            "=== FILE hearth/delivery/sourcemap.py (sha256 a1b2c3d4e5f6, 120 lines) ===\n"
+            "CODE:\n"
+            "001| def render_for_model(sm): pass\n"
+            "=== END hearth/delivery/sourcemap.py ==="
+        )
+        one_call_prompt = (
+            "Produce a delivery JSON.\n\n"
+            "REQUEST\nINTENT: Audit sourcemap.\n\n"
+            f"{source_files_block}"
+        )
+        carry_work_msg = (
+            "REQUEST\nINTENT: Audit sourcemap.\n\n"
+            f"{source_files_block}\n\n"
+            "STEP 1 OF 2 — WORK ONLY: Write # Notes and # Report."
+        )
+        carry_attach_msg = (
+            "REQUEST\nINTENT: Audit sourcemap.\n\n"
+            f"{source_files_block}\n\n"
+            "STEP 2 OF 2 — ATTACH QUOTES:\n=== CARRIED DRAFT ===\n# Report\n\nParagraph 1."
+        )
+
+        msgs_one, cache_one = build_turn_checkpointed_messages(
+            one_call_prompt, backend_id="omen-nemotron-74b"
+        )
+        self.assertTrue(cache_one)
+        self.assertEqual(msgs_one[0]["content"], source_files_block)
+        self.assertEqual(msgs_one[1]["content"], TURN_CHECKPOINT_ACK)
+
+        msgs_work, cache_work = checkpoint_messages_list(
+            [{"role": "system", "content": "Follow the user's instructions."},
+             {"role": "user", "content": carry_work_msg}],
+            backend_id="omen-nemotron-74b",
+        )
+        msgs_check, cache_check = checkpoint_messages_list(
+            [{"role": "system", "content": "Follow the user's instructions."},
+             {"role": "user", "content": carry_work_msg},
+             {"role": "assistant", "content": "# Report\n\nParagraph 1."},
+             {"role": "user", "content": "Check your report against the source."}],
+            backend_id="omen-nemotron-74b",
+        )
+        msgs_attach, cache_attach = checkpoint_messages_list(
+            [{"role": "system", "content": "Follow the user's instructions."},
+             {"role": "user", "content": carry_attach_msg}],
+            backend_id="omen-nemotron-74b",
+        )
+        self.assertTrue(cache_work and cache_check and cache_attach)
+        # All three stages share the exact same [system, user(SOURCE FILES), assistant(ACK)] prefix!
+        self.assertEqual(msgs_work[:3], msgs_check[:3])
+        self.assertEqual(msgs_work[:3], msgs_attach[:3])
+        self.assertEqual(msgs_work[1]["content"], source_files_block)
+        # And check's first 5 messages match work's 4 messages + assistant draft!
+        self.assertEqual(msgs_check[:4], msgs_work)
+
+    def test_pack_files_jepa_pack_and_code_context_pack_split(self) -> None:
+        # 1. <jepa_context_pack>
+        jepa_prompt = "<jepa_context_pack>\n=== FILE a.py ===\n=== END a.py ===\n</jepa_context_pack>\nFix bug."
+        s1 = split_shared_context_pack(jepa_prompt)
+        self.assertIsNotNone(s1)
+        self.assertTrue(s1[0].endswith("</jepa_context_pack>"))
+        self.assertEqual(s1[1], "Fix bug.")
+
+        # 2. <file path="..."> from inference._pack_files
+        file_prompt = '<file path="a.py">\ndef f(): pass\n</file>\n\nExplain f().'
+        s2 = split_shared_context_pack(file_prompt)
+        self.assertIsNotNone(s2)
+        self.assertEqual(s2[0], '<file path="a.py">\ndef f(): pass\n</file>')
+        self.assertEqual(s2[1], "Explain f().")
+
+        # 3. CONTEXT PACK:\n--- SOURCE ... and REPAIR:
+        code_prompt = (
+            "Return local-work-candidate.v1 JSON.\n\nTASK FAMILY: code_fix\nINTENT:\nFix a.py\n\n"
+            "CONTEXT PACK:\n--- SOURCE a.py @ deadbeef ---\ndef f(): return 1\n\n"
+            "REPAIR:\nPrevious output had invalid citation."
+        )
+        s3 = split_shared_context_pack(code_prompt)
+        self.assertIsNotNone(s3)
+        self.assertEqual(s3[0], "CONTEXT PACK:\n--- SOURCE a.py @ deadbeef ---\ndef f(): return 1")
+        self.assertIn("REPAIR:\nPrevious output had invalid citation.", s3[1])
 
 
 if __name__ == "__main__":

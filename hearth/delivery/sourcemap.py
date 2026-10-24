@@ -365,6 +365,104 @@ _WHOLE_FILE_GUARD_RE = re.compile(
 )
 
 
+import atexit
+import threading
+from typing import Any, Optional
+
+_JEPA_HTTP_LOCAL = threading.local()
+_JEPA_HTTP_CONNS: list[Any] = []
+_JEPA_SLICE_POOL: Optional[Any] = None
+_JEPA_POOL_LOCK = threading.Lock()
+_SHM_AST_MEM_CACHE: dict[tuple[str, str], tuple[list[dict], list[str], list[str], str]] = {}
+_SHM_RANK_MEM_CACHE: dict[tuple[str, str], dict[str, float]] = {}
+_SHM_REGIME_MEM_CACHE: dict[tuple[str, str], str] = {}
+
+
+def _close_jepa_http_conns() -> None:
+    with _JEPA_POOL_LOCK:
+        conns = list(_JEPA_HTTP_CONNS)
+        _JEPA_HTTP_CONNS.clear()
+    for c in conns:
+        try:
+            c.close()
+        except Exception:
+            pass
+
+
+atexit.register(_close_jepa_http_conns)
+
+
+def _get_jepa_slice_pool():
+    global _JEPA_SLICE_POOL
+    if _JEPA_SLICE_POOL is None:
+        with _JEPA_POOL_LOCK:
+            if _JEPA_SLICE_POOL is None:
+                import concurrent.futures
+                _JEPA_SLICE_POOL = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=8, thread_name_prefix="hearth-jepa-slice"
+                )
+    return _JEPA_SLICE_POOL
+
+
+def _post_18097_json(path: str, payload: dict, timeout_s: float) -> dict:
+    """POST JSON to resident :18097 over a thread-local HTTP/1.1 keep-alive connection,
+    falling back to urllib.request.urlopen when urlopen is patched in unit tests."""
+    import http.client
+    import json
+    import urllib.request
+
+    urlopen_fn = urllib.request.urlopen
+    if hasattr(urlopen_fn, "assert_called") or type(urlopen_fn).__module__.startswith("unittest"):
+        req = urllib.request.Request(
+            f"http://127.0.0.1:18097{path}",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "User-Agent": "hearth-sourcemap-jepa"},
+            method="POST",
+        )
+        with urlopen_fn(req, timeout=timeout_s) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    raw = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Content-Length": str(len(raw)),
+        "Connection": "keep-alive",
+        "User-Agent": "hearth-sourcemap-jepa",
+    }
+    for attempt in range(2):
+        conn = getattr(_JEPA_HTTP_LOCAL, "conn", None)
+        try:
+            if conn is None:
+                import socket
+                conn = http.client.HTTPConnection("127.0.0.1", 18097, timeout=timeout_s)
+                conn.connect()
+                if conn.sock is not None:
+                    conn.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                _JEPA_HTTP_LOCAL.conn = conn
+                with _JEPA_POOL_LOCK:
+                    _JEPA_HTTP_CONNS.append(conn)
+            else:
+                conn.timeout = timeout_s
+                if conn.sock is not None:
+                    conn.sock.settimeout(timeout_s)
+            conn.request("POST", path, body=raw, headers=headers)
+            resp = conn.getresponse()
+            body_bytes = resp.read()
+            if resp.status != 200:
+                raise RuntimeError(f"HTTP {resp.status}")
+            return json.loads(body_bytes.decode("utf-8"))
+        except Exception:
+            try:
+                if conn is not None:
+                    conn.close()
+            except Exception:
+                pass
+            _JEPA_HTTP_LOCAL.conn = None
+            if attempt == 1:
+                raise
+    raise RuntimeError("unreachable")
+
+
 def _classify_regime_via_jepa(
     intent_text: str,
     file_paths: list[str],
@@ -375,7 +473,6 @@ def _classify_regime_via_jepa(
     import os
     import threading
     import time
-    import urllib.request
 
     t0 = time.perf_counter()
     if _WHOLE_FILE_GUARD_RE.search(intent_text) or "whole_file" in intent_text.lower():
@@ -385,32 +482,31 @@ def _classify_regime_via_jepa(
         f"{SHM_AST_ARENA_SCHEMA}:regime:{intent_text}:{','.join(file_paths)}".encode("utf-8", errors="ignore")
     ).hexdigest()[:24]
     reg_cache_path = arena / f"sourcemap_regime_{reg_sig}.json"
+    mem_key = (str(arena), reg_sig)
     try:
         if reg_cache_path.is_file():
+            mem_hit = _SHM_REGIME_MEM_CACHE.get(mem_key)
+            if mem_hit is not None:
+                return mem_hit, round((time.perf_counter() - t0) * 1000.0, 2)
             cached = json.loads(reg_cache_path.read_text(encoding="utf-8"))
             regime = str(cached.get("regime") or "SLICE_SAFE")
+            _SHM_REGIME_MEM_CACHE[mem_key] = regime
             return regime, round((time.perf_counter() - t0) * 1000.0, 2)
     except Exception:
         pass
     try:
         payload = {"intent": intent_text, "files": file_paths}
-        req = urllib.request.Request(
-            "http://127.0.0.1:18097/classify_regime",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "User-Agent": "hearth-sourcemap-jepa"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-            regime = str(body.get("regime") or "SLICE_SAFE")
-            try:
-                arena.mkdir(parents=True, exist_ok=True)
-                tmp_rg = arena / f".tmp.rg.{os.getpid()}.{threading.get_ident()}.json"
-                tmp_rg.write_text(json.dumps({"regime": regime}), encoding="utf-8")
-                os.replace(tmp_rg, reg_cache_path)
-            except Exception:
-                pass
-            return regime, round((time.perf_counter() - t0) * 1000.0, 2)
+        body = _post_18097_json("/classify_regime", payload, timeout_s)
+        regime = str(body.get("regime") or "SLICE_SAFE")
+        _SHM_REGIME_MEM_CACHE[mem_key] = regime
+        try:
+            arena.mkdir(parents=True, exist_ok=True)
+            tmp_rg = arena / f".tmp.rg.{os.getpid()}.{threading.get_ident()}.json"
+            tmp_rg.write_text(json.dumps({"regime": regime}), encoding="utf-8")
+            os.replace(tmp_rg, reg_cache_path)
+        except Exception:
+            pass
+        return regime, round((time.perf_counter() - t0) * 1000.0, 2)
     except Exception:
         pass
     return "SLICE_SAFE", round((time.perf_counter() - t0) * 1000.0, 2)
@@ -437,9 +533,13 @@ def _shm_get_or_build_file_ast(fm: FileMap) -> tuple[list[dict], list[str], list
     arena = _shm_arena_dir()
     key = f"sourcemap_sha256_{fm.sha256[:24]}"
     meta_path = arena / f"{key}.meta.json"
+    mem_key = (str(arena), fm.sha256)
 
     try:
         if meta_path.is_file():
+            mem_entry = _SHM_AST_MEM_CACHE.get(mem_key)
+            if mem_entry is not None:
+                return mem_entry[0], mem_entry[1], mem_entry[2], mem_entry[3], True
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
             if (
                 meta.get("schema") == SHM_AST_ARENA_SCHEMA
@@ -453,11 +553,18 @@ def _shm_get_or_build_file_ast(fm: FileMap) -> tuple[list[dict], list[str], list
                     os.utime(meta_path, None)
                 except OSError:
                     pass
+                hdr_prev = str(meta.get("header_preview") or "\n".join(fm.lines[: min(25, n_lines)]))
+                _SHM_AST_MEM_CACHE[mem_key] = (
+                    meta["slice_syms"],
+                    meta["cand_labels"],
+                    meta["cand_texts"],
+                    hdr_prev,
+                )
                 return (
                     meta["slice_syms"],
                     meta["cand_labels"],
                     meta["cand_texts"],
-                    str(meta.get("header_preview") or "\n".join(fm.lines[: min(25, n_lines)])),
+                    hdr_prev,
                     True,
                 )
     except Exception:
@@ -476,6 +583,7 @@ def _shm_get_or_build_file_ast(fm: FileMap) -> tuple[list[dict], list[str], list
     header_preview = "\n".join(fm.lines[: min(25, n_lines)])
 
     if slice_syms and n_lines >= 90:
+        _SHM_AST_MEM_CACHE[mem_key] = (slice_syms, cand_labels, cand_texts, header_preview)
         try:
             arena.mkdir(parents=True, exist_ok=True)
             tmp_path = arena / f".tmp.{key}.{os.getpid()}.{threading.get_ident()}.meta.json"
@@ -511,18 +619,26 @@ def _rank_ast_blocks_via_jepa(
     import os
     import threading
     import time
-    import urllib.request
 
     t0 = time.perf_counter()
     arena = _shm_arena_dir()
     rank_cache_path = None
+    rank_mem_key = None
     if file_sha256 and cand_labels:
         rank_sig = hashlib.sha256(
             f"{SHM_AST_ARENA_SCHEMA}:{file_sha256}:{len(cand_labels)}:{intent_text}".encode("utf-8", errors="ignore")
         ).hexdigest()[:24]
         rank_cache_path = arena / f"sourcemap_rank_{rank_sig}.json"
+        rank_mem_key = (str(arena), rank_sig)
         try:
             if rank_cache_path.is_file():
+                mem_scores = _SHM_RANK_MEM_CACHE.get(rank_mem_key)
+                if mem_scores is not None and len(mem_scores) == len(cand_labels):
+                    return (
+                        dict(mem_scores),
+                        "live_18097",
+                        round((time.perf_counter() - t0) * 1000.0, 2),
+                    )
                 cached = json.loads(rank_cache_path.read_text(encoding="utf-8"))
                 scores = cached.get("scores")
                 if isinstance(scores, dict) and len(scores) == len(cand_labels):
@@ -530,8 +646,10 @@ def _rank_ast_blocks_via_jepa(
                         os.utime(rank_cache_path, None)
                     except OSError:
                         pass
+                    typed_scores = {str(k): float(v) for k, v in scores.items()}
+                    _SHM_RANK_MEM_CACHE[rank_mem_key] = typed_scores
                     return (
-                        {str(k): float(v) for k, v in scores.items()},
+                        typed_scores,
                         "live_18097",
                         round((time.perf_counter() - t0) * 1000.0, 2),
                     )
@@ -550,34 +668,29 @@ def _rank_ast_blocks_via_jepa(
             }
             if file_sha256:
                 payload["file_sha256"] = file_sha256
-            req = urllib.request.Request(
-                "http://127.0.0.1:18097/rank_candidates",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json", "User-Agent": "hearth-sourcemap-jepa"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
-                rankings = body.get("rankings") or []
-                scores = {}
-                for r in rankings:
-                    lbl = r.get("label")
-                    sc = float(r.get("calibrated_score", r.get("cosine", 0.0)))
-                    if lbl:
-                        scores[lbl] = sc
-                if scores:
-                    if rank_cache_path is not None:
-                        try:
-                            arena.mkdir(parents=True, exist_ok=True)
-                            tmp_rk = arena / f".tmp.rk.{os.getpid()}.{threading.get_ident()}.json"
-                            tmp_rk.write_text(
-                                json.dumps({"file_sha256": file_sha256, "scores": scores}),
-                                encoding="utf-8",
-                            )
-                            os.replace(tmp_rk, rank_cache_path)
-                        except Exception:
-                            pass
-                    return scores, "live_18097", round((time.perf_counter() - t0) * 1000.0, 2)
+            body = _post_18097_json("/rank_candidates", payload, timeout_s)
+            rankings = body.get("rankings") or []
+            scores = {}
+            for r in rankings:
+                lbl = r.get("label")
+                sc = float(r.get("calibrated_score", r.get("cosine", 0.0)))
+                if lbl:
+                    scores[lbl] = sc
+            if scores:
+                if rank_mem_key is not None:
+                    _SHM_RANK_MEM_CACHE[rank_mem_key] = dict(scores)
+                if rank_cache_path is not None:
+                    try:
+                        arena.mkdir(parents=True, exist_ok=True)
+                        tmp_rk = arena / f".tmp.rk.{os.getpid()}.{threading.get_ident()}.json"
+                        tmp_rk.write_text(
+                            json.dumps({"file_sha256": file_sha256, "scores": scores}),
+                            encoding="utf-8",
+                        )
+                        os.replace(tmp_rk, rank_cache_path)
+                    except Exception:
+                        pass
+                return scores, "live_18097", round((time.perf_counter() - t0) * 1000.0, 2)
         except Exception:
             pass
 
@@ -772,7 +885,37 @@ def render_jepa_ast_sliced_for_model(
     shm_hits = 0
     shm_misses = 0
 
-    for fm in sm.files:
+    arena_dir = _shm_arena_dir()
+
+    def _prep_and_rank_one(fm: FileMap):
+        if len(fm.lines) < 90:
+            return None
+        slice_syms, cand_labels, cand_texts, header_preview, is_shm_hit = _shm_get_or_build_file_ast(fm)
+        if not slice_syms:
+            return (slice_syms, cand_labels, cand_texts, header_preview, is_shm_hit, {}, "short_file", 0.0)
+        state_desc = f"[FILE: {fm.path}]\n{header_preview}"
+        has_shm_tensors = (arena_dir / f"sourcemap_sha256_{fm.sha256[:24]}.tensors.npz").is_file()
+        scores, mode, lat_ms = _rank_ast_blocks_via_jepa(
+            state_desc,
+            combined_intent,
+            cand_texts,
+            cand_labels,
+            timeout_s=0.12 if has_shm_tensors else 0.85,
+            file_sha256=fm.sha256,
+        )
+        return (slice_syms, cand_labels, cand_texts, header_preview, is_shm_hit, scores, mode, lat_ms)
+
+    import time as _time
+    t_batch = _time.perf_counter()
+    sliceable_count = sum(1 for fm in sm.files if len(fm.lines) >= 90)
+    if sliceable_count > 1:
+        prepped_list = list(_get_jepa_slice_pool().map(_prep_and_rank_one, sm.files))
+        batch_wall_ms = round((_time.perf_counter() - t_batch) * 1000.0, 2)
+    else:
+        prepped_list = [_prep_and_rank_one(fm) for fm in sm.files]
+        batch_wall_ms = None
+
+    for fm, prepped in zip(sm.files, prepped_list):
         note = f", {'; '.join(fm.notes)}" if fm.notes else ""
         parts.append(f"=== FILE {fm.path} (sha256 {fm.sha256[:12]}, {len(fm.lines)} lines{note}) ===")
         if symbols:
@@ -782,13 +925,13 @@ def render_jepa_ast_sliced_for_model(
         width = max(3, len(str(len(fm.lines))))
         n_lines = len(fm.lines)
 
-        if n_lines < 90:
+        if n_lines < 90 or prepped is None:
             for i, line in enumerate(fm.lines, 1):
                 parts.append(f"{i:0{width}d}| {line}" if numbered else line)
             parts.append(f"=== END {fm.path} ===")
             continue
 
-        slice_syms, cand_labels, cand_texts, header_preview, is_shm_hit = _shm_get_or_build_file_ast(fm)
+        slice_syms, cand_labels, cand_texts, header_preview, is_shm_hit, scores, mode, lat_ms = prepped
         if is_shm_hit:
             shm_hits += 1
         else:
@@ -802,18 +945,9 @@ def render_jepa_ast_sliced_for_model(
             continue
 
         total_symbols += len(slice_syms)
-        state_desc = f"[FILE: {fm.path}]\n{header_preview}"
-        has_shm_tensors = (_shm_arena_dir() / f"sourcemap_sha256_{fm.sha256[:24]}.tensors.npz").is_file()
-        scores, mode, lat_ms = _rank_ast_blocks_via_jepa(
-            state_desc,
-            combined_intent,
-            cand_texts,
-            cand_labels,
-            timeout_s=0.12 if has_shm_tensors else 0.85,
-            file_sha256=fm.sha256,
-        )
         jepa_modes.append(mode)
-        total_latency_ms += lat_ms
+        if batch_wall_ms is None:
+            total_latency_ms += lat_ms
 
         q_idents_ge4 = [tok for tok in q_idents if len(tok) >= 4]
         ranked_syms = []
@@ -879,6 +1013,9 @@ def render_jepa_ast_sliced_for_model(
                 parts.append(f"# ... [JEPA-AST-SLICE omitted lines {omitted_start}-{omitted_end}] ...")
 
         parts.append(f"=== END {fm.path} ===")
+
+    if batch_wall_ms is not None and jepa_modes:
+        total_latency_ms += batch_wall_ms
 
     out = "\n".join(parts) + "\n"
     sliced_bytes = len(out.encode("utf-8"))

@@ -202,19 +202,19 @@ files, not a judgement; the fix is either the file or the rule, and the rule's c
 | setting | value | source | consumer | what it bounds | note |
 |---|---|---|---|---|---|
 | active am4 profile | `dense-tp2` | `am4:~/.config/am4-fleet/profile` | lab-config | active AM4 seat profile |  |
-| active configuration | `bolt74-am4` | `omen-profile + am4-profile` | sizing_map invariants | omen=bolt74, am4=dense-tp2 |  |
+| active configuration | `bolt74-dense27` | `omen-profile + am4-profile` | sizing_map invariants | omen=bolt74, am4=dense-tp2 |  |
 | active omen profile | `bolt74` | `~/.config/omen-vllm/profile` | lab-config | active OMEN seat profile |  |
-| config bolt74-am4 backend am4-tool-4070ti | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-am4 backend am4-tool-5070 | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-am4 backend am4-vllm | `status=live ctx=49152 slots=1 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-am4 backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-am4 backend omen-dense-27b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-am4 backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-am4 backend omen-nemotron-74b | `status=live ctx=65536 slots=8 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-am4 backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-am4 backend omen-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
-| config bolt74-am4 default_fallback | `omen-nemotron-74b,am4-vllm` | `repo/host/lab-configurations.toml` | select_backend | fallback order when default rung is absent |  |
-| config bolt74-am4 omen/am4/fx99 | `bolt74 / dense-tp2 / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | 3-Tier Holistic Fleet: Dual-B70 NVIDIA Nemotron 3.5 Bolt 74B-A9B (8 slots, SYCL _mt_reorder), AM4 Qwen3.8-27B Dense TP=2, FX99 utility, NPU :18097 context packager |
+| config bolt74-dense27 backend am4-tool-4070ti | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 backend am4-tool-5070 | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 backend am4-vllm | `status=live ctx=49152 slots=1 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 backend fx99-vllm | `status=live ctx=4096 slots=1 max_tokens=1024` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 backend omen-dense-27b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 backend omen-dense-27b-b | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 backend omen-nemotron-74b | `status=live ctx=65536 slots=8 max_tokens=16384` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 backend omen-perception | `status=live ctx=None slots=2 max_tokens=None` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 backend omen-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
+| config bolt74-dense27 default_fallback | `omen-nemotron-74b,am4-vllm` | `repo/host/lab-configurations.toml` | select_backend | fallback order when default rung is absent |  |
+| config bolt74-dense27 omen/am4/fx99 | `bolt74 / dense-tp2 / live` | `repo/host/lab-configurations.toml` | lab-config | declared whole-lab profile tuple | 3-Tier Holistic Fleet: Dual-B70 NVIDIA Nemotron 3.5 Bolt 74B-A9B (8 slots, SYCL _mt_reorder), AM4 Qwen3.8-27B Dense TP=2, FX99 utility, NPU :18097 context packager |
 | config day backend am4-tool-4070ti | `status=live ctx=24576 slots=3 max_tokens=4096` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config day backend am4-tool-5070 | `status=live ctx=16384 slots=1 max_tokens=6144` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |
 | config day backend am4-vllm | `status=absent` | `repo/host/lab-configurations.toml` | routing invariants | expected backend status under configuration |  |

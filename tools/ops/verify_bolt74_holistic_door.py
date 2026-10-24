@@ -103,7 +103,7 @@ def verify_gate_v5() -> dict[str, Any]:
     targets = [
         ("hearth/localwork/service.py", "Explain how _server_token_count and SERVING_PROFILE_KEYS handle llama-server vs vllm."),
         ("hearth/delivery/sourcemap.py", "Explain how _strip_line_number_prefix and render_jepa_ast_sliced_for_model slice monolithic classes."),
-        ("tools/ops/sizing_map.py", "Explain how invariants validate expected_live and default_fallback for bolt74-am4."),
+        ("tools/ops/sizing_map.py", "Explain how invariants validate expected_live and default_fallback for bolt74-dense27."),
     ]
     slice_results = []
     for rel_path, query in targets:
@@ -346,7 +346,7 @@ def verify_gate_v6() -> dict[str, Any]:
                     work_id,
                     decision="accepted",
                     criteria=[{"criterion": spec["substance"][0]["statement"], "status": "passed", "evidence": f"Verified in {work_id}"}],
-                    summary=f"Accepted {spec['name']} ({spec['procedure']}) during Gate V6 bolt74-am4 qualification.",
+                    summary=f"Accepted {spec['name']} ({spec['procedure']}) during Gate V6 bolt74-dense27 qualification.",
                     evidence=[f"work_id:{work_id}"],
                     receipt_id=None,
                     caller_id="claude-frontier-bolt74-qual",
@@ -442,7 +442,7 @@ def verify_gate_v6() -> dict[str, Any]:
     print(f"  procedures.choose('omen-nemotron-74b', require_profile=True) -> best={best_proc} level={basis.get('level')}")
 
     # Now test an UNPINNED pooled deep-lane delivery submission under production local-work-routes-linux.toml!
-    print("  Testing UNPINNED pooled deep-lane delivery submission under bolt74-am4...")
+    print("  Testing UNPINNED pooled deep-lane delivery submission under bolt74-dense27...")
     unpinned_brief = {
         "schema": "brief.v2",
         "task_class": "local-work",
@@ -542,7 +542,7 @@ def verify_gate_v7() -> dict[str, Any]:
             "backend": "omen-nemotron-74b",
             "family": "code_fix",
             "files": [str(REPO / "hearth/scheduler/families.py")],
-            "prompt": "Explain how _fallback_providers_for in hearth/scheduler/families.py resolves default_fallback when omen-vllm is absent under bolt74-am4.",
+            "prompt": "Explain how _fallback_providers_for in hearth/scheduler/families.py resolves default_fallback when omen-vllm is absent under bolt74-dense27.",
             "max_tokens": 384,
         },
         {
@@ -560,7 +560,7 @@ def verify_gate_v7() -> dict[str, Any]:
             "backend": "omen-nemotron-74b",
             "family": "long_review",
             "files": [str(REPO / "tools/ops/sizing_map.py")],
-            "prompt": "Explain how tools/ops/sizing_map.py collects omen-nemotron-74b seat rows and checks bolt74-am4 live invariants.",
+            "prompt": "Explain how tools/ops/sizing_map.py collects omen-nemotron-74b seat rows and checks bolt74-dense27 live invariants.",
             "max_tokens": 384,
         },
         {
@@ -718,7 +718,7 @@ def main() -> int:
     out_path = out_dir / "wave4_holistic_door_verification.json"
     summary = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "configuration": "bolt74-am4",
+        "configuration": "bolt74-dense27",
         "gate_v5_npu_packager": v5,
         "gate_v6_door_qualification": v6,
         "gate_v7_3tier_concurrency_soak": v7,

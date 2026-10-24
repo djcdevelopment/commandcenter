@@ -155,20 +155,20 @@ omen-vllm = { status = "absent" }
 omen-dense-27b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
 omen-dense-27b-b = { status = "live", context_tokens = 65536, parallel_slots = 2, max_tokens = 16384 }
 omen-nemotron-74b = { status = "absent" }
-am4-vllm = { status = "live", context_tokens = 16384, parallel_slots = 1, max_tokens = 4096 }
+am4-vllm = { status = "live", context_tokens = 49152, parallel_slots = 1, max_tokens = 4096 }
 am4-tool-4070ti = { status = "absent" }
 am4-tool-5070 = { status = "absent" }
 fx99-vllm = { status = "live", context_tokens = 4096, parallel_slots = 1, max_tokens = 1024 }
 omen-perception = { status = "live", parallel_slots = 2 }
 
-[configuration.bolt74-am4]
+[configuration.bolt74-dense27]
 description = "3-Tier Holistic Fleet: Dual-B70 NVIDIA Nemotron 3.5 Bolt 74B-A9B (8 slots, SYCL _mt_reorder), AM4 Qwen3.8-27B Dense TP=2, FX99 utility, NPU :18097 context packager"
 omen_profile = "bolt74"
 am4_profile = "dense-tp2"
 fx99_state = "live"
 default_fallback = ["omen-nemotron-74b", "am4-vllm"]
 
-[configuration.bolt74-am4.backends]
+[configuration.bolt74-dense27.backends]
 omen-vllm = { status = "absent" }
 omen-dense-27b = { status = "absent" }
 omen-dense-27b-b = { status = "absent" }

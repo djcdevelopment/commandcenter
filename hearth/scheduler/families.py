@@ -481,7 +481,7 @@ def _is_model_absent(model_id: str, pool: Any) -> bool:
 
 def _fallback_providers_for(pref: FamilyPreference, model_id: str, pool: Any) -> list:
     """Resolve live fallback backends when ``model_id`` has no live backend under the
-    active lab configuration (e.g. ``bolt74-am4`` where ``omen-vllm`` and
+    active lab configuration (e.g. ``bolt74-dense27`` where ``omen-vllm`` and
     ``omen-dense-27b`` are ``absent`` while ``omen-nemotron-74b`` and ``am4-vllm`` are ``live``)."""
     fb_names: list[str] = []
     try:

@@ -339,7 +339,7 @@ class PoolRoutingTests(unittest.TestCase):
             with self.assertRaises(LocalWorkError, msg=declaration):
                 self.submit()
 
-    def test_bolt74_am4_routes_code_and_delivery_across_nemotron_74b_and_am4_vllm(self):
+    def test_bolt74_dense27_routes_code_and_delivery_across_nemotron_74b_and_am4_vllm(self):
         repo_root = Path(__file__).resolve().parents[3]
         prod_backends = repo_root / "host/omen-linux/hearth-production/backends-linux.toml"
         prod_routes = repo_root / "host/omen-linux/hearth-production/local-work-routes-linux.toml"
@@ -351,7 +351,7 @@ class PoolRoutingTests(unittest.TestCase):
 
         with mock.patch.dict("os.environ", {
             "HEARTH_LAB_CONFIGURATIONS": str(prod_lab_cfg),
-            "HEARTH_LAB_CONFIGURATION": "bolt74-am4",
+            "HEARTH_LAB_CONFIGURATION": "bolt74-dense27",
         }):
             # 1. Non-delivery code submission skips absent 27B seats and picks omen-nemotron-74b first.
             code = dict(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
@@ -376,7 +376,7 @@ class PoolRoutingTests(unittest.TestCase):
                     self.settle(manifest_am4["work_id"])
                 busy.unlink(missing_ok=True)
 
-            # 3. Family recommend() and select_backend() resolve to live bolt74-am4 seats instead of absent 27B/30B seats.
+            # 3. Family recommend() and select_backend() resolve to live bolt74-dense27 seats instead of absent 27B/30B seats.
             from hearth.scheduler import families
             from hearth.toolsurface.backends import select_backend
             rec = families.recommend("code_generation", prompt_tokens=1500, pool=load_pool())

@@ -351,7 +351,7 @@ def _absent(name: str, pool: Optional[Pool] = None) -> tuple[str, str]:
     except ImportError:
         return "unknown", "unknown"
     status, cname = get_backend_status(name)
-    if status == "absent" and cname == "bolt74-am4" and name == "omen-dense-27b":
+    if status == "absent" and cname == "bolt74-dense27" and name == "omen-dense-27b":
         active_pool = pool if pool is not None else load_pool()
         if active_pool.by_name("omen-nemotron-74b") is None:
             return "unknown", cname

@@ -81,7 +81,7 @@ record with its status changed and a pointer to the ADR that replaced it.
 | 0072 | [Flash-Next remains an isolated research recipe](0072-flash-next-remains-an-isolated-research-recipe.md) | Accepted2026-10-17; documentary disposition, no runtime change |
 | [0073](0073-compositional-lego-and-lincoln-log-blueprint-dag-and-l3-syntherscope.md) | Compositional Lego Bricks & Lincoln Logs Blueprint DAG and L3 Landscape #5 (`landscape.syntherscope.valheim_complexity_cinemagraph`) | Accepted and implemented (2026-10-23; 56 blueprints, 99/99 SHA-256 bindings, 0 artificial ZDOs, 3.84x grazing-sun relief) |
 | [0074](0074-sovereign-stagecraft-valheim-virtual-production-and-obs-free-capture.md) | Sovereign StageCraft: Valheim Virtual Production Volume, Diegetic Audio, and OBS-Free Steam Capture | Accepted and implemented (2026-10-23; 45/45 ComfyEra17.db TCData ZDOs spliced, ComfyNetworkSense.dll Release, 20.6ms NPU story-beat cue, 108/108 gates green) |
-| [0075](0075-dual-b70-nemotron-74b-and-3tier-holistic-fleet.md) | Dual-B70 Nemotron-74B and the 3-tier holistic fleet (`bolt74-am4`): `omen-nemotron-74b` on Dual B70 (`_mt_reorder` SYCL kernel), `am4-vllm` TP=2 27B on AM4, and `:18097` NPU+AST context slicing (`jepa_ast_sliced`) with `0042\| ` quote hygiene | Proposed (2026-10-23) |
+| [0075](0075-dual-b70-nemotron-74b-and-3tier-holistic-fleet.md) | Dual-B70 Nemotron-74B and the 3-tier holistic fleet (`bolt74-dense27`): `omen-nemotron-74b` on Dual B70 (`_mt_reorder` SYCL kernel), `am4-vllm` TP=2 27B on AM4, and `:18097` NPU+AST context slicing (`jepa_ast_sliced`) with `0042\| ` quote hygiene | Proposed (2026-10-23) |
 
 ## Historical note
 The "ADR-0001" referenced in `SESSION-RETRO-2026-06-29.md` (which orchestrator is

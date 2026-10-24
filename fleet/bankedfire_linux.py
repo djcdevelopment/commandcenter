@@ -868,7 +868,7 @@ def am4_profile_wanted(tool_queued: int, slots: list[dict[str, Any]], live: Opti
     There is no switch back: tool-pair is AM4's resting profile (lab configuration ``day``,
     2026-10-03). The tick used to return it to dense-tp2 once the tool queue emptied, which pulled
     the tool seats out from under a caller 9 minutes after they came up (2026-10-03T05:32Z).
-    Under OMEN profile ``bolt74`` (configuration ``bolt74-am4``), AM4 stays on ``dense-tp2`` as the
+    Under OMEN profile ``bolt74`` (configuration ``bolt74-dense27``), AM4 stays on ``dense-tp2`` as the
     dedicated 27B Dense companion seat and is not auto-switched to ``tool-pair`` by the drain."""
     try:
         omen_prof = AM4_PROFILE_PATH.parent / "profile"

@@ -1,9 +1,9 @@
 # ADR-0075: Dual-B70 Nemotron-74B and the 3-Tier Holistic Fleet (`bolt74-dense27`)
 
-- **Status:** Proposed (2026-10-23)
+- **Status:** Accepted and implemented (2026-10-23; updated 2026-10-24 with ADR-0076 `c = 8` saturation numbers)
 - **Date:** 2026-10-23
 - **Deciders:** Derek, Claude / Antigravity
-- **Related:** ADR-0034, ADR-0050, ADR-0060, ADR-0061, ADR-0062
+- **Related:** ADR-0034, ADR-0050, ADR-0060, ADR-0061, ADR-0062, ADR-0076
 
 ## Context
 
@@ -16,20 +16,20 @@ Two hardware and systems developments change the capability frontier of the flee
 1. **Tier-1 Heavy Reasoner (`omen-nemotron-74b` on Dual B70, `:18095` HAProxy / `:18091` backend):**
    `NVIDIA-Nemotron-3.5-Bolt-74B-A9B-UD-Q4_K_XL` (Nemotron-3.5-Bolt-74B-A9B hybrid Mamba-2 + GQA + MoE)
    fits comfortably across both B70 cards (`--split-mode layer --tensor-split 53,47`)
-   with a 65,536-token context window per slot (`-np 8 -c 524288`, `q8_0` KV cache) at `25,499 / 25,872 MiB` VRAM. With the
-   native SYCL `_mt_reorder` multi-token MoE routing kernel (`mul_mat_vec_q_moe_mt_reorder`), cold prompt
-   prefill reaches **922.6 tok/s** and 8-slot concurrent decode reaches **104.3 tok/s** (**39.5 tok/s** 1-slot decode).
-2. **Tier-2 Parallel 27B Dense Worker (`am4-vllm` on AM4, `10.44.0.2:8090`):**
+   with a 65,536-token context window per slot (`-np 8 -c 524288`, `q8_0` KV cache) at `25,499 / 25,872 MiB` VRAM (`27.05 / 26.96 GiB` under full 8-slot allocation, `64–74 °C` peak GDDR6 VRAM temp vs `102 °C` on 27B Dense). With the
+   native SYCL `_mt_reorder` multi-token MoE routing kernel (`mul_mat_vec_q_moe_mt_reorder`), SLM shared-weight/activation unpacking (`Q8_0`/`Q5_K`/`Q6_K` at `ncols_dst=2..4`), 32-bit `ssm_conv`/`ssm_scan` decode fast paths, and non-destructive multi-slot Mamba-2 checkpoint cloning (ADR-0076), cold prompt
+   prefill reaches **922.6 tok/s**, 1-slot warm decode reaches **41.22 tok/s** (**39.5 tok/s** cold), 8-slot concurrent decode reaches **122.76 tok/s** pure decode (**85.57 tok/s** wall decode; `+235.7%` / `3.36x` at `c=3` and `+203.8%` / `3.04x` at `c=4`), and an 8-slot (`c = 8`, `8 × 25.25K = 202,032` input tokens) shared-prefix wave completes in **11.25 s** with a **99.70% Mamba-2 checkpoint hit rate across all 8 slots** (`17,958` effective input tok/s, `151 ms` cross-slot clone, `0 ms` in-VRAM reuse, `0` PCIe idle-slot evictions).
+2. **Tier-2 Parallel 27B Dense Worker (`am4-vllm` on AM4, `10.44.0.2:8090` / `:18094`):**
    `Qwen3.8-27B Dense` (`dense-tp2` across RTX 5070 + RTX 4070 Ti SUPER over the direct LAN cable,
-   49,152 context, ~34–48 tok/s decode, ~1,200 tok/s prefill) remains continuously online without
-   contending for OMEN PCIe or XPU resources.
-3. **Tier-0 NPU Context Packager & Router (`:18097` on Intel AI Boost NPU + AST Slicer):**
+   49,152 context, `parallel_slots = 8` / `--max-num-seqs 8`, `--gpu-memory-utilization 0.912` providing `75,021` KV+Mamba tokens) remains continuously online without
+   contending for OMEN PCIe or XPU resources, delivering **49.55 tok/s** single-stream decode, **96.29 tok/s** cold `c = 8` decode (`2.63×` vs `c = 1`), **257.65 tok/s** shared-prefix `c = 8` decode (`6.60×` vs `c = 1`), and **2.99 s** follower wave completion (`35.3×` speedup, **94.92%** APC block hit rate, `0.0` preemptions) on `4 × 26.4K`-token waves (ADR-0076).
+3. **Tier-0 NPU Context Packager & Router (`:18097` on Intel AI Boost NPU + `/dev/shm` AST Slicer):**
    Shipping raw multi-file repositories wastes both context budget and prefill latency, and models copying `0042| ` line-number
    prefixes from `numbered=True` packets suffer avoidable `missing` quote rejections. Combining
-   resident `:18097` NPU regime classification (`/classify_regime`, 50 ms budget) and candidate block
-   ranking (`/rank_candidates`, 120 ms budget) with deterministic Python AST slicing (including
+   resident `:18097` NPU regime classification (`/classify_regime`) and candidate block
+   ranking (`/rank_candidates`, dual-shape `[1,128]`/`[1,256]` `ov.AsyncInferQueue(jobs=2)` at **303.74 emb/s**, `c = 8` burst `p50 = 70.33 ms`, `max = 107.01 ms`) with `/dev/shm/mechsuit-ast-arena` SHA-256 content-addressed caching (**29.63 ms** 4-file AST slice, `25.4×` cold-process speedup) and deterministic Python AST slicing (including
    method-level decomposition of monolithic `>60`-line classes and module-level `const_table`
-   retention) reduces prompt context tokens by 50–89% while preserving exact 1-based line numbers.
+   retention) reduces prompt context tokens by **50–89.3%** while preserving exact 1-based line numbers at `0.0 MiB` B70 VRAM.
 
 ## Decision
 
@@ -83,8 +83,7 @@ Two hardware and systems developments change the capability frontier of the flee
 ## Consequences
 
 - **Positive:** OMEN gains a 74B-class hybrid Mamba-2/MoE reasoning and coding tier across Dual B70
-  at 922.6 tok/s cold prefill and 104.3 tok/s 8-slot decode, paired with a simultaneous 27B TP=2 worker on AM4 (`bolt74-dense27`) and
-  sub-150 ms NPU+AST context slicing on `:18097`.
+  at **922.6 tok/s** cold prefill, **41.22 tok/s** 1-slot warm decode, **122.76 tok/s** 8-slot pure decode (**85.57 tok/s** wall decode), and **11.25 s** 8-slot (`8 × 25.25K` tokens, **99.70%** Mamba-2 checkpoint hit rate) shared-prefix waves, paired with an 8-slot 27B TP=2 worker on AM4 (`bolt74-dense27`, **96.29 tok/s** cold `c = 8` / **257.65 tok/s** shared-prefix `c = 8` decode, **2.99 s** `3 × 26.4K` follower wave at **94.92%** APC hit rate) and **29.63 ms** 4-file NPU+`/dev/shm` AST context slicing on `:18097` (see [ADR-0076](0076-multi-slot-mamba2-checkpoint-cloning-sycl-slm-and-single-flight-apc.md)).
 - **Bounded Risk:** Rollback to `two-dense` (`three-dense` lab configuration while AM4 is on `dense-tp2`, or `two-dense` if AM4 is on `tool-pair`) is a single deterministic command
   (`~/bin/omen-profile switch two-dense`), and all existing configurations explicitly mark
   `omen-nemotron-74b` as `absent`.

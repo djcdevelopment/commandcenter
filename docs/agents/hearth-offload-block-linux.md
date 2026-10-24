@@ -14,17 +14,17 @@ review costs; handle trivial work directly. Batch related small items into one c
 Seats are profile-bound: `host/lab-configurations.toml` names the live set and `submit_local_work` records it in
 `conditions.lab_configuration`. Since 2026-10-05 the configuration is `three-dense` (G-bench27): `omen-dense-27b`,
 `omen-dense-27b-b`, `am4-vllm` (dense-tp2) and `fx99-vllm` live; `omen-vllm` and the AM4 tool pair absent;
-default-lane calls fall back to the 27B replicas (ADR-0066). Under `bolt74-dense27` (ADR-0075, active as of 2026-10-23), Dual B70 serves
-`omen-nemotron-74b` (`:18095` HAProxy / `:18091` backend, 65,536 ctx, **8 concurrent slots (`c=8`)**) alongside `am4-vllm` (`10.44.0.2:8090`, 49,152 ctx, 1 slot) and
-resident Tier-0 NPU+AST context slicing (`:18097`, `HEARTH_JEPA_PACK=auto`, 89.3% source reduction, 0 B70 VRAM); switch
+default-lane calls fall back to the 27B replicas (ADR-0066). Under `bolt74-dense27` (ADR-0075, ADR-0076; active as of 2026-10-23), Dual B70 serves
+`omen-nemotron-74b` (`:18095` HAProxy / `:18091` backend, 65,536 ctx, **8 concurrent slots (`c=8`)**) alongside `am4-vllm` (`10.44.0.2:8090`, 49,152 ctx, **8 concurrent slots (`c=8`)**, `75,021` KV+Mamba tokens) and
+resident Tier-0 NPU+`/dev/shm` AST context slicing (`:18097`, `HEARTH_JEPA_PACK=auto`, 89.3% source reduction, `29.63 ms` 4-file slice, `303.74 emb/s`, 0 B70 VRAM); switch
 profiles with `~/bin/omen-profile switch bolt74 | two-dense`. Check before pinning a seat another profile serves.
 
 - `omen-nemotron-74b` (tags `default, code, research, reasoning, dense, quality, agent`; live under `bolt74-dense27`, **absent under other
   profiles**): `nemotron-3.5-bolt-74b-a9b` (`NVIDIA-Nemotron-3.5-Bolt-74B-A9B-UD-Q4_K_XL`) across both B70 cards (`SYCL0,SYCL1`, 53/47 split) on `:18095` (`:18091`),
-  65,536 ctx, **8 parallel slots (`parallel_slots = 8`)**, output reserve 16,384 (`deliberate_max_tokens = 24576`), SYCL `_mt_reorder` kernel (922.6 tok/s
-  cold prefill, 104.3 tok/s 8-slot decode, 39.5 tok/s 1-slot decode). Primary heavy reasoner, code-review, investigation, and pooled deep seat under `bolt74-dense27` (qualified for both `one_call` and `carry` at `serving-profile.v2`), paired with `am4-vllm`
+  65,536 ctx, **8 parallel slots (`parallel_slots = 8`)**, output reserve 16,384 (`deliberate_max_tokens = 24576`), SYCL `_mt_reorder` + SLM `Q8_0`/`Q5_K`/`Q6_K` shared-weight/activation kernels + 32-bit `ssm_conv`/`ssm_scan` + non-destructive multi-slot Mamba-2 checkpoint cloning (ADR-0076: 922.6 tok/s
+  cold prefill, 41.22 tok/s 1-slot warm decode, 122.76 tok/s 8-slot pure decode / 85.57 tok/s wall decode, and **11.25 s** across an `8 × 25.25K`-token `c=8` wave at **99.70%** checkpoint hit rate across all 8 slots, `151 ms` cross-slot clone, `0` PCIe idle-slot evictions). Primary heavy reasoner, code-review, investigation, and pooled deep seat under `bolt74-dense27` (qualified for both `one_call` and `carry` at `serving-profile.v2`), paired with `am4-vllm`
   for parallel 27B overflow and cross-seat `claim_verification`.
-  **Saturating `c=8` (Batch Fan-Out Pattern):** `submit_execution` and `submit_local_work` are non-blocking (~100 ms admission) and run concurrently on HEARTH's 16-worker executor (`8` slots on `omen-nemotron-74b` + `1` slot on `am4-vllm` = `9` deep slots), whereas `watch_execution` / `watch_local_work` block. To saturate `c=8` from a single frontier session, issue up to 8 `submit_execution` or `submit_local_work` tool calls in parallel (or back-to-back) **before** calling `watch_execution` / `watch_local_work` on the returned IDs. When driven across multiple AMUX worker lanes (`amux-stream-claude-*`, `amux-stream-codex-*`), concurrent submissions from all lanes automatically share and saturate the 9 deep slots.
+  **Saturating `c=8` (Batch Fan-Out Pattern):** `submit_execution` and `submit_local_work` are non-blocking (~100 ms admission) and run concurrently on HEARTH's 16-worker executor (`8` slots on `omen-nemotron-74b` + `8` slots on `am4-vllm` = `16` deep slots), whereas `watch_execution` / `watch_local_work` block. Both delivery (`Shape 1..5`, `carry`) and non-delivery (`Shape 6` `request_doc`) calls automatically extract shared repository context into Turn 1 for Mamba-2 checkpoint cloning (or prefix-first single-turn for non-Mamba vLLM APC) with zero-overhead single-flight cold-prefix coalescing (`begin_single_flight_prefix`). To saturate `c=8` from a single frontier session, issue up to 8 `submit_execution` or `submit_local_work` tool calls in parallel (or back-to-back) **before** calling `watch_execution` / `watch_local_work` on the returned IDs. When driven across multiple AMUX worker lanes (`amux-stream-claude-*`, `amux-stream-codex-*`), concurrent submissions from all lanes automatically share and saturate the deep slots.
 
 - `omen-vllm` (default; tags `default, code, research, reasoning`; profiles `day` and two-lane only, **absent under
   three-dense**): Qwen3-30B-A3B MoE behind HAProxy `:18090`, 40,960 ctx, 8 slots. Sunk local compute, resident: spend it freely on grunt work.
@@ -53,9 +53,9 @@ profiles with `~/bin/omen-profile switch bolt74 | two-dense`. Check before pinni
   relying on it. A brief that declares `"items": {"kind": "env_reads"}` takes the items procedure (code lists the
   items, the 30B and an AM4 8B read each, the 27B judges disputes with thinking on; two runs, both rejected, the second
   on 1 wrong row of 91).
-- `am4-vllm` (tags `dense, reasoning`): the AM4 27B over the direct cable, dense-tp2 across both AM4 cards,
-  49,152 ctx under three-dense (16,384 under `memsplice`), 1 slot, 4,096 output for a one-call answer (thinking
-  turns through `inference.deliberate` at 24,576). In the deep pool: `lane="auto"` code work and deliveries spread
+- `am4-vllm` (tags `dense, reasoning`): the AM4 27B over the direct cable, dense-tp2 across both AM4 cards (RTX 5070 + RTX 4070 Ti SUPER),
+  49,152 ctx under `bolt74-dense27` and `three-dense` (16,384 under `memsplice`), **8 parallel slots (`parallel_slots = 8`, `--max-num-seqs 8`, `--gpu-memory-utilization 0.912` = `75,021` KV+Mamba tokens; ADR-0076)**, 4,096 output for a one-call answer (thinking
+  turns through `inference.deliberate` at 24,576), delivering **96.29 tok/s** cold `c=8` decode, **257.65 tok/s** shared-prefix `c=8` decode, and **2.99 s** follower wave completion (`35.3x` faster, **94.92%** APC block hit rate, `0.0` preemptions) on `4 × 26.4K`-token waves. In the deep pool: `lane="auto"` code work and deliveries spread
   to it (I1.5: the waits-panel report, accepted). Depth specialist for needle retrieval; never route it through
   the tailnet.
 - `fx99-vllm` (tag `utility`): Qwen2.5-Coder-7B on FX99, 4,096 ctx. Text-only summaries; it cannot

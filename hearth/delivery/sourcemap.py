@@ -908,6 +908,40 @@ def _rank_ast_blocks_via_jepa(
     return scores, "symbolic_ast_fallback", round((time.perf_counter() - t0) * 1000.0, 2)
 
 
+_ROUTE_DECORATOR_RE = re.compile(
+    r"""^\s*@\w+(?:\.\w+)*\.(?:get|post|put|patch|delete|head|options|route|api_route|websocket)\(\s*[rbu]?["']([^"']+)["']""",
+    re.I,
+)
+
+
+def _fold_plural(tok: str) -> str:
+    return tok[:-1] if len(tok) > 4 and tok.endswith("s") and not tok.endswith("ss") else tok
+
+
+def _route_match(lines: list, sym: dict, intent: str, q_words: set) -> float:
+    """1.0 when a decorator route path of ``sym`` is quoted in the intent, 0.5 when a path segment
+    word (plural-folded, ``api`` and ``{params}`` ignored) is an intent word, else 0.0."""
+    best = 0.0
+    for ln in range(sym["start"], min(sym["end"], sym["start"] + 8) + 1):
+        line = lines[ln - 1]
+        m = _ROUTE_DECORATOR_RE.match(line)
+        if not m:
+            if line.lstrip().startswith(("def ", "async def ")):
+                break
+            continue
+        path = m.group(1)
+        if len(path) > 1 and path in intent:
+            return 1.0
+        segs = {
+            _fold_plural(w)
+            for seg in path.strip("/").split("/") if seg and not seg.startswith("{")
+            for w in re.split(r"[-_.]", seg.lower()) if len(w) >= 3 and w != "api"
+        }
+        if segs & q_words:
+            best = 0.5
+    return best
+
+
 def _jepa_slice_symbols(fm: FileMap) -> list[dict]:
     """Extract sliceable AST spans with P0 monolithic class (>60 lines) decomposition and
     module-level const_table (ast.Assign / ast.AnnAssign) extraction."""
@@ -1041,6 +1075,107 @@ def _jepa_slice_symbols(fm: FileMap) -> list[dict]:
     return out
 
 
+# Leave roughly 1K tokens for the role/template/request within the 3.5K prompt cap.
+_ROUTE_BUNDLE_CHAR_BUDGET = 8250  # 2500 estimated tokens at 3.3 chars/token
+
+
+def _route_context_bundle(fm: FileMap, intent: str, ranked_syms: list,
+                          char_budget: int):
+    """Opt-in route selection; whole AST nodes only, using the existing rank order.
+
+    Imports/construction and requested handlers are mandatory. Missing endpoints
+    use one complete ranked neighbor. Direct dependencies are optional whole nodes;
+    oversized dependencies are recorded, never clipped or replaced with snippets.
+    """
+    requested = {(m.lower(), p.rstrip(".,;:")) for m, p in re.findall(
+        r"\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|WEBSOCKET)\s+(/[\w/{}.-]+)", intent, re.I)}
+    if not requested or not fm.path.endswith(".py"):
+        return None
+    try:
+        tree = ast.parse("\n".join(fm.lines))
+    except SyntaxError:
+        return None
+
+    def span(node):
+        return min([node.lineno] + [d.lineno for d in getattr(node, "decorator_list", [])]), node.end_lineno
+
+    def lines_for(nodes):
+        return {i for node in nodes for i in range(span(node)[0], span(node)[1] + 1)}
+
+    width = max(3, len(str(len(fm.lines))))
+    def cost(indices):
+        # Reserve the file envelope and worst-case omission markers as well as
+        # every original numbered line. This is selection cost, not output clipping.
+        gaps = sum(1 for i in range(1, len(fm.lines) + 1)
+                   if i not in indices and (i == 1 or i - 1 in indices))
+        return 180 + gaps * 75 + sum(len(fm.lines[i - 1]) + width + 3 for i in indices)
+
+    rank = {sym["start"]: score for score, sym in ranked_syms}
+    def score(node):
+        return rank.get(span(node)[0], 0.0)
+
+    routes = {}
+    definitions = {}
+    anchors = []
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            anchors.append(node)
+        elif isinstance(node, ast.Try) and any(isinstance(ch, (ast.Import, ast.ImportFrom)) for ch in node.body):
+            anchors.append(node)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            definitions[node.name] = node
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    definitions[target.id] = node
+            if isinstance(node.value, ast.Call) and isinstance(node.value.func, (ast.Name, ast.Attribute)):
+                name = node.value.func.id if isinstance(node.value.func, ast.Name) else node.value.func.attr
+                if name in {"FastAPI", "APIRouter", "Starlette"}:
+                    anchors.append(node)
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            fn = node.value.func
+            if isinstance(fn, ast.Attribute) and fn.attr in {"include_router", "add_route", "add_api_route", "mount", "add_middleware"}:
+                anchors.append(node)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for dec in node.decorator_list:
+                if (isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute)
+                        and dec.func.attr in {"get", "post", "put", "patch", "delete", "head", "options", "websocket"}):
+                    path = dec.args[0] if dec.args else next((kw.value for kw in dec.keywords if kw.arg == "path"), None)
+                    if isinstance(path, ast.Constant) and isinstance(path.value, str):
+                        routes[(dec.func.attr, path.value)] = node
+    if not routes:
+        return None
+    targets = list(dict.fromkeys(routes[r] for r in sorted(requested) if r in routes))
+    mandatory = list(dict.fromkeys(anchors + targets))
+    missing = requested - routes.keys()
+    if missing and not targets:
+        neighbors = sorted(set(routes.values()), key=lambda n: (-score(n), span(n)[0]))
+        neighbor = next((n for n in neighbors if cost(lines_for(mandatory + [n])) <= char_budget), None)
+        if neighbor is None:
+            raise SourceMapError("route bundle SETUP: no complete neighboring handler fits source budget")
+        mandatory.append(neighbor)
+    keep = lines_for(mandatory)
+    if cost(keep) > char_budget:
+        raise SourceMapError(f"route bundle SETUP: complete mandatory spans require {cost(keep)} chars; budget {char_budget}")
+    references = {n.id for node in mandatory for n in ast.walk(node)
+                  if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+    dependencies = sorted({definitions[name] for name in references if name in definitions} - set(mandatory),
+                          key=lambda n: (-score(n), span(n)[0]))
+    deferred = []
+    for node in dependencies:
+        candidate = keep | lines_for([node])
+        if cost(candidate) <= char_budget:
+            keep = candidate
+        else:
+            deferred.append(next(name for name, value in definitions.items() if value is node))
+    names = {sym["name"] for _, sym in ranked_syms
+             if all(i in keep for i in range(sym["start"], sym["end"] + 1))}
+    return keep, names, {"requested": [list(r) for r in sorted(requested)],
+                         "missing": [list(r) for r in sorted(missing)],
+                         "deferred_dependencies": deferred, "char_budget": char_budget}
+
+
 def render_jepa_ast_sliced_for_model(
     sm: SourceMap,
     intent: str = "",
@@ -1049,6 +1184,8 @@ def render_jepa_ast_sliced_for_model(
     symbols: bool = False,
     max_symbols_per_file: int = 5,
     budget_ratio: float = 0.36,
+    count_consts_against_cap: bool = True,
+    route_boost: float = 0.0,
 ) -> tuple[str, dict]:
     """Render an AST-symbol-sliced SourceMap preserving exact 1-based line numbers for locate().
 
@@ -1056,6 +1193,14 @@ def render_jepa_ast_sliced_for_model(
     lexical/subtoken fallback, decomposes monolithic classes (>60 lines) into class_header + method
     spans, retains module-level const_table assignments, and emits kept spans with exact 1-based line
     numbers and ``# ... [JEPA-AST-SLICE omitted lines X-Y] ...`` markers.
+
+    Opt-in recall levers: route_boost weights matching decorated endpoint paths;
+    count_consts_against_cap=False exempts one-line constants (not data tables)
+    from the symbol cap. Positive route_boost with explicit METHOD /path requests
+    selects whole route spans, construction/import anchors and ranked direct
+    dependencies within a 2500-token source allowance. Oversized dependencies
+    are recorded in route_bundles; mandatory spans that cannot fit are refused.
+    Defaults preserve existing ranking and selection.
     """
     import json
 
@@ -1071,6 +1216,8 @@ def render_jepa_ast_sliced_for_model(
     if regime == "FULL_FILE_REQUIRED":
         return full_rendered, {
             "procedure": "jepa_ast_sliced",
+            "route_boost": route_boost,
+            "count_consts_against_cap": count_consts_against_cap,
             "regime": regime,
             "full_bytes": full_bytes,
             "sliced_bytes": full_bytes,
@@ -1086,6 +1233,7 @@ def render_jepa_ast_sliced_for_model(
         }
 
     parts = []
+    route_bundles = {}
     total_symbols = 0
     kept_symbols = 0
     jepa_modes = []
@@ -1158,6 +1306,7 @@ def render_jepa_ast_sliced_for_model(
             total_latency_ms += lat_ms
 
         q_idents_ge4 = [tok for tok in q_idents if len(tok) >= 4]
+        q_words = {_fold_plural(tok) for tok in q_idents}
         ranked_syms = []
         for s in slice_syms:
             lbl = f"{s['name']}:{s['start']}-{s['end']}"
@@ -1173,39 +1322,57 @@ def render_jepa_ast_sliced_for_model(
                 body_text = "\n".join(fm.lines[s["start"] - 1:s["end"]]).lower()
             id_hits = sum(1 for tok in q_idents_ge4 if tok in body_text)
             const_boost = 0.25 if s.get("kind") == "const_table" and id_hits > 0 else 0.0
-            combined_sc = base_sc + 1.5 * exact_name_hit + 0.15 * id_hits + const_boost
+            route_score = (route_boost * _route_match(fm.lines, s, combined_intent, q_words)
+                           if route_boost and s.get("kind") in ("function", "method") else 0.0)
+            combined_sc = base_sc + 1.5 * exact_name_hit + 0.15 * id_hits + const_boost + route_score
             ranked_syms.append((combined_sc, s))
 
         ranked_syms.sort(key=lambda x: (x[0], -x[1]["start"]), reverse=True)
 
-        line_budget = max(45, int(n_lines * budget_ratio))
-        keep_line_flags = [False] * (n_lines + 1)
-        header_end = min(18, slice_syms[0]["start"] - 1 if slice_syms else 18)
-        for ln in range(1, max(1, header_end) + 1):
-            keep_line_flags[ln] = True
-        used_lines = max(0, header_end)
+        bundle = (_route_context_bundle(fm, combined_intent, ranked_syms,
+                                         _ROUTE_BUNDLE_CHAR_BUDGET // max(1, len(sm.files)))
+                  if route_boost > 0 else None)
+        if bundle is not None:
+            kept_lines, chosen_sym_names, bundle_stats = bundle
+            keep_line_flags = [i in kept_lines for i in range(n_lines + 1)]
+            kept_symbols += len(chosen_sym_names)
+            route_bundles[fm.path] = bundle_stats
+        else:
+            line_budget = max(45, int(n_lines * budget_ratio))
+            keep_line_flags = [False] * (n_lines + 1)
+            header_end = min(18, slice_syms[0]["start"] - 1 if slice_syms else 18)
+            for ln in range(1, max(1, header_end) + 1):
+                keep_line_flags[ln] = True
+            used_lines = max(0, header_end)
 
-        chosen_sym_names = set()
-        for sc, s in ranked_syms[:max_symbols_per_file]:
-            class_start = s.get("class_start")
-            if isinstance(class_start, int) and 1 <= class_start <= n_lines:
-                if not keep_line_flags[class_start]:
-                    keep_line_flags[class_start] = True
-                    used_lines += 1
-            span_len = s["end"] - s["start"] + 1
-            if used_lines + span_len > line_budget and chosen_sym_names and sc < 1.2:
-                head_end = min(s["end"], s["start"] + 9)
-                for ln in range(s["start"], head_end + 1):
-                    keep_line_flags[ln] = True
-                used_lines += (head_end - s["start"] + 1)
-                chosen_sym_names.add(s["name"])
-                kept_symbols += 1
-            else:
-                for ln in range(s["start"], min(s["end"], s["start"] + 55) + 1):
-                    keep_line_flags[ln] = True
-                used_lines += min(span_len, 56)
-                chosen_sym_names.add(s["name"])
-                kept_symbols += 1
+            chosen_sym_names = set()
+            capped = 0
+            for sc, s in ranked_syms:
+                free = (not count_consts_against_cap and s.get("kind") == "const"
+                        and s["start"] == s["end"])
+                if not free:
+                    if capped >= max_symbols_per_file:
+                        continue
+                    capped += 1
+                class_start = s.get("class_start")
+                if isinstance(class_start, int) and 1 <= class_start <= n_lines:
+                    if not keep_line_flags[class_start]:
+                        keep_line_flags[class_start] = True
+                        used_lines += 1
+                span_len = s["end"] - s["start"] + 1
+                if used_lines + span_len > line_budget and chosen_sym_names and sc < 1.2:
+                    head_end = min(s["end"], s["start"] + 9)
+                    for ln in range(s["start"], head_end + 1):
+                        keep_line_flags[ln] = True
+                    used_lines += (head_end - s["start"] + 1)
+                    chosen_sym_names.add(s["name"])
+                    kept_symbols += 1
+                else:
+                    for ln in range(s["start"], min(s["end"], s["start"] + 55) + 1):
+                        keep_line_flags[ln] = True
+                    used_lines += min(span_len, 56)
+                    chosen_sym_names.add(s["name"])
+                    kept_symbols += 1
 
         i = 1
         while i <= n_lines:
@@ -1232,6 +1399,8 @@ def render_jepa_ast_sliced_for_model(
 
     stats = {
         "procedure": "jepa_ast_sliced",
+        "route_boost": route_boost,
+        "count_consts_against_cap": count_consts_against_cap,
         "regime": regime,
         "full_bytes": full_bytes,
         "sliced_bytes": sliced_bytes,
@@ -1244,6 +1413,7 @@ def render_jepa_ast_sliced_for_model(
         "symbols_total": total_symbols,
         "jepa_mode": "live_18097" if "live_18097" in jepa_modes else "symbolic_ast_fallback",
         "jepa_latency_ms": round(total_latency_ms, 2),
+        "route_bundles": route_bundles,
         "shm_arena_hits": shm_hits,
         "shm_arena_misses": shm_misses,
     }

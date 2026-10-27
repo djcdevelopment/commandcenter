@@ -114,6 +114,43 @@ class LocalWorkServiceTests(unittest.TestCase):
             time.sleep(.01)
         self.fail("local work did not settle")
 
+    def test_code_fix_opt_in_uses_intent_numbered_slice_not_full_source(self):
+        packet = "=== FILE a.py ===\n002| two\n=== END a.py ===\n"
+        stats = {"jepa_mode": "symbolic_ast_fallback", "token_reduction_pct": 50.0}
+        with mock.patch("hearth.localwork.service.sourcemap.render_jepa_ast_sliced_for_model",
+                        return_value=(packet, stats)) as render:
+            manifest = self.submit(task_family="code_fix", jepa_pack=True, route_boost=2.0,
+                                   count_consts_against_cap=False, idempotency_key="sliced-code")
+            self.assertEqual(self.settle(manifest["work_id"])["status"], "awaiting_review")
+            render.assert_called_once()
+            self.assertEqual(render.call_args.kwargs, {"intent": "Fix a.py", "numbered": True,
+                "symbols": False, "route_boost": 2.0, "count_consts_against_cap": False})
+            prompt = (self.service._run_dir(manifest["work_id"]) / "refs" / "raw-prompt.txt")
+            # Inspect the immutable admitted prompt (not the provider's reported token counts).
+            raw = self.generate_calls[0]["prompt"]
+            self.assertTrue(raw.startswith(packet + "\n<!-- SHARED_CONTEXT_END -->\n"))
+            self.assertNotIn("--- SOURCE a.py", raw)
+            self.assertNotIn('"source_pack"', raw)
+            self.assertEqual(manifest["route"]["jepa_context_pack"], stats)
+            self.assertEqual(manifest["source"]["files"][0]["lines"], 2)
+            # A completed candidate cannot be reused under changed slice conditions.
+            with self.assertRaisesRegex(LocalWorkError, "different local work"):
+                self.submit(task_family="code_fix", jepa_pack=True, route_boost=1.0,
+                            count_consts_against_cap=False, idempotency_key="sliced-code")
+
+    def test_code_slice_default_unchanged_and_bad_options_refused(self):
+        with mock.patch("hearth.localwork.service.sourcemap.render_jepa_ast_sliced_for_model") as render:
+            manifest = self.submit(task_family="code_fix")
+            self.settle(manifest["work_id"])
+            render.assert_not_called()
+            self.assertNotIn("code_slice_options", manifest)
+            self.assertIn("--- SOURCE a.py", self.generate_calls[0]["prompt"])
+        for overrides in ({"jepa_pack": True}, {"route_boost": 2.0},
+                          {"jepa_pack": True, "task_family": "code_fix", "route_boost": float("nan")},
+                          {"jepa_pack": True, "task_family": "code_fix", "count_consts_against_cap": "false"}):
+            with self.subTest(overrides=overrides), self.assertRaises(LocalWorkError):
+                self.submit(**overrides)
+
     def test_candidate_waits_for_explicit_evidenced_verdict(self) -> None:
         manifest = self.submit()
         final = self.settle(manifest["work_id"])

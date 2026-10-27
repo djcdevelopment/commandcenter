@@ -529,7 +529,21 @@ class LocalWorkService:
                idempotency_key: str | None, caller_id: str,
                brief: Mapping[str, Any] | None = None,
                temperature: float | None = None, revise: bool = False,
-               procedure: str | None = None) -> dict[str, Any]:
+               procedure: str | None = None, jepa_pack: bool = False,
+               route_boost: float = 0.0, count_consts_against_cap: bool = True) -> dict[str, Any]:
+        if not isinstance(jepa_pack, bool) or not isinstance(count_consts_against_cap, bool):
+            raise LocalWorkError("jepa_pack and count_consts_against_cap must be booleans")
+        import math
+        if (isinstance(route_boost, bool) or not isinstance(route_boost, (int, float))
+                or not math.isfinite(route_boost) or route_boost < 0):
+            raise LocalWorkError("route_boost must be a finite nonnegative number")
+        if jepa_pack and (brief is not None or task_family != "code_fix"
+                          or artifact_kind not in {"whole_file", "unified_diff"}):
+            raise LocalWorkError("argument jepa_pack requires code_fix whole_file/unified_diff without a delivery brief")
+        if not jepa_pack and (route_boost != 0.0 or count_consts_against_cap is not True):
+            raise LocalWorkError("code slicing levers require jepa_pack=True")
+        code_slice_options = ({"route_boost": route_boost, "count_consts_against_cap": count_consts_against_cap}
+                              if jepa_pack else None)
         if artifact_kind not in KINDS:
             raise LocalWorkError(f"artifact_kind must be one of {sorted(KINDS)}")
         if brief is not None and artifact_kind != "markdown":
@@ -578,6 +592,11 @@ class LocalWorkService:
             except (contract.ContractError, sourcemap.SourceMapError) as exc:
                 raise LocalWorkError(f"delivery brief refused: {exc}") from exc
             quote_mode = contract.form_defaults(brief)["quote_mode"]
+        if code_slice_options is not None:
+            try:
+                source_map = sourcemap.build(str(repo_path), base, declared)
+            except sourcemap.SourceMapError as exc:
+                raise LocalWorkError(f"code source pack refused: {exc}") from exc
         return self._submit_admitted(
             intent=intent, acceptance_criteria=acceptance_criteria, repo_path=repo_path,
             base=base, declared=declared, target=target, source_pack=source_pack,
@@ -586,7 +605,7 @@ class LocalWorkService:
             lane=lane, task_family=task_family, deadline_s=deadline_s,
             max_tokens=max_tokens, receipt_id=receipt_id, idempotency_key=idempotency_key,
             caller_id=caller_id, brief=brief, temperature=temperature, revise=revise,
-            procedure=procedure,
+            procedure=procedure, code_slice_options=code_slice_options,
         )
 
     @_serialized_submission
@@ -598,7 +617,8 @@ class LocalWorkService:
                          max_tokens: int | None, receipt_id: str | None,
                          idempotency_key: str | None, caller_id: str,
                          brief: Mapping[str, Any] | None, temperature: float | None,
-                         revise: bool, procedure: str | None) -> dict[str, Any]:
+                         revise: bool, procedure: str | None,
+                         code_slice_options: dict[str, Any] | None = None) -> dict[str, Any]:
         work_id = (f"work_{_digest(caller_id + ':' + idempotency_key)[:32]}"
                    if idempotency_key else f"work_{uuid.uuid4().hex}")
         prior = self._read(work_id) if idempotency_key and self._manifest_path(work_id).is_file() else None
@@ -610,6 +630,7 @@ class LocalWorkService:
                     prior["repo"] != str(repo_path) or prior["base_commit"] != base or
                     prior["declared_paths"] != declared or prior["artifact_kind"] != artifact_kind or
                     prior.get("target_path") != target or prior.get("brief") != brief or
+                    prior.get("code_slice_options") != code_slice_options or
                     route.get("task_family") != task_family or bool(prior.get("revise")) != revise or
                     (lane != "auto" and lane != route["selected_lane"]) or
                     (procedure is not None and procedure != route.get("procedure", "one_call")) or
@@ -835,6 +856,12 @@ class LocalWorkService:
                             raise LocalWorkError(f"delivery brief refused: {exc}") from exc
                         max_tokens = explicit_max if explicit_max is not None else (
                             CARRY_WORK_TOKENS if carried else self._delivery_max_tokens(brief))
+                    if code_slice_options is not None:
+                        try:
+                            packet, jepa_slice_stats = sourcemap.render_jepa_ast_sliced_for_model(
+                                source_map, intent=intent, numbered=True, symbols=False, **code_slice_options)
+                        except sourcemap.SourceMapError as exc:
+                            raise LocalWorkError(f"code source pack refused: {exc}") from exc
                     if carried:
                         # The procedure is part of the prompt (and so of the digest the duplicate check compares).
                         work_template, used_hash = self._template_file("local_work_delivery_work_v1.txt")
@@ -842,8 +869,18 @@ class LocalWorkService:
                         prompt = f"PROCEDURE: carry\n{task}\n\n{work_template.strip()}"
                     else:
                         used_hash = template_hash
-                        prompt = (self._delivery_prompt(template, intent, brief, packet) if delivery
-                                  else template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True))
+                        if code_slice_options is not None:
+                            # Keep numbered source verbatim, not JSON-escaped or accompanied
+                            # by the full source_pack. Line prefixes/omission markers are metadata.
+                            request = {key: value for key, value in request_doc.items() if key != "source_pack"}
+                            prompt = (packet + "\n<!-- SHARED_CONTEXT_END -->\n"
+                                      + template + "\n\nREQUEST\n" + json.dumps(request)
+                                      + "\nLine-number prefixes and omission markers are NOT source text. "
+                                        "Use original line numbers in citations/diff hunks; copy source text without "
+                                        "prefixes. Preserve omitted code; never replace a whole file with an excerpt.")
+                        else:
+                            prompt = (self._delivery_prompt(template, intent, brief, packet) if delivery
+                                      else template + "\n\nREQUEST\n" + json.dumps(request_doc, sort_keys=True))
                     if not carried or pinned:
                         break
                     carried_bytes = len((CARRY_SYSTEM + prompt.split("\n", 1)[1]).encode("utf-8"))
@@ -941,6 +978,9 @@ class LocalWorkService:
                 manifest["route"]["jepa_context_pack"] = jepa_slice_stats
             if lane_choice:
                 manifest["route"]["lane_choice"] = lane_choice
+        if code_slice_options is not None:
+            manifest["code_slice_options"] = code_slice_options
+            manifest["route"]["jepa_context_pack"] = jepa_slice_stats
         if carried:
             manifest["carry"] = {"stage": "work", "batch": 0, "batches": 0, "retried": [], "jobs": [], "quotes": {},
                                  "check": self._carry_check_plan(prompt, context_tokens),

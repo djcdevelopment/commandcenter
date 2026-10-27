@@ -31,6 +31,15 @@ def _frontmatter(path: Path) -> dict:
 
 
 class LocalWorkSkillTests(TestCase):
+    def test_code_slice_options_reach_mcp_schema(self) -> None:
+        from mcp.server.fastmcp.tools import Tool
+        schema = Tool.from_function(local_work.submit_local_work).parameters
+        for name, kind, default in (("jepa_pack", "boolean", False),
+                                    ("route_boost", "number", 0.0),
+                                    ("count_consts_against_cap", "boolean", True)):
+            self.assertEqual(schema["properties"][name]["type"], kind)
+            self.assertEqual(schema["properties"][name]["default"], default)
+
     def test_tracked_mirrors_and_codex_descriptor_exist(self) -> None:
         self.assertTrue(CLAUDE.is_file())
         self.assertTrue(CODEX.is_file())

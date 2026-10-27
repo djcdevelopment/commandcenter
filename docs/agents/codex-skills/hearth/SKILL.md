@@ -16,14 +16,12 @@ trivial work directly. Batch related small items into one call when practical.
 
 **Routing and context:**
 
-- Lanes on omen-linux (`~/hearth-production/backends-linux.toml`): `omen-vllm` is the default
-  (Qwen3-30B-A3B MoE, `:18090`, 40,960 ctx, 8 slots) — sunk local compute, spend it freely;
-  `omen-dense-27b` (Qwen3.8-27B, `:18095`, 65,536 ctx, 2 slots, reserve 16,384) for code
-  candidates, careful review and long inputs — pin with `backend="omen-dense-27b"`; `am4-vllm`
-  (27B over the direct cable, 16,384 ctx, 1 slot); `fx99-vllm` (7B utility, 4,096 ctx, text
-  only); `am4-tool-4070ti` / `am4-tool-5070` (tag `tool-use`, Qwen3-8B per AM4 card, live only under
-  AM4's `tool-pair` profile) for small one-file chores via `task_family="tool_execution"`; the 5070
-  also carries `tool-long` (ADR-0050: long l/xl answers land there when the `HEARTH_SIZER` gate is on).
+- Lanes on omen-linux (`~/hearth-production/backends-linux.toml`), configuration `bolt74-dense27`:
+  `omen-nemotron-74b` (Nemotron Bolt-74B across both B70s, `:18095`, 65,536 ctx, 8 slots) is the default and the
+  heavy deep seat; `am4-vllm` (the Qwen3.8-27B dense thinking model on AM4's two CUDA cards, 49,152 ctx, 8 slots,
+  4,096 one-call output) is the other deep seat; `fx99-vllm` (7B utility, 4,096 ctx, text only). Context is sliced by
+  the `:18097` JEPA/NPU ranker when you pass `files=` with a specific question. Not live (history only, do not route
+  there): `omen-vllm` (30B MoE), `omen-dense-27b`/`-b` (27B on the B70s), `am4-tool-*` (8B tool pair).
   There is no cloud rung in this pool: a refused local lane is terminal.
 - Task-family routing is live. Use `task_family="summarization"`, `"extraction"`,
   `"classification"`, `"drafting"`, `"reasoning_planning"`, `"quote_retrieval"`,

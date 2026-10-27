@@ -11,76 +11,61 @@ review costs; handle trivial work directly. Batch related small items into one c
 
 **Lanes on this host (from `~/hearth-production/backends-linux.toml`):**
 
-Seats are profile-bound: `host/lab-configurations.toml` names the live set and `submit_local_work` records it in
-`conditions.lab_configuration`. Since 2026-10-05 the configuration is `three-dense` (G-bench27): `omen-dense-27b`,
-`omen-dense-27b-b`, `am4-vllm` (dense-tp2) and `fx99-vllm` live; `omen-vllm` and the AM4 tool pair absent;
-default-lane calls fall back to the 27B replicas (ADR-0066). Under `bolt74-dense27` (ADR-0075, ADR-0076; active as of 2026-10-23), Dual B70 serves
-`omen-nemotron-74b` (`:18095` HAProxy / `:18091` backend, 65,536 ctx, **8 concurrent slots (`c=8`)**) alongside `am4-vllm` (`10.44.0.2:8090`, 49,152 ctx, **8 concurrent slots (`c=8`)**, `75,021` KV+Mamba tokens) and
-resident Tier-0 NPU+`/dev/shm` AST context slicing (`:18097`, `HEARTH_JEPA_PACK=auto`, 89.3% source reduction, `29.63 ms` 4-file slice, `303.74 emb/s`, 0 B70 VRAM); switch
-profiles with `~/bin/omen-profile switch bolt74 | two-dense`. Check before pinning a seat another profile serves.
+The live fleet is the lab configuration `bolt74-dense27` (ADR-0075, ADR-0076; since 2026-10-23). Two deep seats:
+the Nemotron Bolt-74B across both B70s, and the Qwen3.8-27B dense thinking model on AM4's two CUDA cards. There is
+**no 30B and no 27B on the B70s** in this configuration (see "Not live" below). `host/lab-configurations.toml` names
+the live set and `submit_local_work` records it in `conditions.lab_configuration`; check `~/bin/omen-profile status`
+and `ssh 10.44.0.2 ~/bin/am4-profile status` before pinning a seat.
 
-- `omen-nemotron-74b` (tags `default, code, research, reasoning, dense, quality, agent`; live under `bolt74-dense27`, **absent under other
-  profiles**): `nemotron-3.5-bolt-74b-a9b` (`NVIDIA-Nemotron-3.5-Bolt-74B-A9B-UD-Q4_K_XL`) across both B70 cards (`SYCL0,SYCL1`, 53/47 split) on `:18095` (`:18091`),
+The strategy these seats are tuned for: do not emulate frontier models. Thin slices and tiny calls, many of them.
+Tiny context skips the prefill tax and frees VRAM (that is what lets the 74B split across both B70s with 8 slots);
+the cards are saturated by volume, backed by kernel-level llama.cpp SYCL and vLLM work. Context is shaped before it
+reaches a seat: AST symbols, then the JEPA ranker (NPU encoder, `:18097`, `/dev/shm` arena) trims what the call does not
+need. Pass `files=` with a specific question so that pipeline runs; pasting file text bypasses it.
+
+- `omen-nemotron-74b` (tags `default, code, research, reasoning, dense, quality, agent`):
+  `nemotron-3.5-bolt-74b-a9b` (`NVIDIA-Nemotron-3.5-Bolt-74B-A9B-UD-Q4_K_XL`) across both B70 cards (`SYCL0,SYCL1`, 53/47 split) on `:18095` (`:18091`),
   65,536 ctx, **8 parallel slots (`parallel_slots = 8`)**, output reserve 16,384 (`deliberate_max_tokens = 24576`), SYCL `_mt_reorder` + SLM `Q8_0`/`Q5_K`/`Q6_K` shared-weight/activation kernels + 32-bit `ssm_conv`/`ssm_scan` + non-destructive multi-slot Mamba-2 checkpoint cloning (ADR-0076: 922.6 tok/s
-  cold prefill, 41.22 tok/s 1-slot warm decode, 122.76 tok/s 8-slot pure decode / 85.57 tok/s wall decode, and **11.25 s** across an `8 × 25.25K`-token `c=8` wave at **99.70%** checkpoint hit rate across all 8 slots, `151 ms` cross-slot clone, `0` PCIe idle-slot evictions). Primary heavy reasoner, code-review, investigation, and pooled deep seat under `bolt74-dense27` (qualified for both `one_call` and `carry` at `serving-profile.v2`), paired with `am4-vllm`
-  for parallel 27B overflow and cross-seat `claim_verification`.
+  cold prefill, 41.22 tok/s 1-slot warm decode, 122.76 tok/s 8-slot pure decode / 85.57 tok/s wall decode, and **11.25 s** across an `8 × 25.25K`-token `c=8` wave at **99.70%** checkpoint hit rate across all 8 slots, `151 ms` cross-slot clone, `0` PCIe idle-slot evictions). Primary heavy reasoner, code-review, investigation, and pooled deep seat (qualified for both `one_call` and `carry` at `serving-profile.v2`), paired with `am4-vllm`
+  for parallel overflow and cross-seat `claim_verification`. Local-work whole-file code work lands here today
+  because `am4-vllm` declares 4,096 output.
   **Saturating `c=8` (Batch Fan-Out Pattern):** `submit_execution` and `submit_local_work` are non-blocking (~100 ms admission) and run concurrently on HEARTH's 16-worker executor (`8` slots on `omen-nemotron-74b` + `8` slots on `am4-vllm` = `16` deep slots), whereas `watch_execution` / `watch_local_work` block. Both delivery (`Shape 1..5`, `carry`) and non-delivery (`Shape 6` `request_doc`) calls automatically extract shared repository context into Turn 1 for Mamba-2 checkpoint cloning (or prefix-first single-turn for non-Mamba vLLM APC) with zero-overhead single-flight cold-prefix coalescing (`begin_single_flight_prefix`). To saturate `c=8` from a single frontier session, issue up to 8 `submit_execution` or `submit_local_work` tool calls in parallel (or back-to-back) **before** calling `watch_execution` / `watch_local_work` on the returned IDs. When driven across multiple AMUX worker lanes (`amux-stream-claude-*`, `amux-stream-codex-*`), concurrent submissions from all lanes automatically share and saturate the deep slots.
-
-- `omen-vllm` (default; tags `default, code, research, reasoning`; profiles `day` and two-lane only, **absent under
-  three-dense**): Qwen3-30B-A3B MoE behind HAProxy `:18090`, 40,960 ctx, 8 slots. Sunk local compute, resident: spend it freely on grunt work.
-- `omen-dense-27b` (tags `dense, quality, agent, vision`) and `omen-dense-27b-b` (the second replica on the other
-  B70; no routing tags, so it is reached by lane load balancing or an explicit pin): Qwen3.8-27B, 65,536 ctx, 2 slots
-  each (a KV pool holds ~1.5 full-window requests), output reserve 16,384.
-  The only local model that completed the fix task with receipts (continuity output/07). Name the family
-  (`code_fix`, `code_review`, `claim_verification`, `quote_retrieval`, `long_review`) and let the door pick the
-  replica; pin a backend only to test a lever or to keep a judge off the author's seat. It is slower per token,
-  so do not send it grunt work.
-  `local_generate` and local-work run it with thinking off, one call per request (`enable_thinking = false` on every
-  backend). Its design regime is multi-step work with thinking on in a long window (Derek 2026-10-03; ADR-0059,
-  proposed). For a thinking turn use operation `inference.deliberate` through `submit_execution` / `watch_execution`
-  (live 2026-10-03): `messages`, `backend="omen-dense-27b"`, `thinking=true`, policy `max_tokens` up to 24,576 and
-  `deadline_s` up to 3,600; streamed; output, reasoning and the exact wire request come back as artifacts. Give a
-  thinking turn room: 1,500 tokens cut a retrieval answer off, 8,000 produced no answer to a report brief; use 4,000
-  for a lookup and 24,000 for a report. Two-turn driver: `~/work/lab-rnd/research/thinking_workload.py`. A result from
-  one thinking-off call is a result for that regime, not its ceiling. One stated value per item (a default, a
-  setting, a state) belongs on the lighter seats (ADR-0058, proposed).
-  For a report with quotes submit a delivery brief and name no procedure: `submit_local_work(..., brief=<brief.v2>)`.
-  The door chooses from the registry's verdicts and records why in `route.procedure_choice` (ADR-0061, live
-  2026-10-04; `docs/delivery.md`). On this seat that is the carried procedure: one thinking turn writes notes and a
-  report, code carries the report's text, a second pass attaches exact quotes sentence by sentence, and the work stops
-  at `awaiting_review`. `procedure="one_call" | "carry" | "items"` pins one (a comparison arm). Carried deliveries stand
-  at 9 of 12 accepted on the three 2026-10-02 night briefs and 0 of 3 on briefs written since: read every one before
-  relying on it. A brief that declares `"items": {"kind": "env_reads"}` takes the items procedure (code lists the
-  items, the 30B and an AM4 8B read each, the 27B judges disputes with thinking on; two runs, both rejected, the second
-  on 1 wrong row of 91).
-- `am4-vllm` (tags `dense, reasoning`): the AM4 27B over the direct cable, dense-tp2 across both AM4 cards (RTX 5070 + RTX 4070 Ti SUPER),
-  49,152 ctx under `bolt74-dense27` and `three-dense` (16,384 under `memsplice`), **8 parallel slots (`parallel_slots = 8`, `--max-num-seqs 8`, `--gpu-memory-utilization 0.912` = `75,021` KV+Mamba tokens; ADR-0076)**, 4,096 output for a one-call answer (thinking
-  turns through `inference.deliberate` at 24,576), delivering **96.29 tok/s** cold `c=8` decode, **257.65 tok/s** shared-prefix `c=8` decode, and **2.99 s** follower wave completion (`35.3x` faster, **94.92%** APC block hit rate, `0.0` preemptions) on `4 × 26.4K`-token waves. In the deep pool: `lane="auto"` code work and deliveries spread
-  to it (I1.5: the waits-panel report, accepted). Depth specialist for needle retrieval; never route it through
-  the tailnet.
+- `am4-vllm` (tags `dense, reasoning`): **the 27B** (Qwen3.8-27B dense, thinking-capable; served as `qwen3-27b`, GPTQ-int4, fp8 KV)
+  over the direct cable, dense-tp2 across both AM4 cards (RTX 5070 + RTX 4070 Ti SUPER), 49,152 ctx, **8 parallel slots
+  (`--max-num-seqs 8`, `--gpu-memory-utilization 0.912` = `75,021` KV tokens; ADR-0076)**, 4,096 output for a one-call
+  answer (thinking turns through `inference.deliberate` at 24,576), delivering **96.29 tok/s** cold `c=8` decode,
+  **257.65 tok/s** shared-prefix `c=8` decode, and **2.99 s** follower wave completion (`35.3x` faster, **94.92%** APC
+  block hit rate, `0.0` preemptions) on `4 × 26.4K`-token waves. HEARTH's capability record for it may still read
+  16,384 ctx / 1 slot (stale; open item). Depth specialist for needle retrieval; never route it through the tailnet.
+  Name the family (`code_fix`, `code_review`, `claim_verification`, `quote_retrieval`, `long_review`) and let the door
+  pick; pin a backend only to test a lever or to keep a judge off the author's seat.
+  Thinking: `local_generate` and local-work run thinking off, one call per request. For a thinking turn use
+  `inference.deliberate` through `submit_execution` / `watch_execution`: `messages`, `thinking=true`, policy
+  `max_tokens` up to 24,576 and `deadline_s` up to 3,600; output, reasoning and the exact wire request come back as
+  artifacts. Give a thinking turn room: 4,000 for a lookup, 24,000 for a report. `deliberate` takes no `files=`, so
+  nothing is sliced on that path. A result from one thinking-off call is a result for that regime, not its ceiling.
+  For a report with quotes submit a delivery brief and name no procedure: `submit_local_work(..., brief=<brief.v2>)`;
+  the door chooses from the registry's verdicts and records why in `route.procedure_choice` (ADR-0061; `docs/delivery.md`).
+  The carried procedure: one thinking turn writes notes and a report, code carries the text, a second pass attaches
+  exact quotes, and the work stops at `awaiting_review`. Held-out rates (early October, measured on the earlier
+  OMEN-27B seat): carry 8/12, carry plus check 9/12, one_call 0/12. Read every delivery before relying on it.
 - `fx99-vllm` (tag `utility`): Qwen2.5-Coder-7B on FX99, 4,096 ctx. Text-only summaries; it cannot
   produce reliable tool calls.
-- `am4-tool-4070ti` / `am4-tool-5070` (tag `tool-use`): Qwen3-8B-AWQ, one seat per AM4 card, 24,576 /
-  16,384 ctx, the Ti admitting 4 concurrent requests (3 HEARTH leases), the 5070 2; live only under the AM4
-  `tool-pair` profile (configurations `day`, `tool-night`), **absent under three-dense** (`ssh 10.44.0.2
-  ~/bin/am4-profile status` reads `dense-tp2`).
-  `submit_local_work` takes `lane="tool"` (`am4-tool-4070ti`) and a `brief` for deliveries. Small
-  OS-local chores on one file (read, grep, summarize with citations) go here through
-  `task_family="tool_execution"` or a `deepagents` brief with `backend: am4-tool-4070ti`: 6/6 chores at a
-  10 s median where the 27B took 172 s. When the profile is not live the tag resolves to the door default.
-- There is no cloud rung in this pool: the `gcp-gemini` rungs are retired (the GCP trial ended, 2026-10-15).
-  A refused local lane is terminal; never substitute cloud.
-- `am4-tool-5070` also carries `tool-long` (ADR-0050): when `HEARTH_SIZER` is on, a `tool_execution`
-  call whose answer the sizer bins l/xl (>= 1,024 expected output tokens: a rewrite, an 800-word report)
-  is refined to `tool_long_output` and lands on the 5070, the faster decoder; the Ti keeps the short,
-  prefill-heavy volume. A `deepagents` brief may say `backend: am4-tool` to have the sizer pick the seat.
-  The gate is off by default; the sizer only fills an absent `max_tokens` for admission and never sets a
-  generation budget or a family for a call that named none.
 - `omen-perception` (tags `perception, ocr`; models `tesseract-ocr`, `clip-vit-l14`): the CPU perception lane,
   2 slots. `task_family="document_ocr"` lands here (plain text extraction; no tables, formulas or layout).
-  `chart_diagram` and `screenshot_grounded` go to the 27B with its vision tower, which under three-dense means
-  the seat-1 fenced swap of ADR-0068 (accepted 2026-10-15; the `perception` alias and the swap request/release
-  are harness-plan I2.6, not yet code): until then those families are refused outside `seat0-27b-vision`.
+  `chart_diagram` and `screenshot_grounded` need a vision seat and are refused in this configuration.
+- Context slicer `:18097` (`jepa-router-v3.service`, `HEARTH_JEPA_PACK=auto`): MiniLM encoder on the NPU (OpenVINO),
+  JEPA predictor and ranking on the CPU, AST/embedding arena in `/dev/shm/mechsuit-ast-arena`, 0 B70 VRAM. Receipted:
+  84% prompt-token cut and 78% wall cut over 12 paired 27B tasks (`loop4_live_efficiency_receipt.json`). Used by
+  `local_generate(files=)` (with the prompt as intent) and delivery briefs; `submit_execution(files=)` slices without
+  intent; code_fix local-work does not slice; HTML gets no AST and JS only a weak regex.
+- There is no cloud rung in this pool: the `gcp-gemini` rungs are retired (the GCP trial ended, 2026-10-15).
+  A refused local lane is terminal; never substitute cloud.
+- **Not live in this configuration (history only; do not route to them or cite them as current):** `omen-vllm`
+  (Qwen3-30B-A3B MoE, retired from the B70s when the 74B took both cards), `omen-dense-27b` / `omen-dense-27b-b` (the
+  27B replicas on the B70s under the earlier `three-dense`/`two-lane` profiles), `am4-tool-4070ti` / `am4-tool-5070`
+  (Qwen3-8B tool pair; AM4 runs `dense-tp2`). Numbers in older records that name these seats (for example "the 30B
+  reads 94.7%") describe those profiles, not the current fleet.
 
 **Routing and context:**
 
@@ -109,9 +94,9 @@ profiles with `~/bin/omen-profile switch bolt74 | two-dense`. Check before pinni
 
 `submit_local_work(intent, acceptance_criteria, repo, base_commit, paths, lane="auto")` freezes the
 named files at a commit, produces an immutable candidate, and stops at `awaiting_review`. `auto`
-sends `task_family` `code_fix`/`code_review` to `deep` (the 27B replicas `omen-dense-27b`, `omen-dense-27b-b`
-and `am4-vllm`, balanced by `lane_code_backend`) at any size; otherwise
-evidence of 8,192 tokens or more goes to `deep` and less to `fast` (`omen-vllm`). The exact check is
+sends `task_family` `code_fix`/`code_review` to `deep` (`omen-nemotron-74b` and `am4-vllm`, balanced by
+`lane_code_backend`; whole-file work lands on the 74B while `am4-vllm` declares 4,096 output) at any size; otherwise
+evidence of 8,192 tokens or more goes to `deep` and less to `fast` (no `fast` seat is live now). The exact check is
 `input + output reserve <= context_tokens`, so on the deep lane input may reach 65,536 − reserve.
 Watch with `watch_local_work`, fetch with `get_local_work_artifact`, validate in an isolated worktree,
 then `record_local_work_verdict(accepted|rejected|superseded, apply=False, target_root=None)` or apply an accepted candidate with `apply_local_work(work_id, target_root=None)`.

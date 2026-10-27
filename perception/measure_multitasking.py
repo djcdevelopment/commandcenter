@@ -18,7 +18,10 @@ from pathlib import Path
 
 # Ensure hearth backends and token are configured
 os.environ.setdefault("HEARTH_BACKENDS", "/home/derek/hearth-production/backends-linux.toml")
-os.environ.setdefault("OMEN_ARC_TOKEN", "Zi6yqAWJ74Req4rLWdYndTM8QyP4uhvD2C6qCUGN7_uzBTd2FqIRa2lxjcKCnXzU")
+if "OMEN_ARC_TOKEN" not in os.environ:
+    for _line in Path("/home/derek/.config/omen-vllm/hearth-backends.env").read_text().splitlines():
+        if _line.startswith("OMEN_ARC_TOKEN="):
+            os.environ["OMEN_ARC_TOKEN"] = _line.split("=", 1)[1].strip()
 
 from hearth.toolsurface.inference import local_generate
 from perception.ocr import ocr_image

@@ -26,7 +26,6 @@ from .ledger import ExecutionLedger, ExecutionLedgerError
 from .model import FINAL_JOB_STATUSES, new_execution_event
 from .operations import ExecutionPolicy, Operation, OperationConfigError, OperationRegistry
 from .operations import DELIBERATE, load_operations
-from .pause import dispatch_paused
 
 GenerateCallable = Callable[..., dict[str, Any]]
 
@@ -133,7 +132,6 @@ class ExecutionService:
         workers: int = 16,
         max_pending: int = 256,
         recover_pending: bool = True,
-        startup_held: bool = False,
         render_dispatcher: Optional[Any] = None,
         image_dispatcher: Optional[Any] = None,
         media_dispatcher: Optional[Any] = None,
@@ -155,7 +153,6 @@ class ExecutionService:
         self._media_dispatcher = media_dispatcher
         self._futures: dict[str, Future[None]] = {}
         self._cancel_requested: set[str] = set()
-        self._startup_held = startup_held
         self._lock = threading.RLock()
         self._changed = threading.Condition(self._lock)
         if recover_pending:
@@ -791,8 +788,6 @@ class ExecutionService:
         policy: Optional[dict[str, Any]] = None,
         idempotency_key: Optional[str] = None,
     ) -> dict[str, Any]:
-        if self._startup_held or dispatch_paused():
-            raise ExecutionServiceError("HEARTH dispatch is paused; restart the gateway after resume")
         principal_value = self._validate_principal(principal)
         source_value = self._validate_source(source)
         operation = self.operations.get(operation_name)

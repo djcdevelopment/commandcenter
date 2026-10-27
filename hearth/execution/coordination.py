@@ -14,7 +14,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any, Callable, Iterator, Optional
 
 
 class CapacityUnavailable(RuntimeError):
@@ -76,6 +76,16 @@ class CapacityLeaseStore:
                 "CREATE INDEX IF NOT EXISTS capacity_leases_scope "
                 "ON capacity_leases(scope, expires_at)"
             )
+            columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(capacity_leases)")
+            }
+            if "holder_pid" not in columns:
+                # Which process holds the lease, so a restarted gateway can tell
+                # its predecessor's leftovers from a live sibling's slots.
+                connection.execute(
+                    "ALTER TABLE capacity_leases ADD COLUMN holder_pid INTEGER"
+                )
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -122,10 +132,12 @@ class CapacityLeaseStore:
                 connection.execute(
                     """
                     INSERT INTO capacity_leases (
-                        lease_id, scope, job_id, invocation_id, acquired_at, expires_at
-                    ) VALUES (?, ?, ?, ?, ?, ?)
+                        lease_id, scope, job_id, invocation_id, acquired_at, expires_at,
+                        holder_pid
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (lease_id, scope, job_id, invocation_id, acquired_at, expires_at),
+                    (lease_id, scope, job_id, invocation_id, acquired_at, expires_at,
+                     os.getpid()),
                 )
                 connection.commit()
             except Exception:
@@ -157,6 +169,57 @@ class CapacityLeaseStore:
             )
         return cursor.rowcount == 1
 
+    def release_job(self, job_id: str) -> int:
+        """Release every lease a Job holds whose holder is not a live process.
+
+        Used by restart recovery: the previous process died holding them, and
+        this process has not dispatched the Job yet. Rows with an unknown
+        holder (pre-migration) predate this process, so they go too.
+        """
+        own = os.getpid()
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT lease_id, holder_pid FROM capacity_leases WHERE job_id = ?",
+                (job_id,),
+            ).fetchall()
+            stale = [
+                row["lease_id"]
+                for row in rows
+                if row["holder_pid"] is None
+                or (row["holder_pid"] != own and not _pid_alive(int(row["holder_pid"])))
+            ]
+            for lease_id in stale:
+                connection.execute(
+                    "DELETE FROM capacity_leases WHERE lease_id = ?", (lease_id,)
+                )
+        return len(stale)
+
+    def release_stale(self, *, job_is_final: Callable[[str], bool]) -> int:
+        """Release leases whose holder process is gone or whose Job is final.
+
+        A lease outlives its holder when the gateway restarts mid-invocation;
+        without this it blocks a slot until ``expires_at`` (up to the Job's
+        deadline). Rows with an unknown holder (pre-migration) are judged by
+        their Job alone.
+        """
+        own = os.getpid()
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT lease_id, job_id, holder_pid FROM capacity_leases"
+            ).fetchall()
+            stale = [
+                row["lease_id"]
+                for row in rows
+                if (row["holder_pid"] is not None and row["holder_pid"] != own
+                    and not _pid_alive(int(row["holder_pid"])))
+                or job_is_final(row["job_id"])
+            ]
+            for lease_id in stale:
+                connection.execute(
+                    "DELETE FROM capacity_leases WHERE lease_id = ?", (lease_id,)
+                )
+        return len(stale)
+
     def active_count(self, scope: str, *, now: Optional[float] = None) -> int:
         current = time.time() if now is None else now
         with self._connect() as connection:
@@ -176,6 +239,16 @@ class CapacityLeaseStore:
                 "DELETE FROM capacity_leases WHERE expires_at <= ?", (current,)
             )
         return cursor.rowcount
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 class GpuTenancyStore:

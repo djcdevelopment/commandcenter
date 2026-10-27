@@ -185,11 +185,24 @@ class ExecutionService:
             name.strip() for name in os.environ.get("HEARTH_RECOVERY_SKIP_OPERATIONS", "").split(",")
             if name.strip()
         }
+        def job_is_final(job_id: str) -> bool:
+            job = self.ledger.get_job(job_id)
+            return job is not None and job["status"] in FINAL_JOB_STATUSES
+
+        self.leases.release_stale(job_is_final=job_is_final)
         with self._lock:
             for state in states:
                 if state.get("operation") in skipped_operations:
                     # Keep legacy work visible and queued; do not replay or erase it.
                     continue
+                if (
+                    (state.get("source") or {}).get("adapter") != "bf6-hatchet"
+                    and (state.get("source") or {}).get("execution_mode") != "external"
+                ):
+                    # Any lease this Job holds was taken by the previous process,
+                    # which is gone: drop it before the Job is closed or requeued,
+                    # or it blocks a slot until its TTL (up to the deadline).
+                    self.leases.release_job(state["job_id"])
                 if state.get("operation") == DELIBERATE:
                     # A thinking turn costs up to an hour of a seat and is never replayed: close it
                     # (failed, or cancelled if the caller asked), with the reason on the record.

@@ -74,6 +74,37 @@ class PoolRoutingTests(unittest.TestCase):
         with self.assertRaisesRegex(LocalWorkError, "capacity exhausted"):
             self.submit()
 
+    def test_code_submission_queues_on_preferred_seat_with_all_eight_leases_busy(self):
+        path = self.root / "backends.toml"
+        path.write_text(path.read_text().replace("parallel_slots = 1", "parallel_slots = 8"))
+        (self.root / "routes.toml").write_text(
+            '[lane.deep]\nbackends = ["deep-b", "deep-c"]\n'
+            'code_backends = ["deep-b", "deep-c"]\n')
+        self.attach = [json.dumps({
+            "schema": "local-work-candidate.v1", "artifact_kind": "unified_diff",
+            "summary": "Change second line", "target_path": None,
+            "citations": [{"path": "a.py", "start_line": 1, "end_line": 2}],
+            "content": "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1,2 +1,2 @@\n one\n-two\n+three\n",
+        })]
+        leases = [self.execution.leases.acquire(
+            scope="provider:deep-b", job_id=f"busy-{i}", invocation_id=f"busy-{i}",
+            limit=8, ttl_seconds=60) for i in range(8)]
+        try:
+            manifest = self.submit(brief=None, procedure=None, artifact_kind="unified_diff",
+                                   task_family="code_fix", max_tokens=1536)
+            self.assertEqual(manifest["route"]["provider"], "deep-b")
+            choice = manifest["route"]["backend_choice"]
+            self.assertEqual(choice["considered"], ["deep-b", "deep-c"])
+            self.assertEqual(choice["loads"]["deep-b"]["active_leases"], 8)
+            self.assertEqual(choice["loads"]["deep-c"]["active_leases"], 0)
+            self.assertEqual(self.calls, [])
+        finally:
+            for lease in leases:
+                self.execution.leases.release(lease)
+        final = self.settle(manifest["work_id"])
+        self.assertEqual(final["route"]["provider"], "deep-b")
+        self.assertEqual(final["status"], "awaiting_review")
+
     def test_old_recipe_or_other_backend_evidence_never_qualifies(self):
         self.table({"deep-b": {"all": {"carry": self.CARRY}, "profiles": {"old": {"all": {"carry": self.CARRY}}}}})
         with self.assertRaisesRegex(LocalWorkError, "no qualified delivery procedure"):
@@ -156,14 +187,14 @@ class PoolRoutingTests(unittest.TestCase):
         (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c"]\ncode_backend = "other"\n')
         with self.assertRaisesRegex(LocalWorkError, "code_backend must name one of the lane's backends"):
             self.submit(brief=None, procedure=None, artifact_kind="unified_diff", task_family="code_fix")
-        # Amended 2026-10-15: a list; the pick is the pool's load order, skipping absent seats and short allowances.
+        # Configured priority, skipping absent seats and insufficient output allowances.
         path = self.root / "backends.toml"
         text = path.read_text()
         deep = text[text.index('[[backend]]\nname = "deep-c"'):]
         path.write_text(text + deep.replace('deep-c', 'deep-d').replace('9002', '9003')
                         .replace('max_tokens = 16384', 'max_tokens = 4096'))
         (self.root / "routes.toml").write_text('[lane.deep]\nbackends = ["deep-b", "deep-c", "deep-d"]\n'
-                                               'code_backends = ["deep-b", "deep-c", "deep-d"]\n')
+                                               'code_backends = ["deep-b", "deep-d", "deep-c"]\n')
         busy = self.root / "runs" / "operator" / "work_busy" / "work-manifest.json"
         busy.parent.mkdir(parents=True, exist_ok=True)
         busy.write_text(json.dumps({"status": "running", "route": {"provider": "deep-c"}}))
@@ -362,15 +393,15 @@ class PoolRoutingTests(unittest.TestCase):
             self.assertEqual(choice["by"], "lane_code_backend")
             self.settle(manifest["work_id"])
 
-            # 2. When omen-nemotron-74b has an active assignment, code submission overflows to am4-vllm.
+            # 2. An active assignment must not change the configured code seat priority.
             busy = self.root / "runs" / "operator" / "work_busy_bolt74" / "work-manifest.json"
             busy.parent.mkdir(parents=True, exist_ok=True)
             busy.write_text(json.dumps({"status": "running", "route": {"provider": "omen-nemotron-74b"}}))
             manifest_am4 = None
             try:
                 manifest_am4 = self.submit(max_tokens=4096, **code)
-                self.assertEqual(manifest_am4["route"]["provider"], "am4-vllm")
-                self.assertEqual(manifest_am4["route"]["selected_model"], "am4-dense-27b")
+                self.assertEqual(manifest_am4["route"]["provider"], "omen-nemotron-74b")
+                self.assertEqual(manifest_am4["route"]["selected_model"], "nemotron-3.5-bolt-74b-a9b")
             finally:
                 if manifest_am4 is not None:
                     self.settle(manifest_am4["work_id"])
@@ -391,6 +422,46 @@ class PoolRoutingTests(unittest.TestCase):
             )
             self.assertEqual(picked.name, "omen-nemotron-74b")
             self.assertIn("omen-nemotron-74b", reason)
+
+
+class CodeSeatPriorityTests(unittest.TestCase):
+    """D-seat-roles: mocked live roster and loads; no network or inference."""
+
+    def pick(self, need=1536, busy=0, absent=None):
+        from types import SimpleNamespace
+        names = ["am4-vllm", "omen-nemotron-74b"]
+        providers = {name: SimpleNamespace(
+            retired=False, models=["fixture-model"],
+            settings={"max_tokens": 4096 if name == "am4-vllm" else 16384,
+                      "parallel_slots": 8}) for name in names}
+        pool = SimpleNamespace(by_name=providers.get)
+        loads = {name: {"outstanding_assignments": busy if name == "am4-vllm" else 0,
+                        "active_leases": busy if name == "am4-vllm" else 0}
+                 for name in names}
+        with mock.patch("hearth.localwork.service._absent", side_effect=lambda name:
+                        ("absent" if name == absent else "live", "bolt74-dense27")):
+            return LocalWorkService._code_pick(pool, "deep", names, loads, need, "whole_file", 100)
+
+    def test_both_idle_small_patch_uses_am4(self):
+        backend, choice = self.pick()
+        self.assertEqual(backend, "am4-vllm")
+        self.assertEqual(choice["skipped"], {})
+
+    def test_large_output_skips_am4_with_recorded_reason(self):
+        backend, choice = self.pick(need=4097)
+        self.assertEqual(backend, "omen-nemotron-74b")
+        self.assertIn("declares max_tokens 4096 <", choice["skipped"]["am4-vllm"])
+
+    def test_eight_busy_am4_slots_do_not_spill(self):
+        backend, choice = self.pick(busy=8)
+        self.assertEqual(backend, "am4-vllm")
+        self.assertNotIn("am4-vllm", choice["skipped"])
+
+    def test_absent_preferred_seat_names_configuration_in_skip(self):
+        backend, choice = self.pick(absent="am4-vllm")
+        self.assertEqual(backend, "omen-nemotron-74b")
+        self.assertEqual(choice["skipped"]["am4-vllm"],
+                         "absent under lab configuration 'bolt74-dense27'")
 
 
 if __name__ == "__main__":

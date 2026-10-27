@@ -908,6 +908,40 @@ def _rank_ast_blocks_via_jepa(
     return scores, "symbolic_ast_fallback", round((time.perf_counter() - t0) * 1000.0, 2)
 
 
+_ROUTE_DECORATOR_RE = re.compile(
+    r"""^\s*@\w+(?:\.\w+)*\.(?:get|post|put|patch|delete|head|options|route|api_route|websocket)\(\s*[rbu]?["']([^"']+)["']""",
+    re.I,
+)
+
+
+def _fold_plural(tok: str) -> str:
+    return tok[:-1] if len(tok) > 4 and tok.endswith("s") and not tok.endswith("ss") else tok
+
+
+def _route_match(lines: list, sym: dict, intent: str, q_words: set) -> float:
+    """1.0 when a decorator route path of ``sym`` is quoted in the intent, 0.5 when a path segment
+    word (plural-folded, ``api`` and ``{params}`` ignored) is an intent word, else 0.0."""
+    best = 0.0
+    for ln in range(sym["start"], min(sym["end"], sym["start"] + 8) + 1):
+        line = lines[ln - 1]
+        m = _ROUTE_DECORATOR_RE.match(line)
+        if not m:
+            if line.lstrip().startswith(("def ", "async def ")):
+                break
+            continue
+        path = m.group(1)
+        if len(path) > 1 and path in intent:
+            return 1.0
+        segs = {
+            _fold_plural(w)
+            for seg in path.strip("/").split("/") if seg and not seg.startswith("{")
+            for w in re.split(r"[-_.]", seg.lower()) if len(w) >= 3 and w != "api"
+        }
+        if segs & q_words:
+            best = 0.5
+    return best
+
+
 def _jepa_slice_symbols(fm: FileMap) -> list[dict]:
     """Extract sliceable AST spans with P0 monolithic class (>60 lines) decomposition and
     module-level const_table (ast.Assign / ast.AnnAssign) extraction."""
@@ -1049,6 +1083,8 @@ def render_jepa_ast_sliced_for_model(
     symbols: bool = False,
     max_symbols_per_file: int = 5,
     budget_ratio: float = 0.36,
+    count_consts_against_cap: bool = True,
+    route_boost: float = 0.0,
 ) -> tuple[str, dict]:
     """Render an AST-symbol-sliced SourceMap preserving exact 1-based line numbers for locate().
 
@@ -1056,6 +1092,10 @@ def render_jepa_ast_sliced_for_model(
     lexical/subtoken fallback, decomposes monolithic classes (>60 lines) into class_header + method
     spans, retains module-level const_table assignments, and emits kept spans with exact 1-based line
     numbers and ``# ... [JEPA-AST-SLICE omitted lines X-Y] ...`` markers.
+
+    Opt-in recall levers: route_boost weights matching decorated endpoint paths;
+    count_consts_against_cap=False exempts one-line constants (not data tables)
+    from the symbol cap. Defaults preserve existing ranking and selection.
     """
     import json
 
@@ -1071,6 +1111,8 @@ def render_jepa_ast_sliced_for_model(
     if regime == "FULL_FILE_REQUIRED":
         return full_rendered, {
             "procedure": "jepa_ast_sliced",
+            "route_boost": route_boost,
+            "count_consts_against_cap": count_consts_against_cap,
             "regime": regime,
             "full_bytes": full_bytes,
             "sliced_bytes": full_bytes,
@@ -1158,6 +1200,7 @@ def render_jepa_ast_sliced_for_model(
             total_latency_ms += lat_ms
 
         q_idents_ge4 = [tok for tok in q_idents if len(tok) >= 4]
+        q_words = {_fold_plural(tok) for tok in q_idents}
         ranked_syms = []
         for s in slice_syms:
             lbl = f"{s['name']}:{s['start']}-{s['end']}"
@@ -1173,7 +1216,9 @@ def render_jepa_ast_sliced_for_model(
                 body_text = "\n".join(fm.lines[s["start"] - 1:s["end"]]).lower()
             id_hits = sum(1 for tok in q_idents_ge4 if tok in body_text)
             const_boost = 0.25 if s.get("kind") == "const_table" and id_hits > 0 else 0.0
-            combined_sc = base_sc + 1.5 * exact_name_hit + 0.15 * id_hits + const_boost
+            route_score = (route_boost * _route_match(fm.lines, s, combined_intent, q_words)
+                           if route_boost and s.get("kind") in ("function", "method") else 0.0)
+            combined_sc = base_sc + 1.5 * exact_name_hit + 0.15 * id_hits + const_boost + route_score
             ranked_syms.append((combined_sc, s))
 
         ranked_syms.sort(key=lambda x: (x[0], -x[1]["start"]), reverse=True)
@@ -1186,7 +1231,14 @@ def render_jepa_ast_sliced_for_model(
         used_lines = max(0, header_end)
 
         chosen_sym_names = set()
-        for sc, s in ranked_syms[:max_symbols_per_file]:
+        capped = 0
+        for sc, s in ranked_syms:
+            free = (not count_consts_against_cap and s.get("kind") == "const"
+                    and s["start"] == s["end"])
+            if not free:
+                if capped >= max_symbols_per_file:
+                    continue
+                capped += 1
             class_start = s.get("class_start")
             if isinstance(class_start, int) and 1 <= class_start <= n_lines:
                 if not keep_line_flags[class_start]:
@@ -1232,6 +1284,8 @@ def render_jepa_ast_sliced_for_model(
 
     stats = {
         "procedure": "jepa_ast_sliced",
+        "route_boost": route_boost,
+        "count_consts_against_cap": count_consts_against_cap,
         "regime": regime,
         "full_bytes": full_bytes,
         "sliced_bytes": sliced_bytes,

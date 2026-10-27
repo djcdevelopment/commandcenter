@@ -50,8 +50,17 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
                       brief: dict[str, Any] | None = None,
                       temperature: float | None = None,
                       revise: bool = False,
-                      procedure: str | None = None) -> dict[str, Any]:
+                      procedure: str | None = None,
+                      jepa_pack: bool = False, route_boost: float = 0.0,
+                      count_consts_against_cap: bool = True) -> dict[str, Any]:
     """Submit bounded repository work to a strictly local lane for later review.
+
+    ``jepa_pack=True`` opts non-delivery ``task_family="code_fix"`` candidates into
+    intent-aware JEPA/AST source slicing. Original line numbers and source hashes
+    are retained; prefer ``unified_diff`` for partial source. Recall levers
+    ``route_boost`` (e.g. 2.0) and ``count_consts_against_cap=False`` are explicit
+    and recorded; defaults leave existing code work unsliced. Slice mode/rank
+    fallback and reduction are recorded in ``route.jepa_context_pack``.
 
     ``brief`` (a brief.v2 object, artifact_kind markdown only) makes this a delivery: the model answers a
     delivery-output.v1 schema, the door renders it and stores the delivery.v1 manifest beside the candidate.
@@ -77,7 +86,8 @@ def submit_local_work(intent: str, acceptance_criteria: list[str], repo: str,
         target_path=target_path, lane=lane, task_family=task_family,
         deadline_s=deadline_s, max_tokens=max_tokens, receipt_id=receipt_id,
         idempotency_key=idempotency_key, caller_id=identity.caller_id, brief=brief,
-        temperature=temperature, revise=revise, procedure=procedure)
+        temperature=temperature, revise=revise, procedure=procedure,
+        jepa_pack=jepa_pack, route_boost=route_boost, count_consts_against_cap=count_consts_against_cap)
 
 
 def watch_local_work(work_id: str, after_sequence: int = 0,

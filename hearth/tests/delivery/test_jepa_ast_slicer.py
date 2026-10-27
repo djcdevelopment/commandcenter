@@ -129,6 +129,30 @@ class JepaAstSlicerTests(unittest.TestCase):
                 self.assertEqual(stats_warm["shm_arena_misses"], 0)
                 self.assertEqual(rendered_cold, rendered_warm)
 
+    def test_route_boost_and_free_constants_retain_numbered_handler(self):
+        source = ["from fastapi import FastAPI", "app = FastAPI()"]
+        source += [f"FLAG_{i} = True" for i in range(8)]
+        for i in range(9):
+            source += [f"def filler_{i}():", "    return 0"] + [""] * 9
+        source += ['@app.post("/api/work-orders")', "def create_work_order():", "    return 42"]
+        fm = sourcemap.file_map("app/main.py", ("\n".join(source) + "\n").encode())
+        sm = sourcemap.SourceMap(repo="/tmp/offline", commit="a" * 40, files=[fm])
+        constants_first = lambda state, intent, texts, labels, **kwargs: (
+            {label: (10.0 if label.startswith("FLAG_") else 0.0) for label in labels}, "symbolic_ast_fallback", 0.0)
+        with tempfile.TemporaryDirectory() as arena, mock.patch.dict(os.environ, {"MECHSUIT_AST_ARENA_DIR": arena}), \
+             mock.patch.object(sourcemap, "_classify_regime_via_jepa", return_value=("SLICE_SAFE", 0.0)), \
+             mock.patch.object(sourcemap, "_rank_ast_blocks_via_jepa", side_effect=constants_first):
+            old, _ = sourcemap.render_jepa_ast_sliced_for_model(sm, intent="POST /api/work-orders", max_symbols_per_file=1)
+            self.assertNotIn("def create_work_order", old)
+            rendered, stats = sourcemap.render_jepa_ast_sliced_for_model(sm, intent="POST /api/work-orders",
+                max_symbols_per_file=1, route_boost=2.0, count_consts_against_cap=False)
+        self.assertIn("def create_work_order", rendered)
+        self.assertIn("FLAG_7 = True", rendered)
+        line = source.index("def create_work_order():") + 1
+        self.assertIn(f"{line:03d}| def create_work_order():", rendered)
+        self.assertEqual(stats["route_boost"], 2.0)
+        self.assertFalse(stats["count_consts_against_cap"])
+
     def test_whole_file_guard_bypasses_aggressive_slicing(self) -> None:
         rendered, stats = sourcemap.render_jepa_ast_sliced_for_model(
             self.smap,

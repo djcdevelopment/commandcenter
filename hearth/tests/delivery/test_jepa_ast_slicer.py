@@ -147,11 +147,50 @@ class JepaAstSlicerTests(unittest.TestCase):
             rendered, stats = sourcemap.render_jepa_ast_sliced_for_model(sm, intent="POST /api/work-orders",
                 max_symbols_per_file=1, route_boost=2.0, count_consts_against_cap=False)
         self.assertIn("def create_work_order", rendered)
-        self.assertIn("FLAG_7 = True", rendered)
+        self.assertNotIn("FLAG_7 = True", rendered)
         line = source.index("def create_work_order():") + 1
         self.assertIn(f"{line:03d}| def create_work_order():", rendered)
         self.assertEqual(stats["route_boost"], 2.0)
         self.assertFalse(stats["count_consts_against_cap"])
+
+    def _route_packet(self, source, intent, **options):
+        fm = sourcemap.file_map("app/main.py", source.encode())
+        sm = sourcemap.SourceMap(repo="/tmp/offline", commit="a" * 40, files=[fm])
+        with mock.patch.object(sourcemap, "_classify_regime_via_jepa", return_value=("SLICE_SAFE", 0.0)), \
+             mock.patch.object(sourcemap, "_rank_ast_blocks_via_jepa", return_value=({}, "offline", 0.0)):
+            return sourcemap.render_jepa_ast_sliced_for_model(sm, intent=intent, **options)
+
+    def test_opt_in_keeps_whole_target_beyond_56_lines(self):
+        source = 'from fastapi import FastAPI\napp = FastAPI()\n@app.get("/target")\ndef target():\n'
+        source += ''.join(f'    value_{i} = {i}\n' for i in range(95)) + '    return value_94\n'
+        default, _ = self._route_packet(source, "GET /target")
+        packet, _ = self._route_packet(source, "GET /target", route_boost=2.0)
+        self.assertNotIn('return value_94', default)
+        self.assertIn('100|     return value_94', packet)
+        self.assertNotIn('omitted', packet)
+
+    def test_opt_in_missing_route_has_import_app_registration_neighbor(self):
+        source = 'from fastapi import FastAPI\n' + '\n' * 30
+        source += 'app = FastAPI(\n    title="test"\n)\n@app.get("/existing")\ndef existing():\n    return {"ok": True}\n' + '\n' * 90
+        default, _ = self._route_packet(source, "GET /missing")
+        packet, stats = self._route_packet(source, "GET /missing", route_boost=2.0)
+        self.assertNotIn('app = FastAPI(', default)
+        for text in ('from fastapi import FastAPI', 'app = FastAPI(', 'title="test"', '@app.get("/existing")', 'return {"ok": True}'):
+            self.assertIn(text, packet)
+        self.assertEqual(stats['route_bundles']['app/main.py']['missing'], [['get', '/missing']])
+
+    def test_opt_in_budget_selects_whole_dependencies_not_unrelated_bundle(self):
+        source = 'from fastapi import FastAPI\napp = FastAPI()\n'
+        source += 'HUGE = "' + 'x' * 10000 + '"\n'
+        source += 'SMALL = 42\n@app.get("/target")\ndef target():\n    return SMALL, HUGE\n'
+        source += ''.join(f'def unrelated_{i}():\n    return {i}\n' for i in range(60))
+        packet, stats = self._route_packet(source, "GET /target", route_boost=2.0, count_consts_against_cap=False)
+        self.assertIn('return SMALL, HUGE', packet)
+        self.assertIn('SMALL = 42', packet)
+        self.assertNotIn('HUGE =', packet)
+        self.assertNotIn('def unrelated_', packet)
+        self.assertLessEqual(len(packet) / 3.3, 2500)
+        self.assertEqual(stats['route_bundles']['app/main.py']['deferred_dependencies'], ['HUGE'])
 
     def test_whole_file_guard_bypasses_aggressive_slicing(self) -> None:
         rendered, stats = sourcemap.render_jepa_ast_sliced_for_model(

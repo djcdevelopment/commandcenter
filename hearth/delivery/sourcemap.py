@@ -668,34 +668,12 @@ def _post_18097_json(path: str, payload: dict, timeout_s: float) -> dict:
     raise RuntimeError("unreachable")
 
 
-# :18097 /classify_regime answers ``slicing_mode`` ("full" | "jepa_ast_sliced"); older callers and
-# test doubles answer ``regime`` directly. Bump REGIME_CACHE_VERSION whenever the mapping changes so
-# /dev/shm entries written under an older mapping (v1 cached every daemon "full" as SLICE_SAFE) are
-# never read back.
-REGIME_CACHE_VERSION = "regime.v2"
-_SLICING_MODE_TO_REGIME = {"full": "FULL_FILE_REQUIRED", "jepa_ast_sliced": "SLICE_SAFE"}
-_KNOWN_REGIMES = ("FULL_FILE_REQUIRED", "SLICE_SAFE")
-
-
-def _regime_from_daemon_body(body: dict) -> str:
-    """Map a /classify_regime body to a regime; unknown or missing values read as SLICE_SAFE."""
-    reg = str(body.get("regime") or "").strip().upper()
-    if reg in _KNOWN_REGIMES:
-        return reg
-    mode = str(body.get("slicing_mode") or "").strip().lower()
-    return _SLICING_MODE_TO_REGIME.get(mode, "SLICE_SAFE")
-
-
 def _classify_regime_via_jepa(
     intent_text: str,
     file_paths: list[str],
     timeout_s: float = 0.05,
 ) -> tuple[str, float]:
-    """Query resident :18097 /classify_regime (0.05s timeout, cached in /dev/shm) or fallback deterministically.
-
-    ``file_paths`` should be absolute where possible: the daemon opens them to match AST symbols
-    named in the intent, and a path it cannot open leaves it at its conservative ``full`` default.
-    """
+    """Query resident :18097 /classify_regime (0.05s timeout, cached in /dev/shm) or fallback deterministically."""
     import json
     import os
     import threading
@@ -706,7 +684,7 @@ def _classify_regime_via_jepa(
         return "FULL_FILE_REQUIRED", round((time.perf_counter() - t0) * 1000.0, 2)
     arena = _shm_arena_dir()
     reg_sig = hashlib.sha256(
-        f"{SHM_AST_ARENA_SCHEMA}:{REGIME_CACHE_VERSION}:{intent_text}:{','.join(file_paths)}".encode("utf-8", errors="ignore")
+        f"{SHM_AST_ARENA_SCHEMA}:regime:{intent_text}:{','.join(file_paths)}".encode("utf-8", errors="ignore")
     ).hexdigest()[:24]
     reg_cache_path = arena / f"sourcemap_regime_{reg_sig}.json"
     mem_key = (str(arena), reg_sig)
@@ -716,7 +694,7 @@ def _classify_regime_via_jepa(
             if mem_hit is not None:
                 return mem_hit, round((time.perf_counter() - t0) * 1000.0, 2)
             cached = json.loads(reg_cache_path.read_text(encoding="utf-8"))
-            regime = _regime_from_daemon_body(cached)
+            regime = str(cached.get("regime") or "SLICE_SAFE")
             _SHM_REGIME_MEM_CACHE[mem_key] = regime
             return regime, round((time.perf_counter() - t0) * 1000.0, 2)
     except Exception:
@@ -724,16 +702,12 @@ def _classify_regime_via_jepa(
     try:
         payload = {"intent": intent_text, "files": file_paths}
         body = _post_18097_json("/classify_regime", payload, timeout_s)
-        regime = _regime_from_daemon_body(body)
+        regime = str(body.get("regime") or "SLICE_SAFE")
         _SHM_REGIME_MEM_CACHE[mem_key] = regime
         try:
             arena.mkdir(parents=True, exist_ok=True)
             tmp_rg = arena / f".tmp.rg.{os.getpid()}.{threading.get_ident()}.json"
-            tmp_rg.write_text(
-                json.dumps({"regime": regime, "slicing_mode": body.get("slicing_mode"),
-                            "reason": body.get("reason"), "version": REGIME_CACHE_VERSION}),
-                encoding="utf-8",
-            )
+            tmp_rg.write_text(json.dumps({"regime": regime}), encoding="utf-8")
             os.replace(tmp_rg, reg_cache_path)
         except Exception:
             pass
@@ -934,40 +908,6 @@ def _rank_ast_blocks_via_jepa(
     return scores, "symbolic_ast_fallback", round((time.perf_counter() - t0) * 1000.0, 2)
 
 
-_ROUTE_DECORATOR_RE = re.compile(
-    r"""^\s*@\w+(?:\.\w+)*\.(?:get|post|put|patch|delete|head|options|route|api_route|websocket)\(\s*[rbu]?["']([^"']+)["']""",
-    re.I,
-)
-
-
-def _fold_plural(tok: str) -> str:
-    return tok[:-1] if len(tok) > 4 and tok.endswith("s") and not tok.endswith("ss") else tok
-
-
-def _route_match(lines: list, sym: dict, intent: str, q_words: set) -> float:
-    """1.0 when a decorator route path of ``sym`` is quoted in the intent, 0.5 when a path segment
-    word (plural-folded, ``api`` and ``{params}`` ignored) is an intent word, else 0.0."""
-    best = 0.0
-    for ln in range(sym["start"], min(sym["end"], sym["start"] + 8) + 1):
-        line = lines[ln - 1]
-        m = _ROUTE_DECORATOR_RE.match(line)
-        if not m:
-            if line.lstrip().startswith(("def ", "async def ")):
-                break
-            continue
-        path = m.group(1)
-        if len(path) > 1 and path in intent:
-            return 1.0
-        segs = {
-            _fold_plural(w)
-            for seg in path.strip("/").split("/") if seg and not seg.startswith("{")
-            for w in re.split(r"[-_.]", seg.lower()) if len(w) >= 3 and w != "api"
-        }
-        if segs & q_words:
-            best = 0.5
-    return best
-
-
 def _jepa_slice_symbols(fm: FileMap) -> list[dict]:
     """Extract sliceable AST spans with P0 monolithic class (>60 lines) decomposition and
     module-level const_table (ast.Assign / ast.AnnAssign) extraction."""
@@ -1109,8 +1049,6 @@ def render_jepa_ast_sliced_for_model(
     symbols: bool = False,
     max_symbols_per_file: int = 5,
     budget_ratio: float = 0.36,
-    count_consts_against_cap: bool = True,
-    route_boost: float = 0.0,
 ) -> tuple[str, dict]:
     """Render an AST-symbol-sliced SourceMap preserving exact 1-based line numbers for locate().
 
@@ -1118,11 +1056,6 @@ def render_jepa_ast_sliced_for_model(
     lexical/subtoken fallback, decomposes monolithic classes (>60 lines) into class_header + method
     spans, retains module-level const_table assignments, and emits kept spans with exact 1-based line
     numbers and ``# ... [JEPA-AST-SLICE omitted lines X-Y] ...`` markers.
-
-    ``count_consts_against_cap=False`` lets one-line ``const`` assignments ride free of
-    ``max_symbols_per_file`` (they still cost lines). ``route_boost`` adds to a web route handler
-    (``@app.get("/api/x")``-style decorator) whose path is quoted in the intent (full boost) or whose
-    path segments share a word with the intent (half boost, plural-folded).
     """
     import json
 
@@ -1132,15 +1065,8 @@ def render_jepa_ast_sliced_for_model(
     combined_intent = f"{intent}\n{brief_str}".strip()
     q_idents = _subtokens(combined_intent)
 
-    import os as _os
-
-    def _abs_for_daemon(p: str) -> str:
-        if _os.path.isabs(p) or not sm.repo:
-            return p
-        return _os.path.join(sm.repo, p)
-
     regime, regime_lat_ms = _classify_regime_via_jepa(
-        combined_intent, [_abs_for_daemon(fm.path) for fm in sm.files], timeout_s=0.05
+        combined_intent, [fm.path for fm in sm.files], timeout_s=0.05
     )
     if regime == "FULL_FILE_REQUIRED":
         return full_rendered, {
@@ -1232,7 +1158,6 @@ def render_jepa_ast_sliced_for_model(
             total_latency_ms += lat_ms
 
         q_idents_ge4 = [tok for tok in q_idents if len(tok) >= 4]
-        q_words = {_fold_plural(t) for t in q_idents}
         ranked_syms = []
         for s in slice_syms:
             lbl = f"{s['name']}:{s['start']}-{s['end']}"
@@ -1248,10 +1173,7 @@ def render_jepa_ast_sliced_for_model(
                 body_text = "\n".join(fm.lines[s["start"] - 1:s["end"]]).lower()
             id_hits = sum(1 for tok in q_idents_ge4 if tok in body_text)
             const_boost = 0.25 if s.get("kind") == "const_table" and id_hits > 0 else 0.0
-            r_boost = 0.0
-            if route_boost and s.get("kind") in ("function", "method"):
-                r_boost = route_boost * _route_match(fm.lines, s, combined_intent, q_words)
-            combined_sc = base_sc + 1.5 * exact_name_hit + 0.15 * id_hits + const_boost + r_boost
+            combined_sc = base_sc + 1.5 * exact_name_hit + 0.15 * id_hits + const_boost
             ranked_syms.append((combined_sc, s))
 
         ranked_syms.sort(key=lambda x: (x[0], -x[1]["start"]), reverse=True)
@@ -1264,16 +1186,7 @@ def render_jepa_ast_sliced_for_model(
         used_lines = max(0, header_end)
 
         chosen_sym_names = set()
-        capped = 0
-        chosen_syms = []
-        for sc, s in ranked_syms:
-            free = (not count_consts_against_cap and s.get("kind") == "const" and s["end"] == s["start"])
-            if not free:
-                if capped >= max_symbols_per_file:
-                    break
-                capped += 1
-            chosen_syms.append((sc, s))
-        for sc, s in chosen_syms:
+        for sc, s in ranked_syms[:max_symbols_per_file]:
             class_start = s.get("class_start")
             if isinstance(class_start, int) and 1 <= class_start <= n_lines:
                 if not keep_line_flags[class_start]:

@@ -511,6 +511,12 @@ def _post(url: str, payload: dict, timeout_s: int,
         return None, f"non-JSON response: {exc}"
 
 
+def _closed_early(started: float, text: list[str], reasoning: list[str]) -> str:
+    """The message for a stream the upstream ended without a final chunk or ``[DONE]``."""
+    return (f"upstream closed the stream after {time.monotonic() - started:.1f} s without a final chunk "
+            f"(partial output: {sum(map(len, text))} chars, reasoning: {sum(map(len, reasoning))} chars)")
+
+
 def _post_stream(url: str, payload: dict, timeout_s: int,
                  headers: Optional[dict] = None,
                  should_stop: Optional[Callable[[], bool]] = None) -> dict:
@@ -562,7 +568,12 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
                     err = ("stream_deadline_exceeded", f"wall clock passed timeout_s={timeout_s}")
                     break
                 if sock is not None:
-                    sock.settimeout(left)
+                    try:
+                        sock.settimeout(left)
+                    except OSError:
+                        # The upstream closed the connection (EBADF on a released socket): the
+                        # stream is over; finish the buffered lines and report the close below.
+                        sock = None
                 line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
                 if line.startswith("data:"):
                     event.append(line[5:].lstrip(" "))   # SSE: an event's data lines join with "\n"
@@ -601,6 +612,9 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
         late = isinstance(exc, TimeoutError) or time.monotonic() - started >= timeout_s
         err = ("stream_deadline_exceeded" if late else "stream_interrupted",
                f"{type(exc).__name__}: {exc}")
+        if not late and got["chunks"] and isinstance(exc, (ConnectionError, OSError)) \
+                and not isinstance(exc, (TimeoutError, urllib.error.URLError)):
+            err = ("stream_interrupted", f"{_closed_early(started, text, reasoning)} ({type(exc).__name__}: {exc})")
         if (got["chunks"] == 0 and not late and not stopped.is_set()
                 and not isinstance(exc, (json.JSONDecodeError, http.client.HTTPException))):
             err = ("", f"{type(exc).__name__}: {exc}")
@@ -611,8 +625,9 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
     got["text"], got["reasoning"] = "".join(text), "".join(reasoning)
     got["duration_ms"] = round((time.monotonic() - started) * 1000)
     if err is None and not (got["finish_reason"] and (done or got["usage"])):
-        err = ("stream_interrupted", "stream ended without a final chunk "
-               f"(finish_reason={got['finish_reason']!r}, usage={'yes' if got['usage'] else 'no'})")
+        err = ("stream_interrupted", f"{_closed_early(started, text, reasoning)}; "
+               f"finish_reason={got['finish_reason']!r}, usage={'yes' if got['usage'] else 'no'}, "
+               f"chunks={got['chunks']}")
     if err is not None:
         got["error_code"], got["error"] = err
     return got

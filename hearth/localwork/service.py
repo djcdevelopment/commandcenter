@@ -317,7 +317,7 @@ class LocalWorkService:
         """Backends this submission may land on: (names, pooled, choice); choice None means the pool decides.
 
         For code work on a pooled lane the names are the lane's code backends and ``pooled`` is False: ``submit``
-        orders them by load and ``_code_pick`` keeps one (ADR-0066 amended 2026-10-15; no pooled claim, ADR-0062)."""
+        preserves their configured priority and ``_code_pick`` keeps one (ADR-0066 amended 2026-10-15; no pooled claim, ADR-0062)."""
         configured = route_sets[lane]
         names = configured if isinstance(configured, list) else [configured]
         if existing is not None:
@@ -333,7 +333,7 @@ class LocalWorkService:
     @staticmethod
     def _code_pick(pool: Any, lane: str, ordered: list[str], loads: Mapping[str, Mapping[str, int]],
                    max_tokens: Optional[int], artifact_kind: str, source_tokens: int) -> tuple[str, dict[str, Any]]:
-        """ADR-0066 (amended): the first of ``ordered`` (already sorted by the pool's load key) that is not absent
+        """ADR-0066 (amended): the first of ``ordered`` (configured priority, independent of load) that is not absent
         under the active lab configuration, is in the pool, and declares an ordinary output allowance that covers the
         submission's output need. The need is the caller's ``max_tokens``; without one it is estimated from the packed
         source: whole_file min(16384, max(1024, round(1.5 x source) + 512)), otherwise min(8192, max(1024, source + 512))."""
@@ -350,7 +350,6 @@ class LocalWorkService:
             need, rule = min(8192, max(1024, source_tokens + 512)), "diff_estimate"
         skipped: dict[str, str] = {}
         chosen = None
-        fallback_full = None
         for name in ordered:
             status, configuration = _absent(name)
             if status == "absent":
@@ -361,20 +360,10 @@ class LocalWorkService:
                 skipped[name] = (f"declares max_tokens {declared[name]} < the submission's "
                                  f"{'max_tokens' if max_tokens is not None else 'estimated output need'} {need} ({rule})")
             else:
-                provider = pool.by_name(name)
-                slots = int((provider.settings.get("parallel_slots") if provider else 1) or 1)
-                busy = max(loads.get(name, {}).get("outstanding_assignments", 0),
-                           loads.get(name, {}).get("active_leases", 0))
-                if busy >= slots:
-                    if fallback_full is None:
-                        fallback_full = name
-                    skipped[name] = f"capacity exhausted ({busy}/{slots} slots in use)"
-                    continue
+                # Pin the first eligible seat even when full. ExecutionService's provider
+                # lease loop queues this assignment until capacity or its deadline.
                 chosen = name
                 break
-        if chosen is None and fallback_full is not None:
-            chosen = fallback_full
-            skipped.pop(chosen, None)
         if chosen is None:
             raise LocalWorkError(f"no eligible code backend in lane {lane!r}: {skipped}")
         choice = {"by": "lane_code_backend", "backend": chosen, "considered": list(ordered),
@@ -714,7 +703,10 @@ class LocalWorkService:
         loads = {name: {"outstanding_assignments": outstanding[name],
                         "active_leases": self.execution.leases.active_count(f"provider:{name}"),
                         "configured_order": index} for index, name in enumerate(names)}
-        names = sorted(names, key=lambda n: tuple(loads[n].values()))
+        # Code backend order expresses seat roles, not a load-balancing preference.
+        # Delivery pools retain their least-loaded routing.
+        if backend_choice is None or backend_choice.get("by") != "lane_code_backend":
+            names = sorted(names, key=lambda n: tuple(loads[n].values()))
         if backend_choice is not None and backend_choice.get("by") == "lane_code_backend":
             # No exact tokenizer has run yet (it is per provider); the packed source's bytes // 4 is the estimate.
             chosen, backend_choice = self._code_pick(pool, selected_lane, names, loads, max_tokens, artifact_kind,

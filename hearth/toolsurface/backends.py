@@ -644,12 +644,20 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
             log.warning("default %s absent under %s; fallback %s (wanted %s)",
                         default.name, d_cfg, candidate.name, wanted)
             occ = dict(_occ(candidate.name))
+            if occ.get("exclusive"):
+                continue
             occ["fallback_from"] = default.name
             return candidate, f"absent_fallback:{default.name}->{candidate.name}", occ
         raise BackendConfigError(
             f"default {default.name!r} absent under configuration {d_cfg} and no live default_fallback fits")
 
     occ = _occ(default.name)
+    if occ.get("exclusive"):
+        raise BackendConfigError(
+            "default backend %r unavailable during exclusive GPU tenancy [%s]: %s" %
+            (default.name, occ.get("exclusive_reason") or "unspecified",
+             occ.get("detail") or "resource owned elsewhere")
+        )
     if tag_lane_absent and wanted:
         try:
             from hearth.execution.lab_config import get_active_configuration_name

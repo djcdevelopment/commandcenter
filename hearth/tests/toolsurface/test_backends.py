@@ -240,6 +240,13 @@ class OccupancySkipTests(TestCase):
             select_backend(self.pool, backend="omen-ollama", occupancy_check=occ_check)
         self.assertIn("exclusive GPU tenancy", str(context.exception))
 
+    def test_exclusive_gpu_tenancy_blocks_unpinned_default(self) -> None:
+        def occ_check(name: str) -> dict:
+            return {"occupancy": "busy", "exclusive": True,
+                    "exclusive_reason": "experiment_session_active"} if name == "omen-ollama" else {"occupancy": "busy"}
+        with self.assertRaisesRegex(BackendConfigError, "experiment_session_active"):
+            select_backend(self.pool, task="unmatched", occupancy_check=occ_check)
+
     def test_a_probe_failure_is_named_distinctly_from_a_real_image_session(self) -> None:
         """Both fail closed. They need different fixes, so the error must say which.
 

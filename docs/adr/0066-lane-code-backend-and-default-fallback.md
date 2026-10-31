@@ -75,3 +75,26 @@ Operator direction: all GPUs are available; code work runs in parallel on both B
   (`whole_file_estimate`), other kinds min(8192, max(1024, source + 512)) (`diff_estimate`). A small
   file therefore fits AM4; a large whole-file rewrite does not. (First cut, superseded the same day:
   the largest listed allowance, 16,384, which shut AM4 out of every default-budget submission.)
+
+## Operational evidence, 2026-10-31 (R&D; no decision change)
+
+An OmniView training window kept HEARTH online while the two B70 model services
+were temporarily stopped. The first live `plan_execution` check still reported
+`omen-dense-27b` available under an active experiment fence. The cause was
+specific: `ExecutionService._select_for_route` did not pass an occupancy check
+to `select_backend`; B70 aliases also lacked an uncached ownership check. The
+deployed repairs are `b895339` (exclusive default refusal), `8aa3ddc` (B70
+tenancy before occupancy cache) and `5eba01f` (occupancy at admission and
+dispatch). These do not change the configured default-fallback order or grant
+qualification to another model.
+
+A later fence-only live plan refused a pinned B70 route with
+`experiment_session_active`, kept HEARTH healthy, and planned explicitly selected
+`am4-vllm`. No AM4 model request was made for this check. The completed short
+window left HEARTH online and restored both original B70 model identities.
+Restoration ranged from 34.276 to 247.865 seconds across four owned windows;
+the long case involved desktop VRAM pressure on seat 1. This is **exclusive
+training-window evidence**, not an ADR for unattended idle training. The queue
+remains unarmed until interruption and restoration are predictable under normal
+desktop load. Full receipts are in
+`/home/derek/work/listing/experiments/omniview_controller_campaign_v1/idle_queue/`.

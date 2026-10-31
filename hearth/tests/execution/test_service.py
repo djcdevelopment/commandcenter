@@ -115,6 +115,17 @@ class _ServiceFixture(unittest.TestCase):
 
 
 class ExecutionServiceTest(_ServiceFixture):
+    def test_exclusive_occupancy_refuses_before_job_is_recorded(self) -> None:
+        service = self.service(lambda **kwargs: self.fail("must not dispatch"))
+        with patch("hearth.toolsurface.occupancy.check_occupancy", return_value={
+            "occupancy": "busy", "exclusive": True,
+            "exclusive_reason": "experiment_session_active"}):
+            with self.assertRaisesRegex(ExecutionServiceError, "experiment_session_active"):
+                service.submit(operation_name="llm.chat", arguments={
+                    "prompt": "review this", "backend": "test-provider"},
+                               principal=self.principal, source=self.source)
+        self.assertEqual([], service.events(limit=10))
+
     def test_success_records_lifecycle_invocation_and_full_result_artifact(self) -> None:
         calls = []
 

@@ -780,6 +780,7 @@ class ExecutionService:
         inside ``select_backend`` -- the same precedence the door applies.
         """
         try:
+            from hearth.toolsurface.occupancy import check_occupancy
             return select_backend(
                 pool,
                 backend=route.backend,
@@ -787,6 +788,7 @@ class ExecutionService:
                 tags=route.tags,
                 payload_bytes=payload_bytes,
                 max_tokens=max_tokens if max_tokens is not None else route.admission_max_tokens,
+                occupancy_check=check_occupancy,
             )
         except BackendConfigError as exc:
             raise ExecutionServiceError(route.refusal(exc)) from exc

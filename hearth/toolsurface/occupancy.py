@@ -59,6 +59,10 @@ Occupancy = Literal["available", "busy", "unknown"]
 SSH_USER_HOST = "derek@192.168.12.233"  # LAN, not tailnet (ADR-0014)
 SSH_TIMEOUT_S = 8
 CACHE_TTL_S = 30.0
+B70_POOL_BACKENDS = frozenset({
+    "omen-arc", "omen-swap", "omen-vllm", "omen-dense-27b",
+    "omen-dense-27b-b", "omen-nemotron-74b",
+})
 
 # Same detection rule as am4-fleet-node/scripts/am4-mcp-server.py:render_busy() —
 # any of these process names holding a render node means the B70s are owned by
@@ -700,6 +704,12 @@ def check_occupancy(backend_name: str, cache: Optional[OccupancyCache] = None,
     — resolves the registry per key, so ``acquire_lease``/``Lease.renew`` reach
     the same probe a direct call does.
     """
+    # A cached "available" result must never outlive the B70 tenancy fence.
+    # Check ownership on every route, including aliases without ordinary probes.
+    if backend_name in B70_POOL_BACKENDS:
+        fence = _tenancy_fence()
+        if fence is not None:
+            return fence
     if probe is None and _PROBES.get(backend_name) is None:
         return {"occupancy": "available", "detail": _NO_PROBE_DETAIL}
     return (cache or default_cache()).get(backend_name, probe=probe)

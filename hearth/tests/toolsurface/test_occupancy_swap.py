@@ -5,7 +5,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from hearth.toolsurface.occupancy import _PROBES, probe_omen_swap
+from hearth.toolsurface.occupancy import _PROBES, check_occupancy, probe_omen_swap
 
 
 def _no_session():
@@ -14,6 +14,16 @@ def _no_session():
 
 
 class ProbeOmenSwapTests(unittest.TestCase):
+    def test_b70_aliases_read_fence_before_cached_availability(self) -> None:
+        session = SimpleNamespace(session_id="exp", epoch=4, state="training", owner="experiment")
+        cache = SimpleNamespace(get=lambda *args, **kwargs: self.fail("stale cache read"))
+        with patch("hearth.execution.coordination.GpuTenancyStore",
+                   lambda: SimpleNamespace(active_owner=lambda resource: session)):
+            for name in ("omen-vllm", "omen-dense-27b", "omen-dense-27b-b",
+                         "omen-nemotron-74b", "omen-arc", "omen-swap"):
+                self.assertEqual(check_occupancy(name, cache=cache)["exclusive_reason"],
+                                 "experiment_session_active")
+
     def test_experiment_owner_blocks_all_rotation_http(self) -> None:
         session = SimpleNamespace(session_id="exp", epoch=4, state="experiment", owner="experiment")
         with patch("hearth.execution.coordination.GpuTenancyStore",

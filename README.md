@@ -1,6 +1,6 @@
 # commandcenter — the Local Compute Operator control plane
 
-Lab purpose (canonical): ~/work/lab/LAB-INTENT.md
+Lab purpose: maintained in the operator's private lab notes, outside this repository.
 
 **Read [`START-HERE.md`](START-HERE.md) first.** It is the entry contract: the
 eight entry steps, the exact commands, how identity works, the status
@@ -61,8 +61,7 @@ own. Everything the CLI can do, the door can do through the same core functions:
 
 See `START-HERE.md` for the full list. In short: one writer per mutable surface,
 your own worktree and branch, never hand-edit a generated file, run the tests
-with `~/.venvs/hearth-private/bin/python`, and cite by exact local
-path.
+with the project's virtual environment, and cite by exact path.
 
 ## Amux local delivery
 

@@ -36,3 +36,6 @@ CURRENT.json
 
 # Mutable local-work admission coordination, outside immutable run records
 /local-work-admission.sqlite*
+
+# Per-machine Claude Code permissions; never tracked
+.claude/settings.local.json

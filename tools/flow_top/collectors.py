@@ -21,9 +21,11 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import socket
+import subprocess
 import threading
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -63,6 +65,8 @@ HEARTH_HEALTH_URL = "http://127.0.0.1:8710/health"
 JEPA_HEALTH_URL = "http://127.0.0.1:18097/health"
 
 UNAVAILABLE_NOTE = "Collector unavailable (simulated fault or endpoint unreachable)"
+READINESS_ROOT = Path("/home/derek/work/worktrees/washplant-self-build-readiness")
+READINESS_PYTHON = "/home/derek/.venvs/hearth-private/bin/python"
 
 _CACHE_LOCK = threading.Lock()
 _JSON_CACHE: Dict[str, Tuple[int, int, Any]] = {}
@@ -2253,6 +2257,71 @@ def collect_correlated_tasks(
 # ---------------------------------------------------------------------------
 
 
+def collect_functional_readiness(manifest_path: str) -> List[ServiceAvailability]:
+    """Run the checker's shared read-only probes; never start or repair services.
+
+    Probe errors remain visible. In particular, a socket or an old cached receipt
+    cannot replace fresh functional evidence from this invocation.
+    """
+    try:
+        manifest = Path(manifest_path).resolve()
+        if (not Path(manifest_path).is_absolute() or not manifest.is_file()
+                or manifest.suffix != ".json"
+                or not manifest.is_relative_to(READINESS_ROOT / "readiness")):
+            raise ValueError("readiness manifest must be a task-owned JSON file")
+        result = subprocess.run(
+            [READINESS_PYTHON, str(READINESS_ROOT / "tools/self_build_probes.py"),
+             "--manifest", str(manifest)],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        if result.returncode or len(result.stdout) > 1_000_000:
+            raise ValueError("functional probe did not return bounded evidence")
+        doc = json.loads(result.stdout)
+        if doc.get("schema") != "washplant.functional-readiness.v1":
+            raise ValueError("unsupported functional evidence schema")
+        observed = datetime.fromisoformat(doc["observed_at"].replace("Z", "+00:00"))
+        if observed.tzinfo is None:
+            raise ValueError("functional observation has no timezone")
+        age = time.time() - observed.timestamp()
+        rows = doc.get("services")
+        if not isinstance(rows, list) or not rows:
+            raise ValueError("functional evidence has no service rows")
+        services = []
+        seen = set()
+        for raw in rows:
+            row = ServiceAvailability.from_dict(raw)
+            if not row.service_id or row.service_id in seen:
+                raise ValueError("functional evidence has duplicate or missing identities")
+            seen.add(row.service_id)
+            row_age = row.obs_age_s
+            valid_age = type(row_age) in (int, float) and math.isfinite(row_age) and row_age >= 0
+            row.obs_age_s = max(age, row_age) if valid_age else None
+            if age < 0 or row.obs_age_s is None or not 0 <= row.obs_age_s <= 60:
+                row.state = "stale"
+                row.functional_check_passed = False
+                row.detail += "; functional evidence stale, missing, or future-dated"
+            elif not row.readiness_scope or not row.functional_check_source:
+                row.state = "unknown"
+                row.functional_check_passed = False
+                row.detail += "; functional evidence has no bound scope/source"
+            elif row.functional_check_passed is not True:
+                row.state = "unavailable"
+            elif row.state not in ("active", "idle"):
+                row.functional_check_passed = False
+            services.append(row)
+        return services
+    except (OSError, ValueError, TypeError, KeyError, subprocess.TimeoutExpired) as exc:
+        # External stderr/exception messages may contain protected connection
+        # details; report the class, never dump them into the dashboard.
+        return [ServiceAvailability(
+            service_id="readiness_probe", name="Washplant functional readiness",
+            host_endpoint="task-scoped manifest", state="unavailable",
+            detail=f"Read-only readiness collection unavailable ({type(exc).__name__})",
+            source=str(READINESS_ROOT / "tools/self_build_probes.py"),
+            obs_age_s=0.0, functional_check_passed=False,
+        )]
+
+
 def collect_services_availability(
     service_bus: ServiceBusPanel,
     ontology: OntologyPanel,
@@ -2568,6 +2637,14 @@ def collect_flow_snapshot(
         sim_set=sim_set,
         timeout_s=min(1.0, timeout_s),
     )
+    readiness_manifest = os.environ.get("WASHPLANT_READINESS_MANIFEST", "").strip()
+    if readiness_manifest:
+        services = collect_functional_readiness(readiness_manifest)
+        if sim_set:
+            for service in services:
+                service.state = "unavailable"
+                service.functional_check_passed = False
+                service.detail += "; simulated view cannot establish readiness"
 
     online_svc = sum(1 for s in services if s.state in ("active", "idle"))
     unavail_svc = [s.service_id for s in services if s.state == "unavailable"]
@@ -2581,7 +2658,13 @@ def collect_flow_snapshot(
         overall_state = "idle"
 
     # Question 1: What is available?
-    if unavail_svc:
+    if readiness_manifest:
+        passed = sum(s.functional_check_passed is True for s in services)
+        headline_available = (
+            f"Washplant readiness: {passed}/{len(services)} functional checks passed "
+            f"(run-scoped; no inference or service changes)"
+        )
+    elif unavail_svc:
         headline_available = (
             f"{online_svc}/{len(services)} services available "
             f"(unavailable: {', '.join(unavail_svc)}; other panels updating normally)"
@@ -2652,7 +2735,7 @@ def collect_flow_snapshot(
         simulated_unavailable=sorted(sim_set),
     )
 
-    if not sim_set and runs_dir is None:
+    if not sim_set and runs_dir is None and not readiness_manifest:
         save_flow_snapshot_cache(snapshot)
 
     return snapshot

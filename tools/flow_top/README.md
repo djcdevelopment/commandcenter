@@ -83,6 +83,34 @@ Target dimensions for `overview`: **120 columns × 33–36 lines** (adapting cle
 
 ## 4. How to Extend `flow-top`
 
+### Run-scoped functional readiness
+
+Set `WASHPLANT_READINESS_MANIFEST` to an absolute JSON manifest under
+`/home/derek/work/worktrees/washplant-self-build-readiness/readiness/` to display
+only that run's required service/provider rows in the services view:
+
+```bash
+WASHPLANT_READINESS_MANIFEST=/home/derek/work/worktrees/washplant-self-build-readiness/readiness/self-build-readiness.json \
+  flow-top --view services --render --color --width 156
+```
+
+Without this variable the ordinary dashboard remains unchanged. The scoped view
+invokes the checker's shared `tools/self_build_probes.py --manifest PATH` through
+the existing HEARTH Python environment. It does not invoke the bring-up command.
+The shared probes perform functional read-only checks, including a non-consuming
+peek of the task's own broker queue; they never receive/settle work, submit model
+calls, or start/restart/reconfigure services. This explicit readiness mode is the
+only exception to the default collector's HTTP-only broker observation.
+
+`ServiceAvailability` preserves `readiness_scope`, `functional_check_passed`, and
+`functional_check_source` through JSON serialization and rendering. Service ages
+come from fresh probe evidence; cached evidence is never re-dated as current.
+Readiness bypasses ordinary dashboard cache reads and writes.
+Missing/invalid evidence, scopes, or observations older than 60 seconds cannot be
+green. A probe timeout produces an unavailable row, not TCP fallback. The
+Washplant :5673 broker is separate from the ordinary dashboard's shared :5672
+broker. Provider rows come from this run's live `code_fix` eligibility.
+
 ### Adding a New Run Type or Receipt Schema in `collectors.py`
 1. **Run Discovery (`_iter_run_dirs`)**:
    - Scans `/home/derek/work/bh2/ops1` plus any colon-separated paths in `FLOW_TOP_EXTRA_RUNS_DIR` or `--runs-dir`.

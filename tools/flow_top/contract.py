@@ -69,6 +69,11 @@ class ServiceAvailability:
     detail: str = ""
     source: str = ""
     obs_age_s: Optional[float] = 0.0
+    # Optional, run-scoped functional evidence. Ordinary dashboard availability
+    # must not imply that a task's readiness contract was checked.
+    readiness_scope: str = ""
+    functional_check_passed: Optional[bool] = None
+    functional_check_source: str = ""
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "ServiceAvailability":
@@ -80,6 +85,10 @@ class ServiceAvailability:
             detail=str(d.get("detail", "")),
             source=str(d.get("source", "")),
             obs_age_s=d.get("obs_age_s"),
+            readiness_scope=str(d.get("readiness_scope", "")),
+            functional_check_passed=(d.get("functional_check_passed")
+                                     if type(d.get("functional_check_passed")) is bool else None),
+            functional_check_source=str(d.get("functional_check_source", "")),
         )
 
 

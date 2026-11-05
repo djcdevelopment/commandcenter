@@ -169,7 +169,7 @@ def _collect_live_snapshot(
     simulate_unavailable: Optional[List[str]] = None,
 ) -> FlowSnapshot:
     sim_list = simulate_unavailable or []
-    if max_cache_age_s > 0.0 and not sim_list and not runs_dir:
+    if max_cache_age_s > 0.0 and not sim_list and not runs_dir and not os.environ.get("WASHPLANT_READINESS_MANIFEST"):
         cached = load_flow_snapshot_cache(max_age_s=max_cache_age_s)
         if cached is not None:
             _apply_task_selection(cached, task_selector)

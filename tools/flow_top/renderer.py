@@ -1279,9 +1279,12 @@ def render_component_columns(snapshot: FlowSnapshot, W: int, use_color: bool = T
 def render_services_detail_view(snapshot: FlowSnapshot, W: int, use_color: bool = True) -> List[str]:
     lines: List[str] = []
     max_svc_age = max((s.obs_age_s or 0.0 for s in snapshot.services), default=0.0)
+    readiness = any(s.readiness_scope or s.service_id == "readiness_probe" for s in snapshot.services)
+    title = (f"WASHPLANT READINESS ({len(snapshot.services)} REQUIRED SERVICES)" if readiness
+             else f"EXPANDED SERVICE AVAILABILITY TABLE ({len(snapshot.services)} MONITORED SERVICES)")
     lines.append(
         _panel_header(
-            "EXPANDED SERVICE AVAILABILITY TABLE (ALL 8 MONITORED SERVICES)",
+            title,
             service_state=snapshot.overall_state,
             job_state=None,
             source="live probes + receipts",
@@ -1307,9 +1310,10 @@ def render_services_detail_view(snapshot: FlowSnapshot, W: int, use_color: bool 
             )
         )
     lines.append(bot_border(W, use_color))
-    lines.extend(render_service_bus_panel(snapshot, W, use_color))
-    lines.extend(render_hearth_maf_panel(snapshot, W, use_color))
-    lines.extend(render_ontology_panel(snapshot, W, use_color))
+    if not readiness:
+        lines.extend(render_service_bus_panel(snapshot, W, use_color))
+        lines.extend(render_hearth_maf_panel(snapshot, W, use_color))
+        lines.extend(render_ontology_panel(snapshot, W, use_color))
     return lines
 
 

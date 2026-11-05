@@ -1501,13 +1501,25 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
         text_cache_job_note = "not used by this job"
 
     relpack_ddb = rdir / "relpack-transitions.duckdb"
-    if relpack_ddb.exists() or pack_cache_doc:
+    transition_receipt_path = rdir / "DUCKDB-RECEIPT.json"
+    transition_receipt = _read_json_incremental(transition_receipt_path) or {}
+    transition_tables = transition_receipt.get("tables") or {}
+    transition_row = transition_tables.get("training_transitions") or {}
+    transition_verified = bool(
+        transition_receipt.get("schema") == "bh2-duckdb-transition-receipt.v1"
+        and transition_receipt.get("read_back_verified") is True
+        and transition_receipt.get("decision_time_seal_verified") is True
+        and transition_row.get("hearth_job_id") == hearth_job_id
+        and hearth_job_id
+    )
+    source_snapshot_note = "source snapshot consumed" if pack_cache_doc else "source snapshot use unknown"
+    transition_note = (
+        "transition write/readback recorded"
+        if transition_verified else "transition write/readback unverified"
+    )
+    if relpack_ddb.exists() or pack_cache_doc or transition_receipt:
         duckdb_job_state = "idle"
-        duckdb_job_note = (
-            "used relpack-transitions.duckdb + seed-38d40fcde7bd83c3 snapshot"
-            if relpack_ddb.exists()
-            else "used seed-38d40fcde7bd83c3.duckdb snapshot (4 cold / 0 warm queries)"
-        )
+        duckdb_job_note = f"{source_snapshot_note}; {transition_note}"
     else:
         duckdb_job_state = "not_used_by_job"
         duckdb_job_note = "not used by this job (BH2/Orland uses Service Bus + HEARTH + JSONL receipts)"
@@ -1822,11 +1834,11 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
 
     hop_duckdb = PathHop(
         hop_id="duckdb",
-        label="6. DuckDB Intake",
-        state=duckdb_job_state,
-        used_by_job=(duckdb_job_state in ("active", "idle")),
-        summary=duckdb_job_note,
-        evidence_link=str(relpack_ddb) if relpack_ddb.exists() else (str(rdir / "PACK-CACHE-RECEIPTS.json") if (rdir / "PACK-CACHE-RECEIPTS.json").exists() else ""),
+        label="6. DuckDB source snapshot",
+        state="idle" if pack_cache_doc else "not_used_by_job",
+        used_by_job=bool(pack_cache_doc),
+        summary=source_snapshot_note,
+        evidence_link=str(rdir / "PACK-CACHE-RECEIPTS.json") if pack_cache_doc else "",
     )
 
     verify_used = bool(helper_art_id or check_art_path)
@@ -1990,6 +2002,15 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
             hop_duckdb,
             hop_verify,
             hop_parent,
+            *([PathHop(
+                hop_id="duckdb_transition",
+                label="9. DuckDB transition",
+                state="idle" if transition_verified else "unknown",
+                used_by_job=transition_verified,
+                summary="write/readback receipt" if transition_verified else "write/readback unverified",
+                evidence_link=str(transition_receipt_path) if transition_receipt else "",
+                timestamp_utc=_format_utc_short(str(transition_receipt.get("recorded_at") or "")),
+            )] if relpack_ddb.exists() or transition_receipt or pack_cache_doc else []),
         ],
         human_title=human_title,
         outcome_symbol=outcome_symbol,

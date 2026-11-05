@@ -1704,6 +1704,8 @@ def _derive_elapsed_column(task: CorrelatedTask, compact: bool = False) -> str:
 def _derive_recent_result_phrase(task: CorrelatedTask, compact: bool = False) -> str:
     tid = task.task_id or ""
     if task.state == "active":
+        if task.hearth_job_state != "active":
+            return f"Staged ({task.stage})" if compact else f"In flight ({task.stage}) · pack cached"
         return "Turn 1 streaming on B70 27B" if compact else "Turn 1 streaming on B70 27B · peek-locked"
     if "throughput" in tid:
         return "3 features · checks ok · 1 IRC recov" if compact else "3 features done · checks ok · 1 IRC recovery"

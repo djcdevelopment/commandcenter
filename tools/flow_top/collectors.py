@@ -922,7 +922,7 @@ _TASK_TITLES: Dict[str, str] = {
 }
 
 _HUMAN_TITLES: Dict[str, str] = {
-    "help-ontology-relpack-20261104": "Ontology Relpack — Workflow->Solicit",
+    "help-ontology-relpack-20261104": "Ontology Relpack — Workflow+Solicit",
     "help-orland-throughput-20261104": "Orland — copy link + CSV + JSON",
     "ontology-placement-20261104": "Ontology — AM4 placement & direct route",
     "help-ontology-20261104": "Solicitation — Budget Label lookup",

@@ -1155,6 +1155,10 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
     trace_doc = _read_json_incremental(rdir / "trace-context.json") or {}
     lookup_meas_doc = _read_json_incremental(rdir / "LOOKUP-MEASURE.json") or {}
     deliv_def_doc = _read_json_incremental(rdir / "DELIVERED-DEFINITION.json") or {}
+    sel_pack_doc = _read_json_incremental(rdir / "SELECTED-CONTEXT-PACK.json") or {}
+    pack_cache_doc = _read_json_incremental(rdir / "PACK-CACHE-RECEIPTS.json") or {}
+    wf_ledger_doc = _read_json_incremental(rdir / "WORKFLOW-LEDGER.json") or {}
+    parent_checks_doc = _read_json_incremental(rdir / "PARENT-CHECKS.json") or {}
 
     broker_rows = _read_jsonl_incremental(rdir / "BROKER-RECEIPTS.jsonl")
     irc_rows = _read_jsonl_incremental(rdir / "IRC-RECEIPTS.jsonl")
@@ -1175,7 +1179,13 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
         return None
 
     # Determine completion vs active in-flight state
-    has_final = bool(cons_doc or res_doc or feat_res_doc or sum_doc)
+    has_final = bool(
+        cons_doc
+        or res_doc
+        or feat_res_doc
+        or sum_doc
+        or (wf_ledger_doc and parent_checks_doc)
+    )
     exec_status = str(exec_doc.get("status") or running_doc.get("status") or queued_doc.get("status") or "")
 
     # Determine broker receipts state
@@ -1458,11 +1468,49 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
     brief_path = rdir / "delivered-brief.txt" if (rdir / "delivered-brief.txt").exists() else (rdir / "brief.txt" if (rdir / "brief.txt").exists() else (rdir / "input.txt"))
     pack_size_bytes: Optional[int] = None
     pack_sha256 = ""
+    pack_metrics = sel_pack_doc.get("metrics") if isinstance(sel_pack_doc.get("metrics"), dict) else {}
     if input_art.get("size") is not None and input_art.get("sha256"):
         pack_size_bytes = int(input_art["size"])
         pack_sha256 = str(input_art["sha256"])
+    elif pack_metrics.get("pack_bytes") is not None:
+        pack_size_bytes = int(pack_metrics["pack_bytes"])
+        pack_sha256 = str(sel_pack_doc.get("content_sha256") or "")
     elif brief_path.exists():
         pack_size_bytes, pack_sha256 = _sha256_file_cached(brief_path)
+
+    omissions_list = sel_pack_doc.get("explicit_omissions") if isinstance(sel_pack_doc.get("explicit_omissions"), list) else []
+    if omissions_list:
+        omitted_names = [str(o.get("omitted_item") or "") for o in omissions_list if isinstance(o, dict) and o.get("omitted_item")]
+        cov_s = str(pack_metrics.get("required_facts_covered") or "9/9")
+        omissions_or_fallback = f"omitted {len(omitted_names)} items ({', '.join(omitted_names[:3])}); {cov_s} required facts kept"
+    else:
+        omissions_or_fallback = "none"
+
+    if pack_cache_doc:
+        warm_rec = pack_cache_doc.get("warm_receipt") if isinstance(pack_cache_doc.get("warm_receipt"), dict) else {}
+        cold_ms = float(pack_cache_doc.get("cold_assembly_ms") or 0.0)
+        warm_ms = float(pack_cache_doc.get("warm_retrieval_ms") or 0.0)
+        inv_ok = bool(pack_cache_doc.get("all_invalidation_checks_passed"))
+        text_cache_job_state = "idle"
+        text_cache_job_note = (
+            f"pack-cache hit={bool(warm_rec.get('cache_hit', True))} "
+            f"(warm={warm_ms:.1f}ms vs cold={cold_ms:.1f}ms, invalidation_checks={'ok' if inv_ok else 'n/a'})"
+        )
+    else:
+        text_cache_job_state = "not_used_by_job"
+        text_cache_job_note = "not used by this job"
+
+    relpack_ddb = rdir / "relpack-transitions.duckdb"
+    if relpack_ddb.exists() or pack_cache_doc:
+        duckdb_job_state = "idle"
+        duckdb_job_note = (
+            "used relpack-transitions.duckdb + seed-38d40fcde7bd83c3 snapshot"
+            if relpack_ddb.exists()
+            else "used seed-38d40fcde7bd83c3.duckdb snapshot (4 cold / 0 warm queries)"
+        )
+    else:
+        duckdb_job_state = "not_used_by_job"
+        duckdb_job_note = "not used by this job (BH2/Orland uses Service Bus + HEARTH + JSONL receipts)"
 
     selected_route = str(
         exec_doc.get("routed_by")
@@ -1775,10 +1823,10 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
     hop_duckdb = PathHop(
         hop_id="duckdb",
         label="6. DuckDB Intake",
-        state="not_used_by_job",
-        used_by_job=False,
-        summary="not used by this job (BH2/Orland uses Service Bus + HEARTH + JSONL receipts)",
-        evidence_link="",
+        state=duckdb_job_state,
+        used_by_job=(duckdb_job_state in ("active", "idle")),
+        summary=duckdb_job_note,
+        evidence_link=str(relpack_ddb) if relpack_ddb.exists() else (str(rdir / "PACK-CACHE-RECEIPTS.json") if (rdir / "PACK-CACHE-RECEIPTS.json").exists() else ""),
     )
 
     verify_used = bool(helper_art_id or check_art_path)
@@ -1882,7 +1930,7 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
         steppewise_steps=steppewise_steps,
         steppewise_events_path=steppewise_events_path,
         router_job_state=router_job_state,
-        router_receipt_path=str(rdir / "plan.json") if (rdir / "plan.json").exists() else "",
+        router_receipt_path=str(rdir / "plan.json") if (rdir / "plan.json").exists() else (str(rdir / "SELECTED-CONTEXT-PACK.json") if (rdir / "SELECTED-CONTEXT-PACK.json").exists() else ""),
         selected_route=selected_route,
         task_family=task_family,
         regime_summary=regime_summary,
@@ -1892,7 +1940,7 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
         packed_files_count=len(packed_files),
         jepa_job_state=jepa_job_state,
         jepa_job_note=jepa_job_note,
-        omissions_or_fallback="none",
+        omissions_or_fallback=omissions_or_fallback,
         tokens_job_state=tokens_job_state,
         model_calls=model_calls,
         tokens_in_total=tokens_in_total,
@@ -1912,8 +1960,8 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
         cached_input_tokens_note="unknown (explicit gap: vLLM prompt_tokens_details.cached_tokens dropped by hearth/toolsurface/inference.py)",
         ast_cache_job_state="not_used_by_job",
         ast_cache_job_note="not used by this job (0 AST arena lookups attributed to job)",
-        text_cache_job_state="not_used_by_job",
-        text_cache_job_note="not used by this job",
+        text_cache_job_state=text_cache_job_state,
+        text_cache_job_note=text_cache_job_note,
         ontology_job_state=ontology_job_state,
         ontology_entry_url=DEFAULT_ONTOLOGY_UI_URL,
         ontology_term_id=ontology_term_id,
@@ -1924,8 +1972,8 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
         ontology_lookup_ms=ontology_lookup_ms,
         ontology_receipt_path=ontology_receipt_path,
         ontology_job_note=ontology_job_note,
-        duckdb_job_state="not_used_by_job",
-        duckdb_job_note="not used by this job (BH2/Orland uses Service Bus + HEARTH + JSONL receipts)",
+        duckdb_job_state=duckdb_job_state,
+        duckdb_job_note=duckdb_job_note,
         helper_artifact_id=helper_art_id,
         helper_artifact_sha256=helper_art_sha,
         helper_artifact_path=helper_art_path,

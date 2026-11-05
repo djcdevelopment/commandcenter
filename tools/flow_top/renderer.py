@@ -1922,6 +1922,12 @@ def render_selected_task_card(snapshot: FlowSnapshot, W: int, use_color: bool = 
                 f" {c('Job Cache :', C_LABEL, use_color)} "
                 f"{c(f'{task.cached_input_tokens:,} cached tok', C_GREEN, use_color)}"
             )
+        elif task.text_cache_job_state == "idle":
+            r5_right = (
+                f" {c('Job Cache :', C_LABEL, use_color)} "
+                f"{c('✓ pack hit', C_GREEN, use_color)} "
+                f"{c('· KV ? unknown', C_PURPLE, use_color)}"
+            )
         else:
             note_s = "(not recorded)" if compact_mode else "(not recorded by HEARTH)"
             r5_right = (

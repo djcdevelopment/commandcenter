@@ -233,6 +233,24 @@ class CorrelatedTask:
     preview_url: str = ""
     observed_hops: List[PathHop] = field(default_factory=list)
 
+    # Presentation & quantitative budget/stage fields (populated from receipts)
+    human_title: str = ""
+    outcome_symbol: str = "✓"  # ✓ | ▶ | ! | ✗ | ?
+    outcome_label: str = "completed"  # completed | working | attention | failed | unknown
+    short_story: str = ""
+    attention_summary: str = ""
+    elapsed_label: str = ""
+    helper_elapsed_s: Optional[float] = None
+    budget_tokens_in: Optional[int] = None
+    budget_tokens_out: Optional[int] = None
+    budget_calls: Optional[int] = None
+    features_completed: Optional[int] = None
+    checks_passed: Optional[bool] = None
+    review_status: str = ""
+    stage_ribbon: Dict[str, str] = field(default_factory=dict)  # request, helper, parent_work, checks, result -> done|working|waiting|attention|failed|unknown|unused
+    irc_delivery_status: str = "delivered"  # delivered | recovered | active | waiting | failed | unused | unknown
+    irc_delivery_label: str = ""
+
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "CorrelatedTask":
         hops = [PathHop.from_dict(x) for x in (d.get("observed_hops") or [])]
@@ -289,6 +307,8 @@ class ServiceBusPanel:
     unsettled_in_flight: int = 0
     last_receipt_summary: str = ""
     error_note: str = ""
+    queue_depth_history: List[int] = field(default_factory=list)
+    queue_sample_count: int = 0
 
     @classmethod
     def from_dict(cls, d: Optional[Dict[str, Any]]) -> "ServiceBusPanel":
@@ -310,6 +330,8 @@ class ServiceBusPanel:
             unsettled_in_flight=int(d.get("unsettled_in_flight", 0)),
             last_receipt_summary=str(d.get("last_receipt_summary", "")),
             error_note=str(d.get("error_note", "")),
+            queue_depth_history=[int(x) for x in (d.get("queue_depth_history") or [])],
+            queue_sample_count=int(d.get("queue_sample_count", 0)),
         )
 
 

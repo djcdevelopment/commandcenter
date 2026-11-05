@@ -210,6 +210,22 @@ def _make_completed_tasks() -> List[CorrelatedTask]:
             PathHop("artifact_verify", "7. Artifact / Browser Verify", "idle", True, "helper=art_61cab68c296b (sha256=cf9193801a) -> parent=index.html", "/home/derek/work/bh2/ops1/help-orland-throughput-20261104/REVIEW-BUNDLE.json", "2026-11-04T23:08:13Z"),
             PathHop("parent_consume_irc_aspire", "8. Parent / IRC / Aspire", "idle", True, "consumed by cx-adhoc; IRC receipts=9; OTel spans=29, 5 OTel err (irc.publish,helper.execution)", "/home/derek/work/bh2/ops1/help-orland-throughput-20261104/consumption.json", "2026-11-04T23:15:20Z"),
         ],
+        human_title="Orland — copy link + CSV + JSON",
+        outcome_symbol="✓",
+        outcome_label="completed",
+        short_story="3 features completed · checks passed · review pending",
+        attention_summary="1 emit repair · 1 IRC recovery",
+        elapsed_label="12m 35s wall (183.7s helper)",
+        helper_elapsed_s=183.71,
+        budget_tokens_in=32000,
+        budget_tokens_out=12000,
+        budget_calls=8,
+        features_completed=3,
+        checks_passed=True,
+        review_status="review pending",
+        stage_ribbon={"request": "done", "helper": "done", "parent_work": "done", "checks": "done", "result": "done"},
+        irc_delivery_status="recovered",
+        irc_delivery_label="recovered once",
     )
 
     t_onto_place = CorrelatedTask(
@@ -219,7 +235,7 @@ def _make_completed_tasks() -> List[CorrelatedTask]:
         host="OMEN -> AM4 (10.44.0.2)",
         stage="completed (AM4 placement + lookup verified)",
         state="idle",
-        elapsed_s=0.19,
+        elapsed_s=2.4,
         last_progress="AM4 native Docker active; lookup 194.4ms verified",
         last_progress_utc="2026-11-04T22:57:57Z",
         age_s=1180.0,
@@ -253,6 +269,22 @@ def _make_completed_tasks() -> List[CorrelatedTask]:
             PathHop("artifact_verify", "7. Artifact / Browser Verify", "idle", True, "AM4 Docker placement + browser UI & retained term exact match verified", "/home/derek/work/bh2/ops1/ontology-placement-20261104/RESULT.json", "2026-11-04T22:57:57Z"),
             PathHop("parent_consume_irc_aspire", "8. Parent / IRC / Aspire", "idle", True, "RESULT.json committed (OMEN eno2 10.44.0.1 -> AM4 enp5s0 10.44.0.2)", "/home/derek/work/bh2/ops1/ontology-placement-20261104/RESULT.json", "2026-11-04T22:57:57Z"),
         ],
+        human_title="Ontology — AM4 placement & direct route",
+        outcome_symbol="✓",
+        outcome_label="completed",
+        short_story="AM4 native Docker live · direct Ethernet verified",
+        attention_summary="none — clean run",
+        elapsed_label="2.4s lookup cmd",
+        helper_elapsed_s=None,
+        budget_tokens_in=0,
+        budget_tokens_out=0,
+        budget_calls=0,
+        features_completed=1,
+        checks_passed=True,
+        review_status="review pending",
+        stage_ribbon={"request": "done", "helper": "unused", "parent_work": "done", "checks": "done", "result": "done"},
+        irc_delivery_status="unused",
+        irc_delivery_label="not used by this job",
     )
 
     t_onto = CorrelatedTask(
@@ -312,12 +344,15 @@ def _make_completed_tasks() -> List[CorrelatedTask]:
         model_calls=2,
         tokens_in_total=8136,
         tokens_out_total=6376,
-        turn1_tokens_in=856,
+        tokens_reasoning_total=6000,
+        turn1_tokens_in=1053,
         turn1_tokens_out=6000,
         turn1_tokens_reasoning=6000,
+        turn1_duration_ms=134717,
         turn1_finish_reason="length (output_truncated)",
-        emit_tokens_in=7280,
+        emit_tokens_in=7083,
         emit_tokens_out=376,
+        emit_duration_ms=10524,
         emit_finish_reason="stop",
         ontology_job_state="idle",
         ontology_entry_url=DEFAULT_ONTOLOGY_UI_URL,
@@ -337,25 +372,161 @@ def _make_completed_tasks() -> List[CorrelatedTask]:
             PathHop("ontology", "1. Ontology (:13000 -> AM4)", "idle", True, "Solicitation / Budget Label (120.6ms, sha256=b8574c82d05d)", "/home/derek/work/bh2/ops1/help-ontology-20261104/DELIVERED-DEFINITION.json", "2026-11-04T22:39:53Z"),
             PathHop("service_bus", "2. Service Bus (:18080/:5672)", "idle", True, "queue=bh2-orland-help-20261104 seq=2 dlv=0 (completed)", "/home/derek/work/bh2/ops1/help-ontology-20261104/BROKER-RECEIPTS.jsonl", "2026-11-04T22:43:14Z"),
             PathHop("router_pack", "3. Router / Context Pack", "idle", True, "route=pinned:omen-dense-27b family=code_review, proc=think_then_emit, thinking=true, max_tokens=6000 pack=5214B", "/home/derek/work/bh2/ops1/help-ontology-20261104/plan.json", "2026-11-04T22:40:47Z"),
-            PathHop("hearth_27b", "4. HEARTH / Steppewise / MAF", "idle", True, "omen-dense-27b (qwen3.8-27b) job=job_c661bc6aa15b calls=2 in=8534 out=6347 emit_repairs=1", "/home/derek/work/bh2/ops1/help-ontology-20261104/execution.json", "2026-11-04T22:43:14Z"),
+            PathHop("hearth_27b", "4. HEARTH / Steppewise / MAF", "idle", True, "omen-dense-27b (qwen3.8-27b) job=job_c661bc6aa15b calls=2 in=8136 out=6376 emit_repairs=1", "/home/derek/work/bh2/ops1/help-ontology-20261104/execution.json", "2026-11-04T22:43:14Z"),
             PathHop("jepa_npu", "5. JEPA NPU (:18097)", "not_used_by_job", False, "not used by this job (desired.packed_files=[], HEARTH_SIZER off)", ""),
             PathHop("duckdb", "6. DuckDB Intake", "not_used_by_job", False, "not used by this job (BH2/Orland uses Service Bus + HEARTH + JSONL receipts)", ""),
             PathHop("artifact_verify", "7. Artifact / Browser Verify", "idle", True, "helper=art_7fadfccbc444 (sha256=113121d3c2) -> parent=index.html", "/home/derek/work/bh2/ops1/help-ontology-20261104/RESULT.json", "2026-11-04T22:44:37Z"),
             PathHop("parent_consume_irc_aspire", "8. Parent / IRC / Aspire", "idle", True, "consumed by cx-adhoc; IRC receipts=7; OTel spans=20", "/home/derek/work/bh2/ops1/help-ontology-20261104/consumption.json", "2026-11-04T22:44:37Z"),
         ],
+        human_title="Solicitation — Budget Label lookup",
+        outcome_symbol="✓",
+        outcome_label="completed",
+        short_story="Budget Label certified · Est. $45k–$110k preserved · review pending",
+        attention_summary="1 emit repair",
+        elapsed_label="5m 40s wall (145.2s helper)",
+        helper_elapsed_s=145.24,
+        budget_tokens_in=20000,
+        budget_tokens_out=10096,
+        budget_calls=2,
+        features_completed=1,
+        checks_passed=True,
+        review_status="review pending",
+        stage_ribbon={"request": "done", "helper": "done", "parent_work": "done", "checks": "done", "result": "done"},
+        irc_delivery_status="delivered",
+        irc_delivery_label="delivered (7 receipts)",
     )
 
-    other_ids = [
-        ("help-orland-broker-20261104", "Orland shareable filter URL state via Azure Service Bus Emulator queue & HEARTH", "2026-11-04T22:31:10Z", 1, "idle"),
-        ("help-orland-feature-20261104", "Orland Event Finder initial feature implementation & browser verification", "2026-11-04T22:12:45Z", None, "not_used_by_job"),
-        ("help-b3-packet-check-20261104", "B3 packet verification check via HEARTH 27B & OTel trace export", "2026-11-04T21:58:12Z", None, "not_used_by_job"),
-        ("help-publish-recovery-20261104", "IRC publish disconnect recovery & idempotent completion check", "2026-11-04T21:51:04Z", None, "not_used_by_job"),
-        ("help-observability-20261104", "Aspire dashboard & Service Bus Explorer read-only observability verification", "2026-11-04T21:46:24Z", None, "not_used_by_job"),
-        ("help-loop-20261104T2114Z", "HEARTH helper loop baseline verification & parent patch application", "2026-11-04T21:18:35Z", None, "not_used_by_job"),
-        ("wp001-AX-00714280", "Washplant PILE2-s4v2-wp001-AX-00714280 (69-south-dakota-u-sys-6922 DuckDB + Broker + Steppewise)", "2026-11-04T18:12:22Z", 4, "idle"),
+    other_specs = [
+        (
+            "help-orland-broker-20261104",
+            "Orland shareable filter URL state via Azure Service Bus Emulator queue & HEARTH",
+            "Orland — shareable URL search & filters",
+            "Shareable URL filters committed · 18 browser checks passed",
+            "1 emit repair",
+            "2m 12s wall (131.6s helper)",
+            131.59,
+            1,
+            0,
+            "delivered",
+            "delivered (7 receipts)",
+            "2026-11-04T22:31:10Z",
+            1,
+            "idle",
+        ),
+        (
+            "help-orland-feature-20261104",
+            "Orland Event Finder initial feature implementation & browser verification",
+            "Orland — demo event finder & filters",
+            "Event finder & detail dialog committed · 10 browser checks passed",
+            "none — clean run",
+            "2m 25s wall (112.4s helper)",
+            112.4,
+            0,
+            0,
+            "delivered",
+            "delivered (7 receipts)",
+            "2026-11-04T22:12:45Z",
+            None,
+            "not_used_by_job",
+        ),
+        (
+            "help-b3-packet-check-20261104",
+            "B3 packet verification check via HEARTH 27B & OTel trace export",
+            "Lap 2 B3 — packet-binding 6-case check",
+            "6/6 packet-binding cases verified · 13 OTel spans exported",
+            "none — clean run",
+            "2m 05s wall (98.2s helper)",
+            98.2,
+            0,
+            0,
+            "delivered",
+            "delivered (8 receipts)",
+            "2026-11-04T21:58:12Z",
+            None,
+            "not_used_by_job",
+        ),
+        (
+            "help-publish-recovery-20261104",
+            "IRC publish disconnect recovery & idempotent completion check",
+            "BH2 — IRC publication recovery command",
+            "Idempotent IRC recovery verified · 7 checks passed · 0 reruns",
+            "1 IRC recovery",
+            "1m 58s wall (94.1s helper)",
+            94.1,
+            0,
+            1,
+            "recovered",
+            "recovered once",
+            "2026-11-04T21:51:04Z",
+            None,
+            "not_used_by_job",
+        ),
+        (
+            "help-observability-20261104",
+            "Aspire dashboard & Service Bus Explorer read-only observability verification",
+            "Service Bus Explorer — read-only probe",
+            "Explorer attached read-only · 0 messages consumed",
+            "none — clean run",
+            "2m 10s wall (101.3s helper)",
+            101.3,
+            0,
+            0,
+            "delivered",
+            "delivered (7 receipts)",
+            "2026-11-04T21:46:24Z",
+            None,
+            "not_used_by_job",
+        ),
+        (
+            "help-loop-20261104T2114Z",
+            "HEARTH helper loop baseline verification & parent patch application",
+            "HearthClient — exact-artifact SHA256 check",
+            "Artifact SHA256 verified · 6 direct checks & 2 tests passed",
+            "none — clean run",
+            "3m 15s wall (128.0s helper)",
+            128.0,
+            0,
+            0,
+            "delivered",
+            "delivered (7 receipts)",
+            "2026-11-04T21:18:35Z",
+            None,
+            "not_used_by_job",
+        ),
+        (
+            "wp001-AX-00714280",
+            "Washplant PILE2-s4v2-wp001-AX-00714280 (69-south-dakota-u-sys-6922 DuckDB + Broker + Steppewise)",
+            "Washplant wp001 — South Dakota U-Sys (AX)",
+            "Checkpoint AX accepted · 3/3 outcomes sealed in hopper.duckdb",
+            "none — clean run",
+            "7.9s wall (6.5s helper)",
+            6.45,
+            0,
+            0,
+            "unused",
+            "not used by this job",
+            "2026-11-04T18:12:22Z",
+            4,
+            "idle",
+        ),
     ]
     tasks = [t_throughput, t_onto_place, t_onto]
-    for tid, title, ts, seq, b_state in other_ids:
+    for (
+        tid,
+        title,
+        htitle,
+        sstory,
+        attn,
+        elabel,
+        helapsed,
+        emit_rep,
+        deliv_rep,
+        irc_stat,
+        irc_lbl,
+        ts,
+        seq,
+        b_state,
+    ) in other_specs:
         is_wp = tid.startswith("wp001")
         tasks.append(
             CorrelatedTask(
@@ -378,15 +549,33 @@ def _make_completed_tasks() -> List[CorrelatedTask]:
                 hearth_job_state="idle",
                 hearth_provider="omen-dense-27b",
                 hearth_model="qwen3.8-27b",
+                hearth_emit_repairs=emit_rep,
+                hearth_delivery_repairs=deliv_rep,
                 router_job_state="idle",
                 jepa_job_state="idle" if is_wp else "not_used_by_job",
                 tokens_job_state="idle",
-                model_calls=2,
-                tokens_in_total=3506 if is_wp else 8342,
-                tokens_out_total=288 if is_wp else 6331,
+                model_calls=2 if (emit_rep > 0 or is_wp) else 1,
+                tokens_in_total=3506 if is_wp else 8023,
+                tokens_out_total=288 if is_wp else 6503,
                 ontology_job_state="idle" if is_wp else "not_used_by_job",
                 duckdb_job_state="idle" if is_wp else "not_used_by_job",
                 observed_hops=deepcopy(t_throughput.observed_hops),
+                human_title=htitle,
+                outcome_symbol="✓",
+                outcome_label="completed",
+                short_story=sstory,
+                attention_summary=attn,
+                elapsed_label=elabel,
+                helper_elapsed_s=helapsed,
+                budget_tokens_in=20000,
+                budget_tokens_out=10096,
+                budget_calls=2,
+                features_completed=1,
+                checks_passed=True,
+                review_status="sealed" if is_wp else "review pending",
+                stage_ribbon={"request": "done", "helper": "done", "parent_work": "done", "checks": "done", "result": "done"},
+                irc_delivery_status=irc_stat,
+                irc_delivery_label=irc_lbl,
             )
         )
     return tasks
@@ -422,6 +611,8 @@ def _build_orland_completed_fixture() -> FlowSnapshot:
             recent_settle_count=6,
             unsettled_in_flight=0,
             last_receipt_summary="help-orland-throughput-20261104: completed seq=3 on bh2-orland-help-20261104 at 2026-11-04T23:11:26Z",
+            queue_depth_history=[0, 0, 1, 1, 0, 0, 0, 0],
+            queue_sample_count=8,
         ),
         ontology=OntologyPanel(
             state="idle",
@@ -476,9 +667,16 @@ def _build_orland_live_fixture() -> FlowSnapshot:
     live_task = deepcopy(snap.tasks[0])
     live_task.task_id = "help-orland-live-20261104"
     live_task.title = "In-flight Orland helper task (peek-locked on Service Bus, running on HEARTH 27B)"
+    live_task.human_title = "Orland — copy link + CSV + JSON [ACTIVE FIXTURE]"
+    live_task.outcome_symbol = "▶"
+    live_task.outcome_label = "working"
+    live_task.short_story = "Helper deliberating on B70 27B (Turn 1 reasoning in progress)"
+    live_task.attention_summary = "none — within 600s helper deadline"
     live_task.stage = "hearth.running (27B deliberating)"
     live_task.state = "active"
-    live_task.elapsed_s = 42.3
+    live_task.elapsed_s = 70.0
+    live_task.helper_elapsed_s = 68.4
+    live_task.elapsed_label = "1m 10s elapsed (68.4s helper)"
     live_task.last_progress = "hearth.running (27B deliberating) | Turn 1 streaming on omen-dense-27b"
     live_task.last_progress_utc = "2026-11-04T23:20:00Z"
     live_task.age_s = 0.8
@@ -489,7 +687,37 @@ def _build_orland_live_fixture() -> FlowSnapshot:
     live_task.hearth_job_state = "active"
     live_task.hearth_status = "running"
     live_task.hearth_stages = ["queued", "think_turn1"]
+    live_task.hearth_emit_repairs = 0
+    live_task.hearth_delivery_repairs = 0
     live_task.tokens_job_state = "active"
+    live_task.model_calls = 1
+    live_task.budget_tokens_in = 32000
+    live_task.budget_tokens_out = 12000
+    live_task.budget_calls = 8
+    live_task.tokens_in_total = 1532
+    live_task.tokens_out_total = 2840
+    live_task.tokens_reasoning_total = 2840
+    live_task.turn1_tokens_in = 1532
+    live_task.turn1_tokens_out = 2840
+    live_task.turn1_tokens_reasoning = 2840
+    live_task.turn1_duration_ms = 68400
+    live_task.turn1_finish_reason = "streaming"
+    live_task.emit_tokens_in = None
+    live_task.emit_tokens_out = None
+    live_task.emit_duration_ms = None
+    live_task.emit_finish_reason = ""
+    live_task.features_completed = 0
+    live_task.checks_passed = None
+    live_task.review_status = "in flight"
+    live_task.stage_ribbon = {
+        "request": "done",
+        "helper": "working",
+        "parent_work": "waiting",
+        "checks": "waiting",
+        "result": "waiting",
+    }
+    live_task.irc_delivery_status = "active"
+    live_task.irc_delivery_label = "connected (#bh2-observations)"
     for hop in live_task.observed_hops:
         if hop.hop_id in ("service_bus", "hearth_27b", "parent_consume_irc_aspire"):
             hop.state = "active"
@@ -500,6 +728,8 @@ def _build_orland_live_fixture() -> FlowSnapshot:
     snap.service_bus.total_queued_backlog = 1
     snap.service_bus.unsettled_in_flight = 1
     snap.service_bus.queues[0].active_messages = 1
+    snap.service_bus.queue_depth_history = [0, 0, 0, 1, 1, 1]
+    snap.service_bus.queue_sample_count = 6
     snap.headline_moving = (
         "ACTIVE: 1 task(s) in flight — help-orland-live-20261104 at [hearth.running (27B deliberating)] "
         "(broker backlog=1, unsettled=1)"

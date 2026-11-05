@@ -909,6 +909,7 @@ def collect_lifetime_caches(timeout_s: float = 1.0) -> LifetimeCacheSummary:
 
 
 _TASK_TITLES: Dict[str, str] = {
+    "help-ontology-relpack-20261104": "Ontology relationship context pack (Workflow -> Solicitation 4:1) via Service Bus, HEARTH & DuckDB",
     "help-orland-throughput-20261104": "Orland 3-feature batch (copy link, filtered CSV, filtered JSON) via Service Bus & HEARTH",
     "ontology-placement-20261104": "Ontology service placement move OMEN -> AM4 native Docker + loopback proxy verification",
     "help-ontology-20261104": "Solicitation / Budget Label reviewed ontology lookup (MAF IStepAction) + Orland integration",
@@ -921,6 +922,7 @@ _TASK_TITLES: Dict[str, str] = {
 }
 
 _HUMAN_TITLES: Dict[str, str] = {
+    "help-ontology-relpack-20261104": "Ontology Relpack — Workflow->Solicit",
     "help-orland-throughput-20261104": "Orland — copy link + CSV + JSON",
     "ontology-placement-20261104": "Ontology — AM4 placement & direct route",
     "help-ontology-20261104": "Solicitation — Budget Label lookup",
@@ -1212,8 +1214,36 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
     if has_broker and not broker_queue:
         broker_queue = str(broker_req_doc.get("queue") or "bh2-orland-help-20261104")
 
+    has_phase2_activity = bool(
+        req_doc
+        or broker_req_doc
+        or plan_doc
+        or sub_doc
+        or queued_doc
+        or running_doc
+        or succ_doc
+        or exec_doc
+        or art_doc
+        or lookup_meas_doc
+        or deliv_def_doc
+        or broker_rows
+        or irc_rows
+        or otel_rows
+        or (rdir / "SELECTED-CONTEXT-PACK.json").exists()
+        or (rdir / "WORKFLOW-LEDGER.json").exists()
+        or (rdir / "relpack-transitions.duckdb").exists()
+    )
+    is_pre_exec_freeze = (
+        not has_final
+        and not has_phase2_activity
+        and str(freeze_doc.get("phase") or "") == "phase1_discovery_frozen_before_execution"
+    )
+
     # Stage & state determination (surfaces new tasks immediately at freeze/send/receive/hearth stages)
-    if not has_final or exec_status in ("accepted", "queued", "dispatched", "running"):
+    if is_pre_exec_freeze:
+        task_state = "idle"
+        stage = "phase1.frozen (awaiting Phase 2 execution)"
+    elif not has_final or exec_status in ("accepted", "queued", "dispatched", "running"):
         task_state = "active"
         if exec_status == "running" or (running_doc and not succ_doc and not exec_doc):
             stage = "hearth.running (27B deliberating)"
@@ -1225,7 +1255,7 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
             stage = "broker.received_peek_lock"
         elif broker_send_at or broker_req_doc:
             stage = "broker.send_acknowledged"
-        elif req_doc:
+        elif req_doc or (rdir / "SELECTED-CONTEXT-PACK.json").exists():
             stage = "request.staged"
         else:
             stage = "frozen / brief staged"
@@ -1235,7 +1265,7 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
 
     # Timestamps & elapsed time
     started_candidates = [
-        str(freeze_doc.get("started_at") or ""),
+        str(freeze_doc.get("started_at") or freeze_doc.get("frozen_at") or ""),
         str(lookup_meas_doc.get("started_at") or ""),
         broker_send_at,
         str(req_doc.get("started_at") or ""),
@@ -1258,7 +1288,7 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
         broker_recv_at,
         broker_send_at,
         str(req_doc.get("started_at") or ""),
-        str(freeze_doc.get("started_at") or ""),
+        str(freeze_doc.get("started_at") or freeze_doc.get("frozen_at") or ""),
     ]
     latest_ts: Optional[float] = None
     latest_iso = ""
@@ -1496,18 +1526,23 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
         tokens_job_state = "active" if task_state == "active" else "not_used_by_job"
 
     # Ontology (Job-Level)
-    if task_id == "help-ontology-20261104" or deliv_def_doc or lookup_meas_doc:
-        ontology_job_state = "idle"
+    rel_facts = freeze_doc.get("relationship_and_required_facts") if isinstance(freeze_doc.get("relationship_and_required_facts"), dict) else {}
+    if task_id == "help-ontology-20261104" or deliv_def_doc or lookup_meas_doc or rel_facts:
+        ontology_job_state = "active" if (task_state == "active" and not deliv_def_doc and not lookup_meas_doc) else "idle"
         ontology_term_id = str(deliv_def_doc.get("term_id") or DEFAULT_ONTOLOGY_TERM_ID)
-        ontology_term_name = str(deliv_def_doc.get("term_name") or "Solicitation")
+        ontology_term_name = str(deliv_def_doc.get("term_name") or ("Workflow -> Solicitation" if rel_facts else "Solicitation"))
         ontology_attr_id = str(deliv_def_doc.get("attribute_id") or DEFAULT_ONTOLOGY_ATTR_ID)
         ontology_attr_name = str(deliv_def_doc.get("attribute_name") or "Budget Label")
         ontology_def_sha = str(
             lookup_meas_doc.get("content_sha256")
             or "b8574c82d05d7172e362c7db599138b4e19f6759d58b712dd3201ea9d6b2d2a4"
         )
-        ontology_lookup_ms: Optional[float] = round(float(lookup_meas_doc.get("duration_ms") or 120.6), 1)
-        ontology_receipt_path = str(rdir / "DELIVERED-DEFINITION.json")
+        ontology_lookup_ms: Optional[float] = (
+            round(float(lookup_meas_doc.get("duration_ms")), 1)
+            if lookup_meas_doc.get("duration_ms") is not None
+            else (120.6 if task_id == "help-ontology-20261104" else None)
+        )
+        ontology_receipt_path = str(rdir / "DELIVERED-DEFINITION.json") if (rdir / "DELIVERED-DEFINITION.json").exists() else str(rdir / "FREEZE.json")
         ontology_job_note = "used by job (Solicitation / Budget Label delivered into helper prompt)"
     else:
         ontology_job_state = "not_used_by_job"
@@ -1564,10 +1599,16 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
         human_title = fallback_t[:56]
 
     limits_obj = freeze_doc.get("limits") if isinstance(freeze_doc.get("limits"), dict) else {}
+    exec_prof = freeze_doc.get("execution_profile_and_budgets") if isinstance(freeze_doc.get("execution_profile_and_budgets"), dict) else {}
+    slice_ceil = exec_prof.get("slice_ceiling") if isinstance(exec_prof.get("slice_ceiling"), dict) else {}
     if limits_obj:
         budget_tokens_in: Optional[int] = int(limits_obj.get("input_tokens") or 32000)
         budget_tokens_out: Optional[int] = int(limits_obj.get("output_tokens") or 12000)
         budget_calls: Optional[int] = int(limits_obj.get("model_calls") or 8)
+    elif slice_ceil:
+        budget_tokens_in = int(slice_ceil.get("max_input_tokens") or 32000)
+        budget_tokens_out = int(slice_ceil.get("max_output_tokens") or 16000)
+        budget_calls = int(slice_ceil.get("max_model_calls") or 8)
     else:
         budget_tokens_in = 20000
         budget_tokens_out = 10096
@@ -1577,7 +1618,24 @@ def _build_bh2_correlated_task(rdir: Path, now_unix: float) -> Optional[Correlat
     if t1_dur is not None:
         helper_elapsed_s = round((int(t1_dur) + int(em_dur or 0)) / 1000.0, 2)
 
-    if task_state == "active":
+    if is_pre_exec_freeze:
+        outcome_symbol = "○"
+        outcome_label = "staged"
+        elapsed_label = f"frozen {_format_duration_human(age_s)} ago"
+        features_completed: Optional[int] = 0
+        checks_passed: Optional[bool] = None
+        review_status = "pre-execution freeze"
+        short_story = "Phase 1 discovery frozen · awaiting Phase 2 dispatch"
+        stage_ribbon = {
+            "request": "waiting",
+            "helper": "waiting",
+            "parent_work": "waiting",
+            "checks": "waiting",
+            "result": "waiting",
+        }
+        irc_delivery_status = "waiting"
+        irc_delivery_label = "waiting for dispatch"
+    elif task_state == "active":
         outcome_symbol = "▶"
         outcome_label = "working"
         if elapsed_s is not None and helper_elapsed_s is not None:
@@ -2108,9 +2166,14 @@ def collect_correlated_tasks(
         tasks.append(wp_task)
 
     def _sort_key(item: CorrelatedTask) -> Tuple[int, float]:
-        is_active = 1 if item.state == "active" else 0
+        if item.state == "active":
+            rank = 2
+        elif item.outcome_label == "staged":
+            rank = 0
+        else:
+            rank = 1
         ts = _parse_iso_ts(item.last_progress_utc) or 0.0
-        return (is_active, ts)
+        return (rank, ts)
 
     tasks.sort(key=_sort_key, reverse=True)
     return tasks[:limit]

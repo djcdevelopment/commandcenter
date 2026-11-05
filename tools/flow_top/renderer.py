@@ -1658,18 +1658,21 @@ def _derive_short_preview(task: CorrelatedTask) -> str:
             return ":13000/terms"
         return short
     if task.source_receipt_path:
-        return task.source_receipt_path.rsplit("/", 1)[-1]
-    return task.task_id
+        base = task.source_receipt_path.rsplit("/", 1)[-1]
+        return base[:20] if len(base) > 20 else base
+    return (task.task_id or "-")[:20]
 
 
 def _derive_short_actor(task: CorrelatedTask) -> str:
     act = (task.actor or "-").strip()
-    if "bh2-help-worker" in act and task.hearth_provider:
-        seat = "B70 27B" if "omen" in task.hearth_provider else task.hearth_provider
-        return f"cx-adhoc -> {seat}"
+    if "bh2-help-worker" in act:
+        if task.hearth_provider:
+            seat = "B70 27B" if "omen" in task.hearth_provider else task.hearth_provider
+            return f"cx-adhoc -> {seat}"
+        return "cx-adhoc -> bh2-worker"
     if "operator/parent" in act:
         return "cx-adhoc -> AM4 :13000"
-    return act
+    return act[:20]
 
 
 def _derive_elapsed_column(task: CorrelatedTask, compact: bool = False) -> str:
@@ -1941,19 +1944,25 @@ def render_selected_task_card(snapshot: FlowSnapshot, W: int, use_color: bool = 
         r6_right = f" {c('Out Split :', C_LABEL, use_color)} {c('· unused by task', C_MUTED, use_color)}"
     elif task.state == "active":
         out_bud = task.budget_tokens_out or 12000
-        out_txt = (
-            f"? streaming Turn 1 (6,000 / {out_bud:,} cap)"
-            if compact_mode
-            else f"? streaming Turn 1 (6,000 turn / {out_bud:,} run cap)"
-        )
+        if task.hearth_job_state == "not_used_by_job":
+            out_txt = f"○ 0 / {out_bud:,} tok (awaiting dispatch)"
+            sp_txt = "○ awaiting helper dispatch"
+            col_use = C_MUTED
+        else:
+            out_txt = (
+                f"? streaming Turn 1 (6,000 / {out_bud:,} cap)"
+                if compact_mode
+                else f"? streaming Turn 1 (6,000 turn / {out_bud:,} run cap)"
+            )
+            sp_txt = "▶ thinking (emit pending)" if compact_mode else "▶ thinking in flight (emit pending)"
+            col_use = C_CYAN
         r6_left = (
             f" {c('Output   :', C_LABEL, use_color)} "
-            f"{c(out_txt, C_CYAN, use_color)}"
+            f"{c(out_txt, col_use, use_color)}"
         )
-        sp_txt = "▶ thinking (emit pending)" if compact_mode else "▶ thinking in flight (emit pending)"
         r6_right = (
             f" {c('Out Split :', C_LABEL, use_color)} "
-            f"{c(sp_txt, C_CYAN, use_color)}"
+            f"{c(sp_txt, col_use, use_color)}"
         )
     else:
         out_tok = task.tokens_out_total or 0
@@ -2000,24 +2009,36 @@ def render_selected_task_card(snapshot: FlowSnapshot, W: int, use_color: bool = 
         r7_left = f" {c('Helper   :', C_LABEL, use_color)} {c(f'· unused ({lk_s})', C_MUTED, use_color)}"
         r7_right = f" {c('Calls     :', C_LABEL, use_color)} {c('0 / 0 model calls', C_MUTED, use_color)}"
     elif task.state == "active":
-        el_s = task.helper_elapsed_s or task.elapsed_s or 0.0
-        hlp_pct = min(100.0, (el_s / 600.0) * 100.0)
-        hlp_bar = grad_bar(hlp_pct, bar_w, "compute", use_color)
-        el_txt = (
-            f"{el_s:.0f}s / 600s cap (Turn 1)"
-            if compact_mode
-            else f"{el_s:.1f}s / 600s call cap (Turn 1)"
-        )
-        r7_left = (
-            f" {c('Helper   :', C_LABEL, use_color)} {hlp_bar} "
-            f"{c(el_txt, C_CYAN, use_color)}"
-        )
         max_c = task.budget_calls or 8
-        r7_right = (
-            f" {c('Calls     :', C_LABEL, use_color)} "
-            f"{c(f'1 / {max_c} max calls', C_CYAN, use_color)} "
-            f"{c('(in flight)', C_MUTED, use_color)}"
-        )
+        if task.hearth_job_state == "not_used_by_job":
+            hlp_bar = grad_bar(0.0, bar_w, "compute", use_color)
+            r7_left = (
+                f" {c('Helper   :', C_LABEL, use_color)} {hlp_bar} "
+                f"{c('0.0s / 600s call cap (pre-dispatch)', C_MUTED, use_color)}"
+            )
+            r7_right = (
+                f" {c('Calls     :', C_LABEL, use_color)} "
+                f"{c(f'0 / {max_c} max calls', C_MUTED, use_color)} "
+                f"{c('(pre-dispatch)', C_MUTED, use_color)}"
+            )
+        else:
+            el_s = task.helper_elapsed_s or task.elapsed_s or 0.0
+            hlp_pct = min(100.0, (el_s / 600.0) * 100.0)
+            hlp_bar = grad_bar(hlp_pct, bar_w, "compute", use_color)
+            el_txt = (
+                f"{el_s:.0f}s / 600s cap (Turn 1)"
+                if compact_mode
+                else f"{el_s:.1f}s / 600s call cap (Turn 1)"
+            )
+            r7_left = (
+                f" {c('Helper   :', C_LABEL, use_color)} {hlp_bar} "
+                f"{c(el_txt, C_CYAN, use_color)}"
+            )
+            r7_right = (
+                f" {c('Calls     :', C_LABEL, use_color)} "
+                f"{c(f'1 / {max_c} max calls', C_CYAN, use_color)} "
+                f"{c('(in flight)', C_MUTED, use_color)}"
+            )
     else:
         t1_ms = task.turn1_duration_ms or 0
         t2_ms = task.emit_duration_ms or 0

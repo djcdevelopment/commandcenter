@@ -1,0 +1,15 @@
+[Unit]
+Description=Keep Intel Arc Pro B70 GSC PCIe Gen4 Downgrade Disabled (Force PCIe 5.0 32.0 GT/s x8)
+After=multi-user.target
+Before=shutdown.target poweroff.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=-/usr/bin/xpu-smi config -d 0 --pciedowngrade 0
+ExecStart=-/usr/bin/xpu-smi config -d 1 --pciedowngrade 0
+ExecStop=-/usr/bin/xpu-smi config -d 0 --pciedowngrade 0
+ExecStop=-/usr/bin/xpu-smi config -d 1 --pciedowngrade 0
+
+[Install]
+WantedBy=multi-user.target

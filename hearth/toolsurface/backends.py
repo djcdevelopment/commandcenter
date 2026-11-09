@@ -383,6 +383,16 @@ def _default_fallback(pool: Pool, configuration: str) -> list[Backend]:
     return [b for b in pool.backends if "dense" in b.tags]
 
 
+def _active_reservations(occ: dict) -> int:
+    detail = occ.get("detail")
+    if isinstance(detail, dict):
+        try:
+            return int(detail.get("active_reservations", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
 def select_backend(pool: Pool, *, backend: Optional[str] = None,
                    model: Optional[str] = None,
                    task: Optional[str] = None,
@@ -509,14 +519,22 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
                 f"no provider declares model {model!r} "
                 f"(have: {', '.join(declared) or 'none'})"
             )
-        for candidate in candidates:
+        available_model_candidates: list[tuple[int, int, Backend, dict]] = []
+        for idx, candidate in enumerate(candidates):
             if _absent(candidate.name)[0] == "absent":
                 continue
             if not _fits(candidate, payload_bytes, max_tokens, exclude, model):
                 continue
             occupancy = _occ(candidate.name)
             if occupancy.get("occupancy") == "available":
-                return candidate, f"model:{model}", occupancy
+                available_model_candidates.append(
+                    (_active_reservations(occupancy), idx, candidate, occupancy)
+                )
+        if available_model_candidates:
+            _, _, chosen_cand, chosen_occ = min(
+                available_model_candidates, key=lambda item: (item[0], item[1])
+            )
+            return chosen_cand, f"model:{model}", chosen_occ
         raise BackendRoutingRefusal(
             payload_bytes=payload_bytes or 0,
             required_context_bytes=payload_bytes or 0,
@@ -637,17 +655,24 @@ def select_backend(pool: Pool, *, backend: Optional[str] = None,
         if wanted and "default" not in wanted and tag_lane_absent:
             raise BackendConfigError(
                 f"lane {wanted} absent under configuration {d_cfg}: {', '.join(dict.fromkeys(tag_absent))}")
-        for candidate in _default_fallback(pool, d_cfg):
+        fallback_candidates: list[tuple[int, int, int, Backend, dict]] = []
+        for idx, candidate in enumerate(_default_fallback(pool, d_cfg)):
             if (candidate.name == default.name or _absent(candidate.name)[0] == "absent" or
                     not _fits(candidate, payload_bytes, max_tokens, exclude)):
                 continue
-            log.warning("default %s absent under %s; fallback %s (wanted %s)",
-                        default.name, d_cfg, candidate.name, wanted)
             occ = dict(_occ(candidate.name))
-            if occ.get("exclusive"):
+            if occ.get("exclusive") or occ.get("occupancy") == "unknown":
                 continue
-            occ["fallback_from"] = default.name
-            return candidate, f"absent_fallback:{default.name}->{candidate.name}", occ
+            is_busy = 0 if occ.get("occupancy") == "available" else 1
+            fallback_candidates.append((is_busy, _active_reservations(occ), idx, candidate, occ))
+        if fallback_candidates:
+            _, _, _, chosen_cand, chosen_occ = min(
+                fallback_candidates, key=lambda item: (item[0], item[1], item[2])
+            )
+            log.warning("default %s absent under %s; fallback %s (wanted %s)",
+                        default.name, d_cfg, chosen_cand.name, wanted)
+            chosen_occ["fallback_from"] = default.name
+            return chosen_cand, f"absent_fallback:{default.name}->{chosen_cand.name}", chosen_occ
         raise BackendConfigError(
             f"default {default.name!r} absent under configuration {d_cfg} and no live default_fallback fits")
 

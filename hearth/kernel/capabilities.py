@@ -157,6 +157,10 @@ TOOL_CAPABILITY: dict[str, str] = {
     "plan_execution": "execution",
     "submit_delegated_execution": "execution",
     "submit_execution": "execution",
+    "acquire_ticket": "execution",
+    "renew_ticket": "execution",
+    "commit_ticket": "execution",
+    "fail_ticket": "execution",
     "watch_execution": "execution",
     # local_work: bounded, review-only repository candidates.  It shares the
     # execution authority because every work item is backed by an owned Job;

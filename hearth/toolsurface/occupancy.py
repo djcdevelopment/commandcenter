@@ -45,6 +45,8 @@ through the same probe + cache so there is exactly one occupancy truth.
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import json
 import os
 import subprocess
@@ -52,7 +54,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
-from typing import Callable, Literal, Optional
+from typing import Any, Callable, Iterator, Literal, Optional
 
 Occupancy = Literal["available", "busy", "unknown"]
 
@@ -645,13 +647,67 @@ def probe_oxen_alias(alias: str, token_env: str = "AM4_VLLM_TOKEN", timeout_s: f
     return {"occupancy": "available", "detail": detail}
 
 
-def _hearth_active_jobs_for(provider: str) -> tuple[Optional[int], Optional[str]]:
-    """Non-final HEARTH jobs whose dispatch named this provider (execution projection, read-only)."""
+_ROUTING_RESERVATION_CTX: contextvars.ContextVar[Optional[dict[str, Any]]] = contextvars.ContextVar(
+    "_ROUTING_RESERVATION_CTX", default=None
+)
+
+OMEN_DENSE_SEAT_URLS: dict[str, str] = {
+    "omen-dense-27b": "http://127.0.0.1:18091/metrics",
+    "omen-dense-27b-b": "http://127.0.0.1:18092/metrics",
+}
+OMEN_DENSE_PARALLEL_SLOTS = 2
+
+
+@contextlib.contextmanager
+def routing_reservation_context(
+    *,
+    leases: Any = None,
+    ledger: Any = None,
+    exclude_job_id: Optional[str] = None,
+) -> Iterator[None]:
+    """Bind the active service's lease store, ledger projection, and current job_id during routing."""
+    prev = _ROUTING_RESERVATION_CTX.get() or {}
+    merged = {
+        "leases": leases if leases is not None else prev.get("leases"),
+        "ledger": ledger if ledger is not None else prev.get("ledger"),
+        "exclude_job_id": exclude_job_id if exclude_job_id is not None else prev.get("exclude_job_id"),
+    }
+    token = _ROUTING_RESERVATION_CTX.set(merged)
+    try:
+        yield
+    finally:
+        _ROUTING_RESERVATION_CTX.reset(token)
+
+
+def _active_leases_for(provider: str) -> int:
+    """Count active leases for `provider:<provider>` in CapacityLeaseStore."""
+    ctx = _ROUTING_RESERVATION_CTX.get() or {}
+    leases = ctx.get("leases")
+    try:
+        if leases is None:
+            from hearth.execution.coordination import CapacityLeaseStore
+            leases = CapacityLeaseStore()
+        return int(leases.active_count(f"provider:{provider}"))
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _hearth_active_jobs_for(
+    provider: str,
+    exclude_job_id: Optional[str] = None,
+) -> tuple[Optional[int], Optional[str]]:
+    """Non-final HEARTH jobs whose dispatch or admission named this provider (execution projection, read-only)."""
     import json as _json
     import sqlite3
-    root = os.environ.get("HEARTH_EXECUTION_DIR") or os.path.join(
-        os.environ.get("HEARTH_ROOT", os.path.expanduser("~/hearth-production")), "var", "execution")
-    path = os.path.join(root, "projection.sqlite")
+    ctx = _ROUTING_RESERVATION_CTX.get() or {}
+    exclude_id = exclude_job_id if exclude_job_id is not None else ctx.get("exclude_job_id")
+    ledger = ctx.get("ledger")
+    if ledger is not None and getattr(ledger, "projection_path", None) is not None:
+        path = str(ledger.projection_path)
+    else:
+        root = os.environ.get("HEARTH_EXECUTION_DIR") or os.path.join(
+            os.environ.get("HEARTH_ROOT", os.path.expanduser("~/hearth-production")), "var", "execution")
+        path = os.path.join(root, "projection.sqlite")
     try:
         with sqlite3.connect("file:%s?mode=ro" % path, uri=True) as db:
             rows = db.execute("SELECT state_json FROM jobs WHERE status NOT IN "
@@ -664,15 +720,81 @@ def _hearth_active_jobs_for(provider: str) -> tuple[Optional[int], Optional[str]
             state = _json.loads(state_json)
         except ValueError:
             continue
+        if exclude_id and state.get("job_id") == exclude_id:
+            continue
         if state.get("provider") == provider or (state.get("desired") or {}).get("arguments", {}).get("backend") == provider:
             n += 1
     return n, None
+
+
+def _refresh_dense_seat_reservations(
+    provider_name: str,
+    result: dict,
+    parallel_slots: int = OMEN_DENSE_PARALLEL_SLOTS,
+) -> dict:
+    """Refresh live reservation counts (CapacityLeaseStore + projection.sqlite) on a B70 dense seat result."""
+    if result.get("exclusive") or result.get("occupancy") == "unknown":
+        return result
+    raw_detail = result.get("detail")
+    detail = dict(raw_detail) if isinstance(raw_detail, dict) else {}
+    slots = int(detail.get("parallel_slots", parallel_slots))
+    running = float(detail.get("requests_running", 0.0))
+    waiting = float(detail.get("requests_waiting", 0.0))
+    active_leases = _active_leases_for(provider_name)
+    active_jobs, jobs_err = _hearth_active_jobs_for(provider_name)
+    active_jobs_count = int(active_jobs) if active_jobs is not None else 0
+    active_reservations = max(int(active_leases), active_jobs_count, int(running + waiting))
+    detail["parallel_slots"] = slots
+    detail["active_reservations"] = active_reservations
+    detail["active_leases"] = int(active_leases)
+    detail["active_jobs"] = active_jobs_count
+    detail["requests_running"] = running
+    detail["requests_waiting"] = waiting
+    if jobs_err:
+        detail["jobs_reason"] = jobs_err
+    else:
+        detail.pop("jobs_reason", None)
+    busy = (waiting > 0) or (active_reservations >= slots)
+    return {
+        **result,
+        "occupancy": "busy" if busy else "available",
+        "detail": detail,
+    }
+
+
+def probe_omen_dense_seat(
+    provider_name: str,
+    metrics_url: Optional[str] = None,
+    parallel_slots: int = OMEN_DENSE_PARALLEL_SLOTS,
+) -> dict:
+    """Per-replica B70 Qwen3.8-27B health, capacity & reservation probe (`omen-dense-27b` / `omen-dense-27b-b`)."""
+    fence = _tenancy_fence()
+    if fence is not None:
+        return fence
+    seat_url = metrics_url or OMEN_DENSE_SEAT_URLS.get(provider_name, "http://127.0.0.1:18091/metrics")
+    gauges, err = _fetch_vllm_metrics(seat_url)
+    if gauges is None:
+        return {"occupancy": "unknown", "detail": {"seat": seat_url, "error": err}}
+    running = float(gauges.get("vllm:num_requests_running", 0.0))
+    waiting = float(gauges.get("vllm:num_requests_waiting", 0.0))
+    base = {
+        "occupancy": "available",
+        "detail": {
+            "seat": seat_url,
+            "parallel_slots": parallel_slots,
+            "requests_running": running,
+            "requests_waiting": waiting,
+        },
+    }
+    return _refresh_dense_seat_reservations(provider_name, base, parallel_slots=parallel_slots)
 
 
 _PROBES: dict[str, Callable[[], dict]] = {
     "omen-arc": probe_omen_arc_slots,  # HTTP slot/KV goodput on the resident rung (ADR-0034)
     "omen-swap": probe_omen_swap,      # llama-swap /running behind the tenancy fence (ADR-0045)
     "omen-vllm": probe_omen_vllm,      # Linux rung: vLLM seat gauges + HEARTH jobs + operator presence
+    "omen-dense-27b": lambda: probe_omen_dense_seat("omen-dense-27b", "http://127.0.0.1:18091/metrics", 2),
+    "omen-dense-27b-b": lambda: probe_omen_dense_seat("omen-dense-27b-b", "http://127.0.0.1:18092/metrics", 2),
     # am4-oxen / am4-moe probes removed 2026-08-21: those rungs are tombstones
     # (cards moved into OMEN); a probe that can only ever answer "unreachable"
     # is decoration, per this registry's own rule above.
@@ -712,7 +834,18 @@ def check_occupancy(backend_name: str, cache: Optional[OccupancyCache] = None,
             return fence
     if probe is None and _PROBES.get(backend_name) is None:
         return {"occupancy": "available", "detail": _NO_PROBE_DETAIL}
-    return (cache or default_cache()).get(backend_name, probe=probe)
+    active_cache = cache or default_cache()
+    result = active_cache.get(backend_name, probe=probe)
+    if (
+        backend_name in OMEN_DENSE_SEAT_URLS
+        and result.get("cached") is True
+        and (
+            (probe is None and active_cache._probe is None)
+            or (isinstance(result.get("detail"), dict) and "requests_running" in result["detail"])
+        )
+    ):
+        return _refresh_dense_seat_reservations(backend_name, result)
+    return result
 
 
 def resolve_for_lane(occupancy: Occupancy, *, pinned: bool) -> bool:

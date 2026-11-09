@@ -45,6 +45,7 @@ from typing import Callable, NamedTuple, Optional
 
 from hearth.health.rungstate import live_rung_state
 from hearth.observation.emit import record_dispatch
+from hearth.observation.identity import current_traceparent
 from hearth.sizer import size_request, sizer_label
 from hearth.toolsurface._scope import resolve_in_scope, scope_root
 from hearth.toolsurface.backends import (BackendConfigError, BackendRoutingRefusal,
@@ -328,7 +329,8 @@ def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
                     payload_bytes: Optional[int] = None,
                     exclude: Optional[set[str]] = None,
                     tags: Optional[list[str]] = None,
-                    max_tokens: Optional[int] = None) -> _Target:
+                    max_tokens: Optional[int] = None,
+                    bound_endpoint: Optional[str] = None) -> _Target:
     """Apply the Banked Fire routing policy and return the dispatch target.
 
     Precedence: (1) an explicitly-passed endpoint wins outright, unchanged; then
@@ -337,6 +339,21 @@ def _resolve_target(endpoint: str, task: Optional[str], backend: Optional[str],
     so existing behavior is intact.
     """
     pool = load_pool()
+
+    # (0) Strict bound target (steppewise-consul M2, Codex R4-M1): an admission binding names a
+    # backend AND the exact endpoint Consul approved. The named backend must exist and be declared
+    # at exactly that endpoint; there is no DEFAULT_ENDPOINT sentinel, no endpoint-only, ad-hoc or
+    # name-only fallback, and the "pinned-bound" label keeps escalation from changing backend.
+    if bound_endpoint is not None:
+        named = pool.by_name(backend) if backend else None
+        if named is None or named.endpoint.rstrip("/") != bound_endpoint.rstrip("/"):
+            raise BackendConfigError(
+                f"bound_target_mismatch: backend {backend!r} is "
+                f"{'undeclared' if named is None else 'declared at ' + named.endpoint.rstrip('/')}"
+                f", bound endpoint {bound_endpoint.rstrip('/')}")
+        token, error = _google_access_token(named.auth_env) if named.api == "gemini" else (named.token(), None)
+        return _Target(bound_endpoint.rstrip("/"), named.api, token, error, named.auth_env, named.name,
+                       "pinned-bound", "available", named.settings)
 
     # (1) Caller-pinned endpoint wins. Adopt a declared backend's api/auth if the
     # endpoint matches one; otherwise treat it as an ad-hoc Ollama endpoint.
@@ -496,10 +513,14 @@ def _family_tags(family: str) -> list[str]:
 def _post(url: str, payload: dict, timeout_s: int,
           headers: Optional[dict] = None) -> tuple[Optional[dict], Optional[str]]:
     """POST JSON and return (body, error). error is a string on failure, else None."""
+    req_headers = {"Content-Type": "application/json", **(headers or {})}
+    tp = current_traceparent()
+    if tp and "traceparent" not in req_headers:
+        req_headers["traceparent"] = tp
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json", **(headers or {})},
+        headers=req_headers,
         method="POST",
     )
     try:
@@ -530,9 +551,13 @@ def _post_stream(url: str, payload: dict, timeout_s: int,
     ``should_stop`` is checked at every chunk too, and polled every 0.5 s by a watcher that shuts
     the socket down, so a quiet stream (a long prefill) also ends as ``stream_cancelled``.
     """
+    req_headers = {"Content-Type": "application/json", **(headers or {})}
+    tp = current_traceparent()
+    if tp and "traceparent" not in req_headers:
+        req_headers["traceparent"] = tp
     request = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json", **(headers or {})}, method="POST")
+        headers=req_headers, method="POST")
     started = time.monotonic()
     got = {"text": "", "reasoning": "", "finish_reason": None, "usage": {}, "model": None,
            "first_reasoning_ms": None, "first_content_ms": None, "chunks": 0}
@@ -755,6 +780,9 @@ def _generate_openai(target: _Target, prompt: str, model: str, system: Optional[
             "json_schema": {"name": _schema_name(response_schema),
                             "schema": response_schema, "strict": True}}
     headers = {"Authorization": f"Bearer {target.auth_token}"} if target.auth_token else {}
+    tp = current_traceparent()
+    if tp:
+        headers["traceparent"] = tp
     sent_thinking = chat_template_kwargs.get("enable_thinking")
     observed = {"wire_request": payload, "thinking": sent_thinking, "reasoning": "",
                 "finish_reason": None, "tokens_reasoning": None,
@@ -958,7 +986,8 @@ def local_generate(prompt: str, model: str | None = None,
                    thinking: bool | None = None,
                    seed: int | None = None, top_p: float | None = None,
                    stream: bool = False,
-                   should_stop: Callable[[], bool] | None = None) -> dict:
+                   should_stop: Callable[[], bool] | None = None,
+                   bound_endpoint: str | None = None) -> dict:
     """Generate text from a configured inference backend.
 
     Routing (Banked Fire): pass ``task`` (e.g. "research") to prefer a tagged
@@ -1312,7 +1341,8 @@ def local_generate(prompt: str, model: str | None = None,
 
     try:
         target = _resolve_target(endpoint, task, route_backend, payload_bytes=payload_bytes,
-                                 tags=call_tags, max_tokens=admission_max_tokens)
+                                 tags=call_tags, max_tokens=admission_max_tokens,
+                                 bound_endpoint=bound_endpoint)
     except BackendRoutingRefusal as exc:
         refusal = exc.as_dict()
         return _tag({"ok": False,

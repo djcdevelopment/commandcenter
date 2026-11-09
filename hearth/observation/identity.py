@@ -41,15 +41,52 @@ class DispatchIdentity:
     node: str
     task_id: Optional[str] = None
     profile: Optional[str] = None
+    traceparent: Optional[str] = None
 
 
 _identity: ContextVar[Optional[DispatchIdentity]] = ContextVar(
     "hearth_dispatch_identity", default=None)
+_traceparent: ContextVar[Optional[str]] = ContextVar(
+    "hearth_traceparent", default=None)
+
+
+def extract_trace_id(traceparent: Optional[str]) -> Optional[str]:
+    """Extract the 32-hex W3C trace_id from a traceparent header value, if valid."""
+    if not isinstance(traceparent, str) or not traceparent.strip():
+        return None
+    parts = traceparent.strip().split("-")
+    if len(parts) >= 4 and len(parts[1]) == 32:
+        return parts[1].lower()
+    return None
 
 
 def current_identity() -> Optional[DispatchIdentity]:
     """The identity in force for this call, or None when nothing pushed one."""
     return _identity.get()
+
+
+def current_traceparent() -> Optional[str]:
+    """The W3C traceparent in force for this call, or None when nothing pushed one."""
+    tp = _traceparent.get()
+    if tp:
+        return tp
+    ident = _identity.get()
+    if ident is not None and ident.traceparent:
+        return ident.traceparent
+    return None
+
+
+@contextlib.contextmanager
+def trace_context(traceparent: Optional[str]) -> Iterator[None]:
+    """Push a W3C traceparent for the duration of one call."""
+    if not isinstance(traceparent, str) or not traceparent.strip():
+        yield
+        return
+    token = _traceparent.set(traceparent.strip())
+    try:
+        yield
+    finally:
+        _traceparent.reset(token)
 
 
 @contextlib.contextmanager
@@ -63,7 +100,14 @@ def dispatch_identity(identity: Optional[DispatchIdentity]) -> Iterator[None]:
         yield
         return
     token = _identity.set(identity)
+    tp_token = (
+        _traceparent.set(identity.traceparent.strip())
+        if (identity.traceparent and identity.traceparent.strip())
+        else None
+    )
     try:
         yield
     finally:
+        if tp_token is not None:
+            _traceparent.reset(tp_token)
         _identity.reset(token)

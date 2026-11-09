@@ -54,7 +54,7 @@ from hearth.kernel.context import HearthContext
 from hearth.kernel.guards import GuardRejection, GuardStack
 from hearth.kernel.ledger import REPO_ROOT, Ledger, classify_error, hearth_root, new_event
 from hearth.kernel.timers import parse_disabled, start_timers
-from hearth.observation.identity import DispatchIdentity, dispatch_identity
+from hearth.observation.identity import DispatchIdentity, dispatch_identity, trace_context
 from hearth.toolsurface._scope import caller_repo_access, caller_scope
 
 DEFAULT_HOST = "127.0.0.1"
@@ -362,6 +362,32 @@ def make_task_id_provider(mcp: FastMCP) -> Callable[[], Optional[str]]:
     return provider
 
 
+def make_traceparent_provider(mcp: FastMCP) -> Callable[[], Optional[str]]:
+    """traceparent provider reading W3C traceparent from HTTP headers or MCP _meta."""
+    def provider() -> Optional[str]:
+        try:
+            request = mcp.get_context().request_context.request
+            if request is not None and hasattr(request, "headers"):
+                tp = request.headers.get("traceparent")
+                if isinstance(tp, str) and tp.strip():
+                    return tp.strip()
+        except (ValueError, LookupError):
+            pass
+        try:
+            meta = mcp.get_context().request_context.meta
+            if meta is not None:
+                tp = getattr(meta, "traceparent", None)
+                if tp is None:
+                    extra = getattr(meta, "model_extra", None) or {}
+                    tp = extra.get("traceparent")
+                if isinstance(tp, str) and tp.strip():
+                    return tp.strip()
+        except (ValueError, LookupError):
+            pass
+        return None
+    return provider
+
+
 def _resolved_signature(fn: Callable) -> tuple[inspect.Signature, dict]:
     """The provider's signature with string annotations resolved in its own
     module, so FastMCP builds the tool schema correctly from the wrapper."""
@@ -379,7 +405,8 @@ def _resolved_signature(fn: Callable) -> tuple[inspect.Signature, dict]:
 
 def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
                  guards: GuardStack, key_provider: KeyProvider,
-                 task_id_provider: Callable[[], Optional[str]] = lambda: None) -> Callable:
+                 task_id_provider: Callable[[], Optional[str]] = lambda: None,
+                 traceparent_provider: Callable[[], Optional[str]] = lambda: None) -> Callable:
     """Wrap one provider callable with auth + guards + provenance + ledger."""
     tool_name = fn.__name__
     sig, hints = _resolved_signature(fn)
@@ -398,6 +425,13 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
                 f"unknown or missing {HEADER_NAME} key; rejection recorded in the ledger"
             )
         task_id = task_id_provider()
+        traceparent = traceparent_provider()
+        if not traceparent:
+            arg_tp = kwargs.get("traceparent")
+            if not arg_tp and isinstance(kwargs.get("arguments"), dict):
+                arg_tp = kwargs["arguments"].get("traceparent")
+            if isinstance(arg_tp, str) and arg_tp.strip():
+                traceparent = arg_tp.strip()
 
         # ADR-0019: authorization sits between authentication and everything
         # else. It runs BEFORE the guard stack and before any argument
@@ -477,10 +511,11 @@ def make_wrapper(fn: Callable, hearth: HearthContext, auth: AuthRegistry,
             # generic — it pushes caller identity, which it already does twice, and knows
             # nothing about inference or observations.
             with caller_scope(caller.file_scope), caller_repo_access(caller.repo_access), \
+                    trace_context(traceparent), \
                     dispatch_identity(DispatchIdentity(
                         caller_id=caller.id, runner_class=caller.runner_class,
                         node=caller.node, task_id=task_id,
-                        profile=caller.ledger_profile)):
+                        profile=caller.ledger_profile, traceparent=traceparent)):
                 result = fn(**kwargs)
             model = _lift_ledger_model(result)
             lifted = _lift_ledger_task_class(result)
@@ -680,6 +715,7 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
                   transport_security=_transport_security(host))
     key_provider = make_header_key_provider(mcp)
     task_id_provider = make_task_id_provider(mcp)
+    traceparent_provider = make_traceparent_provider(mcp)
 
     # Public liveness contract: intentionally static and unauthenticated. Do
     # not add caller, tool, backend, path, or configuration data here.
@@ -766,7 +802,9 @@ def build_server(providers_spec: str = "", host: str = DEFAULT_HOST,
             if fn.__name__ in registered:
                 log.warning("duplicate tool %s from %s skipped", fn.__name__, module_name)
                 continue
-            wrapped = make_wrapper(fn, hearth, auth, guards, key_provider, task_id_provider)
+            wrapped = make_wrapper(
+                fn, hearth, auth, guards, key_provider, task_id_provider, traceparent_provider
+            )
             if threaded_tools:
                 wrapped = _threaded_tool(wrapped)
             mcp.add_tool(wrapped)

@@ -22,6 +22,7 @@ from hearth.execution import (
     load_operations,
 )
 from hearth.execution.model import validate_execution_event
+from hearth.observation.identity import current_traceparent, trace_context
 
 _BACKENDS = """
 default = "test-provider"
@@ -185,3 +186,31 @@ class ExecutionServiceStampTest(unittest.TestCase):
         self.assertEqual(result["occupancy"], "available")
         for key in ("rung_state", "pool_config_hash"):
             self.assertNotIn(key, result)
+
+    def test_traceparent_persists_in_job_state_events_and_forwards_to_worker(self) -> None:
+        seen_in_worker = []
+
+        def capture_generate(**kwargs):
+            seen_in_worker.append(current_traceparent())
+            return self._stamped()(**kwargs)
+
+        service = self.service(capture_generate)
+        tp = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        with trace_context(tp):
+            submitted = service.submit(
+                operation_name="llm.chat",
+                arguments={"prompt": "review this", "model": "gpt-oss-120b", "traceparent": tp},
+                principal=self.principal,
+                source=self.source,
+            )
+        final = self.wait_final(service, submitted["job_id"])
+        self.assertEqual("succeeded", final["status"])
+        self.assertEqual(final.get("traceparent"), tp)
+        self.assertEqual(final.get("trace_id"), "4bf92f3577b34da6a3ce929d0e0e4736")
+        self.assertEqual(seen_in_worker, [tp])
+        events = service.events(job_id=submitted["job_id"], limit=50)
+        for ev_type in ("request.accepted", "job.dispatched", "invocation.started", "job.running", "job.succeeded"):
+            ev = next(e for e in events if e["event_type"] == ev_type)
+            self.assertEqual(ev["observed"].get("traceparent"), tp)
+            self.assertEqual(ev["observed"].get("trace_id"), "4bf92f3577b34da6a3ce929d0e0e4736")
+            validate_execution_event(ev)

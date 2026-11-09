@@ -69,9 +69,15 @@ def get_head_commit() -> str:
 
 def read_b70_thermals() -> dict[str, Any]:
     out: dict[str, Any] = {}
-    for card in ("card2", "card3"):
+    for card_dir in sorted(glob.glob("/sys/class/drm/card[0-9]")):
+        dev_id_path = f"{card_dir}/device/device"
+        if not os.path.isfile(dev_id_path):
+            continue
+        if Path(dev_id_path).read_text().strip().lower() != "0xe223":
+            continue
+        card = os.path.basename(card_dir)
         card_info: dict[str, Any] = {}
-        for hw in sorted(glob.glob(f"/sys/class/drm/{card}/device/hwmon/hwmon*")):
+        for hw in sorted(glob.glob(f"{card_dir}/device/hwmon/hwmon*")):
             for tpath in sorted(glob.glob(f"{hw}/temp*_input")):
                 base = tpath[:-6]
                 lbl_path = base + "_label"

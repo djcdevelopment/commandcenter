@@ -11,7 +11,10 @@ review costs; handle trivial work directly. Batch related small items into one c
 
 **Lanes on this host (from `~/hearth-production/backends-linux.toml`):**
 
-The live fleet is the lab configuration `bolt74-dense27` (ADR-0075, ADR-0076; since 2026-10-23). Two deep seats:
+**Fleet plan of record (Derek, 2026-10-29): THREE-DENSE**, three Qwen3.8-27B dense seats, all vLLM: `omen-dense-27b` and
+`omen-dense-27b-b` on the two B70s (OMEN profile `two-dense`) and `am4-vllm` on AM4 (plan `/home/derek/.claude/plans/delightful-whistling-wirth.md`).
+If another model is serving a B70, restore with `omen-profile switch two-dense` when no work is in flight. The 74B is NOT part of
+the plan: not a fallback, not a target. The `bolt74-dense27` text below is HISTORICAL. In `bolt74-dense27` (ADR-0075, ADR-0076; since 2026-10-23) there are two deep seats:
 the Nemotron Bolt-74B across both B70s, and the Qwen3.8-27B dense thinking model on AM4's two CUDA cards. There is
 **no 30B and no 27B on the B70s** in this configuration (see "Not live" below). `host/lab-configurations.toml` names
 the live set and `submit_local_work` records it in `conditions.lab_configuration`; check `~/bin/omen-profile status`
@@ -58,12 +61,13 @@ need. Pass `files=` with a specific question so that pipeline runs; pasting file
   JEPA predictor and ranking on the CPU, AST/embedding arena in `/dev/shm/mechsuit-ast-arena`, 0 B70 VRAM. Receipted:
   84% prompt-token cut and 78% wall cut over 12 paired 27B tasks (`loop4_live_efficiency_receipt.json`). Used by
   `local_generate(files=)` (with the prompt as intent) and delivery briefs; `submit_execution(files=)` slices without
-  intent; code_fix local-work does not slice; HTML gets no AST and JS only a weak regex.
+  intent; code_fix local-work does not slice; Supports .py, .html (depth-aware HTMLParser dom_section + script/style blocks), .css, and .js/.ts under schema mechsuit-shm-ast-arena.v3 (pass deterministic file_path per slug/sha and exclude generic blueprint_advice via prescription_excluded=True).
+  V3 anti-regression contract: Tier A hashes schema/model/byte-length/file-SHA, never path; Tier B hashes full symbol bodies (candidate line spans normalized); Tier C preserves file-SHA sourcemap_sha256_* aliases. Cache lookup precedes extraction in daemon and packager (bump schema on extraction changes); hits use get_file_entry(), boot resets cold-seeding counters before a real warm verification pass. Guard target: /home/derek/work/xtech-search10-rnd-20261015/sovereign_core/jepa/test_shm_ast_arena_v3_invariants.py (8 CPU-only tests passed 2026-10-30); evidence: /home/derek/work/jepa-hybrid-chronicle-20261029/ast-ramdisk-hash-v3-recovery-receipt.json. Legacy path-key reads are supported for migration without changing primary identity/writes; implementation and guard committed as a7f86faa488ad8fd57e9698a0b0206e115ae579a (2026-10-30 UTC). See /home/derek/work/lab/OPERATING-MANUAL/LEVERS.yaml for the four invariants.
 - There is no cloud rung in this pool: the `gcp-gemini` rungs are retired (the GCP trial ended, 2026-10-15).
   A refused local lane is terminal; never substitute cloud.
-- **Not live in this configuration (history only; do not route to them or cite them as current):** `omen-vllm`
+- **Not live in `bolt74-dense27` (history for that configuration):** `omen-vllm`
   (Qwen3-30B-A3B MoE, retired from the B70s when the 74B took both cards), `omen-dense-27b` / `omen-dense-27b-b` (the
-  27B replicas on the B70s under the earlier `three-dense`/`two-lane` profiles), `am4-tool-4070ti` / `am4-tool-5070`
+  27B replicas on the B70s; these ARE the seats of the `two-dense` operating plan above), `am4-tool-4070ti` / `am4-tool-5070`
   (Qwen3-8B tool pair; AM4 runs `dense-tp2`). Numbers in older records that name these seats (for example "the 30B
   reads 94.7%") describe those profiles, not the current fleet.
 

@@ -88,6 +88,7 @@ import html
 import re
 import subprocess
 import sys
+from pathlib import Path
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import NamedTuple, Optional
@@ -501,6 +502,33 @@ def file_map(path: str, data: bytes) -> FileMap:
         symbols = _fallback_symbols(lines, path)
     return FileMap(path=path, sha256=hashlib.sha256(data).hexdigest(), lines=lines,
                    symbols=symbols, symbols_from=source, notes=notes)
+
+
+
+def from_files(repo_root, files, commit="HEAD") -> SourceMap:
+    """Map current working-tree bytes, including untracked files, without git show.
+
+    ``commit`` is caller context, not an assertion that working bytes equal HEAD.
+    Resolved paths must stay inside the repository; normal file/packet caps apply.
+    """
+    root = Path(repo_root).resolve()
+    if not root.is_dir():
+        raise SourceNotFound(f"repository directory not found: {root}")
+    sm = SourceMap(repo=str(root), commit=commit)
+    total = 0
+    for name in files:
+        full_path = (root / str(name)).resolve()
+        if not full_path.is_relative_to(root):
+            raise SourceNotFound(f"working file escapes repository root: {name}")
+        try:
+            raw = full_path.read_bytes()
+        except OSError as exc:
+            raise SourceNotFound(f"working file not found: {name}") from exc
+        total += len(raw)
+        if total > PACKET_CAP_BYTES:
+            raise PacketTooLarge(f"files total size {total} exceeds total cap {PACKET_CAP_BYTES} at {name}")
+        sm.files.append(file_map(str(name), raw))
+    return sm
 
 
 def build(repo: str, commit: str, paths: list) -> SourceMap:

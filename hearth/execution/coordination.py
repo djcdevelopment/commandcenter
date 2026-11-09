@@ -105,7 +105,11 @@ class CapacityLeaseStore:
         limit: int,
         ttl_seconds: float,
         now: Optional[float] = None,
+        holder_pid: Optional[int] = -1,
     ) -> str:
+        """``holder_pid`` defaults to this process. ``None`` marks a lease held by an
+        external ticket holder (steppewise-consul M3): it is not reaped when the
+        gateway process dies, only when it expires or its job is final."""
         if not scope:
             raise ValueError("scope must not be empty")
         if limit <= 0:
@@ -137,13 +141,21 @@ class CapacityLeaseStore:
                     ) VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (lease_id, scope, job_id, invocation_id, acquired_at, expires_at,
-                     os.getpid()),
+                     os.getpid() if holder_pid == -1 else holder_pid),
                 )
                 connection.commit()
             except Exception:
                 connection.rollback()
                 raise
         return lease_id
+
+    def expires_at(self, lease_id: str) -> Optional[float]:
+        """The lease's expiry, or None when it no longer exists (released or reaped)."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT expires_at FROM capacity_leases WHERE lease_id = ?", (lease_id,)
+            ).fetchone()
+        return None if row is None else float(row["expires_at"])
 
     def renew(
         self, lease_id: str, *, ttl_seconds: float, now: Optional[float] = None

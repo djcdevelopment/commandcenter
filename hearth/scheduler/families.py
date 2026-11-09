@@ -170,6 +170,8 @@ class Regime:
 
 
 REGIME_PROCEDURES = ("one_call", "think_then_emit")
+# Consul-observed admission per family (steppewise-consul M2). Absent means "off".
+DISCOVERY_MODES = ("off", "shadow", "enforce")
 
 
 @dataclass(frozen=True)
@@ -189,6 +191,10 @@ class FamilyPreference:
     refusal: Optional[str] = None
     requires_configuration: Optional[str] = None
     regime: Optional[Regime] = None
+    discovery: str = "off"   # off | shadow | enforce (DISCOVERY_MODES)
+    # Authored model-id equivalents an enforce family accepts besides model_id (e.g. a facade
+    # alias for the same weights). Never inferred; empty means model_id only.
+    discovery_models: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -298,7 +304,25 @@ def _coerce_family(name: str, raw: Any) -> FamilyPreference:
         refusal=refusal,
         requires_configuration=_optional_str(raw, "requires_configuration", where),
         regime=_coerce_regime(raw["regime"], f"{where}.regime") if raw.get("regime") is not None else None,
+        discovery=_coerce_discovery(raw, where),
+        discovery_models=_coerce_discovery_models(raw, where),
     )
+
+
+def _coerce_discovery_models(table: dict, where: str) -> tuple[str, ...]:
+    value = table.get("discovery_models")
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(isinstance(m, str) and m.strip() for m in value):
+        raise FamiliesConfigError(f"{where}: discovery_models must be a list of non-empty strings")
+    return tuple(value)
+
+
+def _coerce_discovery(table: dict, where: str) -> str:
+    value = table.get("discovery", "off")
+    if value not in DISCOVERY_MODES:
+        raise FamiliesConfigError(f"{where}: discovery must be one of {DISCOVERY_MODES}")
+    return value
 
 
 def _optional_tags(table: dict, where: str) -> Optional[tuple[str, ...]]:
@@ -609,6 +633,10 @@ def recommend(task_family: Optional[str], prompt_tokens: Optional[int] = None,
         "refusal": None,
         # Present only for a family that authors one, so other recommendations stay byte-identical.
         **({"regime": pref.regime.as_dict()} if pref.regime is not None else {}),
+        # Present only when the family opts in, so "off" recommendations stay byte-identical.
+        **({"discovery": pref.discovery,
+            "discovery_models": [model_id, *[m for m in pref.discovery_models if m != model_id]]}
+           if pref.discovery != "off" else {}),
     }
 
 
@@ -617,6 +645,7 @@ __all__ = [
     "CONTRACT",
     "DEFAULT_FAMILY",
     "DEFAULT_PATH",
+    "DISCOVERY_MODES",
     "DepthRule",
     "FAMILY_TAGS",
     "Families",

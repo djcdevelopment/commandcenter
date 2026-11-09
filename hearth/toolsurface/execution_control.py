@@ -306,8 +306,59 @@ def list_execution_providers() -> list[dict[str, Any]]:
     ]
 
 
+# ---- Ticketed external execution (steppewise-consul M3/M4) ----
+def _tickets():
+    from hearth.execution.tickets import TicketService
+    return TicketService(_get_service())
+
+
+def _ticket_call(fn):
+    from hearth.execution.tickets import TicketRefusal
+    from hearth.execution.service import ExecutionServiceError
+    try:
+        return fn()
+    except TicketRefusal as exc:
+        return {"ok": False, "refused": exc.code, "error": str(exc)}
+    except ExecutionServiceError as exc:
+        return {"ok": False, "refused": str(exc).split(":", 1)[0], "error": str(exc)}
+
+
+def acquire_ticket(idempotency_key: str, task_family: str, messages: list, max_tokens: int,
+                   response_schema: dict | None = None, provenance: dict | None = None,
+                   experiment_pin: str | None = None) -> dict[str, Any]:
+    """Ticketed external execution: HEARTH admits (requirements, never a seat name), binds a seat and
+    leases it; the caller invokes ONLY ticket.route with ticket.model/max_tokens and commits back.
+    The same idempotency_key returns the same job and its current ticket."""
+    identity = _identity()
+    return _ticket_call(lambda: _tickets().acquire_or_get(
+        principal=_direct_principal(identity), caller_id=identity.caller_id, idempotency_key=idempotency_key,
+        task_family=task_family, messages=messages, max_tokens=int(max_tokens),
+        response_schema=response_schema, provenance=provenance, experiment_pin=experiment_pin))
+
+
+def renew_ticket(ticket: dict) -> dict[str, Any]:
+    """Extend the ticket's lease; refused (lease_expired, stale_epoch, ...) when it can't be."""
+    return _ticket_call(lambda: _tickets().renew(ticket))
+
+
+def commit_ticket(ticket: dict, output_text: str, output_sha256: str, usage: dict, route_used: str) -> dict[str, Any]:
+    """Commit the seat's output and usage; HEARTH validates signature, epoch, lease, route, hash and
+    seat generation, then appends the canonical terminal events."""
+    return _ticket_call(lambda: _tickets().commit(ticket, output_text=output_text, output_sha256=output_sha256,
+                                                  usage=usage, route_used=route_used))
+
+
+def fail_ticket(ticket: dict, reason: str) -> dict[str, Any]:
+    """Record a terminal failure for the ticket's job."""
+    return _ticket_call(lambda: _tickets().fail(ticket, reason))
+
+
 def get_tools() -> list[Callable]:
     return [
+        acquire_ticket,
+        renew_ticket,
+        commit_ticket,
+        fail_ticket,
         submit_execution,
         plan_execution,
         submit_delegated_execution,

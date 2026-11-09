@@ -1,0 +1,2 @@
+# Allow render group (user derek) to read B70 GSC firmware config (including PCIe Gen4 Downgrade status) via xpu-smi without sudo
+KERNEL=="mei[0-9]*", SUBSYSTEM=="mei", MODE="0660", GROUP="render"

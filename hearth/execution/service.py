@@ -13,11 +13,14 @@ import os
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import replace as dc_replace
 from typing import Any, Callable, Mapping, NamedTuple, Optional
 
 from hearth.observation.identity import (DispatchIdentity, current_identity,
-                                         dispatch_identity)
+                                         current_traceparent, dispatch_identity,
+                                         extract_trace_id, trace_context)
 from hearth.toolsurface.backends import Backend, BackendConfigError, load_pool, select_backend
+from hearth.scheduler.discovery import DiscoveryRefusal, adapter_error, shared_adapter
 
 from .artifacts import ArtifactStore
 from .coordination import CapacityLeaseStore, CapacityUnavailable
@@ -154,7 +157,11 @@ class ExecutionService:
         self._futures: dict[str, Future[None]] = {}
         self._cancel_requested: set[str] = set()
         self._lock = threading.RLock()
+        self._route_lock = threading.RLock()
         self._changed = threading.Condition(self._lock)
+        # Start the Consul watcher now (when configured) so the first opt-in request finds a
+        # snapshot rather than racing an empty one (Codex M2 m6). Off families never read it.
+        shared_adapter()
         if recover_pending:
             self.recover_pending()
 
@@ -203,6 +210,11 @@ class ExecutionService:
                     # which is gone: drop it before the Job is closed or requeued,
                     # or it blocks a slot until its TTL (up to the deadline).
                     self.leases.release_job(state["job_id"])
+                if (state.get("source") or {}).get("execution_mode") == "external":
+                    # Ticketed or imported external work (steppewise-consul M3): checked BEFORE the
+                    # deliberate branch, so an external attempt is never failed by the code path
+                    # written for internal jobs. Its holder renews or its lease expires.
+                    continue
                 if state.get("operation") == DELIBERATE:
                     # A thinking turn costs up to an hour of a seat and is never replayed: close it
                     # (failed, or cancelled if the caller asked), with the reason on the record.
@@ -401,6 +413,7 @@ class ExecutionService:
             "quality",
             "task_family",
             "task_id",  # C-06: ledger attribution only; steers nothing
+            "traceparent",
             "image_path",
             "response_schema",
             "temperature",
@@ -419,7 +432,7 @@ class ExecutionService:
                 f"prompt is {len(encoded)} bytes; limit is {operation.max_prompt_bytes}"
             )
         for key in ("model", "backend", "endpoint", "system", "task", "quality",
-                    "task_family"):
+                    "task_family", "traceparent"):
             value = normalized.get(key)
             if value is not None and (not isinstance(value, str) or not value.strip()):
                 raise ExecutionServiceError(f"{key} must be a non-empty string")
@@ -450,7 +463,7 @@ class ExecutionService:
         self, operation: Operation, normalized: dict[str, Any]
     ) -> tuple[dict[str, Any], bytes]:
         allowed = {"messages", "backend", "thinking", "temperature", "seed", "top_p",
-                   "response_schema", "model", "task_id", "task_family", "procedure"}
+                   "response_schema", "model", "task_id", "task_family", "procedure", "traceparent"}
         unknown = set(normalized) - allowed
         if unknown:
             raise ExecutionServiceError(
@@ -549,14 +562,20 @@ class ExecutionService:
                     f"policy_refusal: no live seat for {family!r} declares deliberate_max_tokens"
                     + (f" >= {regime['max_tokens']}" if regime else "")
                     + f" (providers {recommendation.get('providers')})")
-            picked_seat = seats[0]
-            for s_name in seats:
-                s_prov = pool.by_name(s_name)
-                s_slots = self._parallel_slots(s_prov) if s_prov is not None else 1
-                if self.leases.active_count(f"provider:{s_name}") < s_slots:
-                    picked_seat = s_name
-                    break
-            out["backend"] = picked_seat
+            if recommendation.get("discovery") == "enforce":
+                # Consul-gated family (steppewise-consul M2): don't pin a seat here by lease count;
+                # discovery admission picks among Consul-passing deliberate-capable seats, so a seat
+                # in maintenance is routed around rather than pinned and refused (V5 finding).
+                out["_deliberate_floor"] = int(regime["max_tokens"]) if regime is not None else 1
+            else:
+                picked_seat = seats[0]
+                for s_name in seats:
+                    s_prov = pool.by_name(s_name)
+                    s_slots = self._parallel_slots(s_prov) if s_prov is not None else 1
+                    if self.leases.active_count(f"provider:{s_name}") < s_slots:
+                        picked_seat = s_name
+                        break
+                out["backend"] = picked_seat
         if regime is None:
             if not isinstance(out.get("thinking"), bool):
                 raise ExecutionServiceError(
@@ -567,8 +586,13 @@ class ExecutionService:
             out["thinking"] = regime["thinking"]
             out["procedure"] = regime["procedure"]
         if policy_out.get("max_tokens") is None:
-            cap = int(pool.by_name(out["backend"]).settings["deliberate_max_tokens"])
-            policy_out["max_tokens"] = min(regime["max_tokens"], cap)
+            if out.get("backend") is None:
+                # Deferred (discovery=enforce) selection: the regime budget itself; every candidate
+                # must hold it (deliberate floor), so no pinned seat is consulted (Codex R6-high).
+                policy_out["max_tokens"] = int(regime["max_tokens"])
+            else:
+                cap = int(pool.by_name(out["backend"]).settings["deliberate_max_tokens"])
+                policy_out["max_tokens"] = min(regime["max_tokens"], cap)
         return out, policy_out
 
     def _normalize_regime(
@@ -587,8 +611,15 @@ class ExecutionService:
                 raise ExecutionServiceError("procedure 'think_then_emit' needs thinking")
             if resolved.max_tokens is None:
                 raise ExecutionServiceError(f"{operation.name} requires policy.max_tokens")
-            cap = int(load_pool().by_name(arguments["backend"]).settings["deliberate_max_tokens"])
-            if resolved.max_tokens > cap:
+            if arguments.get("backend") is None and arguments.get("_deliberate_floor") is not None:
+                # discovery=enforce: no seat is picked yet, so the same cap is applied per candidate
+                # at admission (every candidate's deliberate_max_tokens must hold this budget).
+                arguments = {**arguments, "_deliberate_floor": max(int(arguments["_deliberate_floor"]),
+                                                                    int(resolved.max_tokens))}
+                cap = None
+            else:
+                cap = int(load_pool().by_name(arguments["backend"]).settings["deliberate_max_tokens"])
+            if cap is not None and resolved.max_tokens > cap:
                 raise ExecutionServiceError(
                     f"policy_refusal: max_tokens {resolved.max_tokens} exceeds {arguments['backend']} "
                     f"deliberate_max_tokens {cap}"
@@ -767,10 +798,11 @@ class ExecutionService:
             admission_max_tokens=admission_max_tokens,
         )
 
-    @staticmethod
     def _select_for_route(
+        self,
         pool: Any, route: FamilyRoute, payload_bytes: int,
         max_tokens: Optional[int] = None,
+        exclude_job_id: Optional[str] = None,
     ) -> tuple[Backend, str, dict[str, Any]]:
         """``select_backend`` for a resolved route, with the family named on failure.
 
@@ -780,18 +812,239 @@ class ExecutionService:
         inside ``select_backend`` -- the same precedence the door applies.
         """
         try:
-            from hearth.toolsurface.occupancy import check_occupancy
-            return select_backend(
-                pool,
-                backend=route.backend,
-                model=route.model,
-                tags=route.tags,
-                payload_bytes=payload_bytes,
-                max_tokens=max_tokens if max_tokens is not None else route.admission_max_tokens,
-                occupancy_check=check_occupancy,
-            )
+            from hearth.toolsurface.occupancy import check_occupancy, routing_reservation_context
+            with routing_reservation_context(
+                leases=self.leases,
+                ledger=self.ledger,
+                exclude_job_id=exclude_job_id,
+            ):
+                return select_backend(
+                    pool,
+                    backend=route.backend,
+                    model=route.model,
+                    tags=route.tags,
+                    payload_bytes=payload_bytes,
+                    max_tokens=max_tokens if max_tokens is not None else route.admission_max_tokens,
+                    occupancy_check=check_occupancy,
+                )
         except BackendConfigError as exc:
             raise ExecutionServiceError(route.refusal(exc)) from exc
+
+    def _admit_select(
+        self,
+        pool: Any, route: FamilyRoute, payload_bytes: int,
+        max_tokens: Optional[int] = None,
+        exclude_job_id: Optional[str] = None,
+        enforce_bytes: Optional[int] = None,
+        procedure: Optional[str] = None,
+        deliberate_floor: Optional[int] = None,
+    ) -> tuple[Backend, str, Optional[dict[str, Any]]]:
+        """Admission-time selection with Consul discovery for opt-in families (steppewise-consul M2).
+
+        ``off`` (every family that doesn't opt in): exactly ``_select_for_route``, no record.
+        ``shadow``: the normal selection, plus the same structured decision enforce would make.
+        ``enforce``: candidates are the backends the FAMILY can use (its model or an authored
+        ``discovery_models`` equivalent; its tags; a pin), intersected with Consul-passing
+        instances whose ``max_model_len`` holds the request; refuse visibly
+        (``discovery_*``, ``pin_not_eligible``, ``no_eligible_seat``) before any job or lease;
+        return a binding that dispatch honours instead of selecting again.
+        ``enforce_bytes`` is the full post-packing payload (Codex M2 M5).
+        """
+        rec = route.recommendation or {}
+        mode = rec.get("discovery") or "off"
+        if mode == "off":
+            provider, routed_by, _ = self._select_for_route(
+                pool, route, payload_bytes, max_tokens=max_tokens, exclude_job_id=exclude_job_id)
+            return provider, routed_by, None
+        size = enforce_bytes if enforce_bytes is not None else payload_bytes
+        allowed_models = [m for m in (rec.get("discovery_models") or [rec.get("model_id")]) if m]
+        capable = {b.name for b in pool.backends if self._deliberate_capable(b, deliberate_floor)}
+        candidates = [
+            b.name for b in pool.backends
+            if b.name in capable
+            and set(allowed_models).intersection(b.models)
+            and (route.backend is None or b.name == route.backend)
+            and (route.backend is not None or not route.tags or set(route.tags).intersection(b.tags or ()))
+        ]
+        # Output reserve as admission arithmetic uses it: the policy budget, else the sizer's
+        # expectation, else the largest declared rung default among candidates (conservative).
+        reserve = max_tokens if max_tokens is not None else route.admission_max_tokens
+        if reserve is None:
+            reserve = max((int(b.settings.get("max_tokens") or 0) for b in pool.backends if b.name in candidates), default=0)
+        need_tokens = size // 4 + int(reserve or 0)
+        adapter = shared_adapter()
+
+        def decide() -> dict[str, Any]:
+            if adapter is None:
+                raise DiscoveryRefusal("discovery_unavailable", adapter_error() or "HEARTH_DISCOVERY_CONSUL not configured")
+            return adapter.evaluate(pool, candidates, need_tokens=need_tokens)
+
+        def record(decision: Optional[dict[str, Any]], provider: Optional[Backend], refusal: Optional[str]) -> dict[str, Any]:
+            out: dict[str, Any] = {"mode": mode, "allowed_models": allowed_models, "candidates": candidates,
+                                   "need_tokens": need_tokens}
+            if decision is not None:
+                out.update({k: decision[k] for k in ("discovery_source", "consul_index", "snapshot_age_ms")})
+                out["eligible"] = sorted(decision["eligible"])
+                out["refused"] = decision["refused"]
+            if provider is not None:
+                out["backend"] = provider.name
+                inst = (decision or {}).get("eligible", {}).get(provider.name)
+                if inst is not None:
+                    out.update({"seat_id": inst["seat_id"], "instance_id": inst["id"], "generation": inst["generation"],
+                                "route": inst["route"], "wire_model_id": inst["wire_model_id"], "alias": inst.get("alias")})
+            if refusal is not None:
+                out["refusal" if mode == "enforce" else "would_refuse"] = refusal
+            return out
+
+        unsupported = ("discovery_unsupported_procedure: think_then_emit is not admitted under discovery=enforce"
+                       if procedure == "think_then_emit" else None)
+        if mode == "shadow":
+            provider, routed_by, _ = self._select_for_route(
+                pool, route, payload_bytes, max_tokens=max_tokens, exclude_job_id=exclude_job_id)
+            if unsupported is not None:   # same procedure check as enforce, recorded only (Codex R5-m2)
+                return provider, routed_by, record(None, provider, unsupported)
+            try:
+                decision = decide()
+            except DiscoveryRefusal as exc:
+                rec = record(None, provider, str(exc))
+                rec.update(exc.facts)
+                return provider, routed_by, rec
+            # The same checks enforce applies, recorded only (Codex R3-m4): eligibility, model
+            # authorized AND served by the instance, and capacity for the effective budget.
+            refusal = self._discovery_model_and_budget_refusal(provider, route, decision, allowed_models, size, max_tokens) \
+                if provider.name in decision["eligible"] else \
+                f"not_eligible: {decision['refused'].get(provider.name, 'not a family candidate')}"
+            return provider, routed_by, record(decision, provider, refusal)
+        # enforce
+        if unsupported is not None:
+            # The emit continuation's payload and budget are only known after the first call, so
+            # it can't be bound to Consul capacity at admission; refused rather than half-checked (R4-M2).
+            raise ExecutionServiceError(unsupported)
+        try:
+            decision = decide()
+        except DiscoveryRefusal as exc:
+            raise ExecutionServiceError(str(exc)) from exc
+        eligible: dict[str, dict] = decision["eligible"]
+        if route.backend is not None and route.backend not in eligible:
+            reason = decision["refused"].get(route.backend) or "not a candidate for this family's models/tags"
+            raise ExecutionServiceError(f"pin_not_eligible: {route.backend}: {reason}")
+        if not eligible:
+            raise ExecutionServiceError(
+                f"no_eligible_seat: candidates={candidates} refused={json.dumps(decision['refused'], sort_keys=True)[:600]}")
+        names = set(eligible)
+        filtered = dc_replace(
+            pool,
+            backends=tuple(b for b in pool.backends if b.name in names),
+            default=pool.default if pool.default in names else sorted(names)[0],
+        )
+        provider, routed_by, _ = self._select_for_route(
+            filtered, route, size, max_tokens=max_tokens, exclude_job_id=exclude_job_id)
+        if provider.name not in names:   # never a seat Consul didn't pass
+            raise ExecutionServiceError(
+                f"no_eligible_seat: selection produced {provider.name!r} outside {sorted(names)}")
+        refusal = self._discovery_model_and_budget_refusal(provider, route, decision, allowed_models, size, max_tokens)
+        if refusal is not None:
+            raise ExecutionServiceError(f"no_eligible_seat: {refusal}")
+        binding = record(decision, provider, None)
+        binding["model"] = route.resolve_model(provider)
+        # The generation budget transport will actually use (policy, else the rung default the
+        # primitive applies, else its 1024), persisted and passed explicitly at dispatch (R3-M2).
+        binding["reserve_tokens"] = self._discovery_budget(provider, max_tokens)
+        return provider, f"discovery:{routed_by}", binding
+
+    @staticmethod
+    def _deliberate_capable(backend: Backend, floor: Optional[int]) -> bool:
+        """Deferred deliberate selection (discovery=enforce): the seat must declare
+        deliberate_max_tokens >= floor (regime floor raised to the request budget)."""
+        if floor is None:
+            return True
+        try:
+            return int(backend.settings.get("deliberate_max_tokens") or 0) >= int(floor)
+        except (TypeError, ValueError):
+            return False
+
+    def _deliberate_pool(self, pool: Any, floor: Optional[int]) -> Any:
+        """The pool restricted to deliberate-capable seats, shared by plan() and admission (R6-medium)."""
+        if floor is None:
+            return pool
+        keep = tuple(b for b in pool.backends if self._deliberate_capable(b, floor))
+        if not keep:
+            raise ExecutionServiceError(
+                f"policy_refusal: no seat declares deliberate_max_tokens >= {floor}")
+        names = {b.name for b in keep}
+        return dc_replace(pool, backends=keep, default=pool.default if pool.default in names else keep[0].name)
+
+    @staticmethod
+    def _discovery_budget(provider: Backend, max_tokens: Optional[int]) -> int:
+        """The output budget the primitive will use: explicit policy, else rung setting, else 1024."""
+        if max_tokens is not None:
+            return int(max_tokens)
+        try:
+            return int(provider.settings.get("max_tokens") or 1024)
+        except (TypeError, ValueError):
+            return 1024
+
+    def _discovery_model_and_budget_refusal(self, provider: Backend, route: FamilyRoute, decision: Mapping[str, Any],
+                                            allowed_models: list, size: int, max_tokens: Optional[int]) -> Optional[str]:
+        """Shared by shadow and enforce: the resolved model must be family-authored AND served by the
+        bound instance, and input + the effective budget must fit its Consul max_model_len."""
+        inst = decision["eligible"].get(provider.name) or {}
+        model = route.resolve_model(provider)
+        served = {m for m in (inst.get("wire_model_id"), inst.get("alias")) if m}
+        if model not in allowed_models or model not in served:
+            return (f"{provider.name!r} model {model!r}: family allows {allowed_models}, "
+                    f"instance serves {sorted(served)}")
+        need = size // 4 + self._discovery_budget(provider, max_tokens)
+        mml = inst.get("max_model_len")
+        if not (isinstance(mml, int) and mml > 0) or need > mml:
+            return f"{provider.name!r} max_model_len {mml!r} < need {need} tokens (input + effective budget)"
+        return None
+
+    def _discovery_recheck(self, binding: Mapping[str, Any], route: FamilyRoute, payload_bytes: int) -> dict[str, Any]:
+        """Dispatch-time validation of an admission binding; raises seat_lost_before_dispatch.
+
+        Reloads the pool (never trusts an earlier provider object): the bound backend must still be
+        declared at the bound route; the bound instance must still be registered, passing, same
+        generation, same route and same wire-model/alias identity; the bound model must still be
+        resolved and served; and the full request (input + the reserve persisted at admission)
+        must fit the instance's Consul max_model_len and the bound seat's declared context
+        (pin branch on a one-backend pool -- never a re-selection). Returns facts plus the
+        validated provider, which dispatch uses, with its endpoint pinned for transport.
+        """
+        adapter = shared_adapter()
+        if adapter is None:
+            raise ExecutionServiceError("seat_lost_before_dispatch: discovery_unavailable: not configured")
+        try:
+            facts = adapter.recheck(binding["instance_id"], binding.get("generation"), binding.get("route"))
+        except DiscoveryRefusal as exc:
+            raise ExecutionServiceError(str(exc)) from exc
+        inst = facts.pop("instance")
+        bound_route = (binding.get("route") or "").rstrip("/")
+        provider = load_pool().by_name(binding["backend"])
+        if provider is None or provider.endpoint.rstrip("/") != bound_route:
+            raise ExecutionServiceError(
+                f"seat_lost_before_dispatch: backend {binding['backend']!r} now at "
+                f"{provider.endpoint if provider else 'undeclared'} != bound route {bound_route}")
+        if (inst.get("wire_model_id"), inst.get("alias")) != (binding.get("wire_model_id"), binding.get("alias")):
+            raise ExecutionServiceError(
+                f"seat_lost_before_dispatch: instance model identity changed bound="
+                f"{binding.get('wire_model_id')}/{binding.get('alias')} now={inst.get('wire_model_id')}/{inst.get('alias')}")
+        model = route.resolve_model(provider)
+        if model != binding.get("model") or model not in {inst.get("wire_model_id"), inst.get("alias")}:
+            raise ExecutionServiceError(f"seat_lost_before_dispatch: model drift bound={binding.get('model')} now={model}")
+        reserve = int(binding.get("reserve_tokens") or 0)
+        need = payload_bytes // 4 + reserve
+        mml = inst.get("max_model_len")
+        if not (isinstance(mml, int) and mml > 0) or need > mml:
+            raise ExecutionServiceError(
+                f"seat_lost_before_dispatch: bound seat max_model_len {mml!r} cannot hold need {need} tokens")
+        try:   # declared context on the bound seat only, via the pin branch (never re-picks)
+            only = dc_replace(load_pool(), backends=(provider,), default=provider.name)
+            self._select_for_route(only, route._replace(backend=provider.name, tags=None, model=model),
+                                   payload_bytes, max_tokens=reserve or None)
+        except ExecutionServiceError as exc:
+            raise ExecutionServiceError(f"seat_lost_before_dispatch: bound seat cannot hold the request: {exc}") from exc
+        return {**facts, "need_tokens": need, "provider": provider}
 
     def submit(
         self,
@@ -857,6 +1110,11 @@ class ExecutionService:
                 raise ExecutionServiceError("backend and endpoint select different providers")
             backend = provider.name
             arguments_value["backend"] = backend
+        route: Optional[FamilyRoute] = None
+        discovery_record: Optional[dict[str, Any]] = None
+        enforce_bytes: Optional[int] = None
+        selected_provider: Optional[Backend] = None
+        selected_routed_by: Optional[str] = None
         if not is_delegated:
             # Admission-time selection, resolved by the SAME helper _run_job uses
             # at dispatch, so a submission that would be refused (or family-pinned
@@ -867,11 +1125,18 @@ class ExecutionService:
             if route.recommendation and route.recommendation.get("refused"):
                 refusal = route.recommendation.get("refusal") or "missing capability"
                 raise ExecutionServiceError(f"policy_refusal: {refusal}")
-            self._select_for_route(
+            # Full post-packing size for opt-in families (packed files are in prompt_bytes).
+            # ...plus a separately supplied system string, which transport also sends (R3-M3).
+            enforce_bytes = (admit_bytes if deliberate else len(prompt_bytes)) + len(
+                (arguments_value.get("system") or "").encode("utf-8"))
+            selected_provider, selected_routed_by, discovery_record = self._admit_select(
                 pool,
                 route,
                 admit_bytes,
                 max_tokens=policy_value.max_tokens,
+                enforce_bytes=enforce_bytes,
+                procedure=arguments_value.get("procedure"),
+                deliberate_floor=arguments_value.get("_deliberate_floor"),
             )
 
         if idempotency_key is not None:
@@ -899,17 +1164,35 @@ class ExecutionService:
             ),
         )
 
-        with self._lock:
+        with self._route_lock, self._lock:
             active = sum(not future.done() for future in self._futures.values())
             if active >= self._max_pending:
                 raise ExecutionServiceError("global execution queue is full")
+
+            if not is_delegated and route is not None:
+                selected_provider, selected_routed_by, discovery_record = self._admit_select(
+                    pool,
+                    route,
+                    admit_bytes,
+                    max_tokens=policy_value.max_tokens,
+                    exclude_job_id=job_id,
+                    enforce_bytes=enforce_bytes,
+                    procedure=arguments_value.get("procedure"),
+                    deliberate_floor=arguments_value.get("_deliberate_floor"),
+                )
+
+            active_traceparent = (
+                arguments_value.get("traceparent")
+                or current_traceparent()
+            )
+            active_trace_id = extract_trace_id(active_traceparent)
 
             desired = {
                 "operation": operation_name,
                 "arguments": {
                     key: value
                     for key, value in arguments_value.items()
-                    if key not in {"prompt", "packed_files", "_spec", "messages"}
+                    if key not in {"prompt", "packed_files", "_spec", "messages", "_deliberate_floor"}
                 },
                 "packed_files": arguments_value.get("packed_files", []),
                 "input_artifact": input_artifact,
@@ -922,6 +1205,25 @@ class ExecutionService:
                 "regime_provenance": regime_provenance,
                 "planning_context": self._planning_context(),
             }
+            if discovery_record is not None:
+                # Only for families that opt in, so every other record stays byte-identical.
+                desired["discovery"] = discovery_record
+            trace_observed: Optional[dict[str, Any]] = None
+            if active_traceparent:
+                desired["traceparent"] = active_traceparent
+                desired["trace_id"] = active_trace_id
+                trace_observed = {
+                    "traceparent": active_traceparent,
+                    "trace_id": active_trace_id,
+                }
+            accepted_observed: Optional[dict[str, Any]] = dict(trace_observed) if trace_observed else None
+            if selected_provider is not None:
+                accepted_observed = dict(accepted_observed or {})
+                accepted_observed["provider"] = selected_provider.name
+                if selected_routed_by is not None and route is not None:
+                    accepted_observed["routed_by"] = route.label(selected_routed_by)
+                if discovery_record is not None:
+                    accepted_observed["discovery"] = discovery_record
             initial = {
                 "request_id": request_id,
                 "job_id": job_id,
@@ -933,13 +1235,14 @@ class ExecutionService:
                 source=source_value,
                 operation=operation_name,
                 desired=desired,
+                observed=accepted_observed,
             )
             self._append(
                 "artifact.recorded",
                 initial,
                 artifacts=[{**input_artifact, "role": "input"}],
             )
-            self._append("job.queued", initial)
+            self._append("job.queued", initial, observed=accepted_observed)
             if is_delegated:
                 # Handed to the render scheduler, which holds it as durable
                 # queued state and only assigns a worker once a lane can
@@ -958,7 +1261,17 @@ class ExecutionService:
                 # successful pinned door call wrote neither an observation nor an
                 # exclusion row). Authority grants are deliberately NOT carried: a
                 # background worker inherits the asker, not their filesystem reach.
-                future = self._executor.submit(self._run, job_id, current_identity())
+                cur_ident = current_identity()
+                if cur_ident is not None and active_traceparent and not cur_ident.traceparent:
+                    cur_ident = DispatchIdentity(
+                        caller_id=cur_ident.caller_id,
+                        runner_class=cur_ident.runner_class,
+                        node=cur_ident.node,
+                        task_id=cur_ident.task_id,
+                        profile=cur_ident.profile,
+                        traceparent=active_traceparent,
+                    )
+                future = self._executor.submit(self._run, job_id, cur_ident, active_traceparent)
                 self._futures[job_id] = future
                 future.add_done_callback(lambda _future, jid=job_id: self._forget(jid))
         state = self.ledger.get_job(job_id)
@@ -1040,7 +1353,8 @@ class ExecutionService:
             }
         try:
             provider, routed_by, occupancy = self._select_for_route(
-                load_pool(), route, prompt_bytes, max_tokens=resolved_policy.max_tokens
+                self._deliberate_pool(load_pool(), arguments.get("_deliberate_floor")),
+                route, prompt_bytes, max_tokens=resolved_policy.max_tokens
             )
         except ExecutionServiceError as exc:
             err_msg = str(exc)
@@ -1136,14 +1450,19 @@ class ExecutionService:
 
         return local_generate(**kwargs)
 
-    def _run(self, job_id: str, identity: Optional[DispatchIdentity] = None) -> None:
+    def _run(
+        self,
+        job_id: str,
+        identity: Optional[DispatchIdentity] = None,
+        traceparent: Optional[str] = None,
+    ) -> None:
         """Run one job on an executor worker under the submitting caller's identity.
 
         ``identity`` is None for jobs recovered at boot -- there is no live caller to
         attribute those to, and ``dispatch_identity(None)`` is a no-op, so they record
         nothing rather than borrowing someone else's name.
         """
-        with dispatch_identity(identity):
+        with trace_context(traceparent), dispatch_identity(identity):
             self._run_job(job_id)
 
     def _run_job(self, job_id: str) -> None:
@@ -1155,6 +1474,22 @@ class ExecutionService:
         desired = state["desired"]
         operation = self.operations.get(state["operation"])
         arguments = dict(desired["arguments"])
+        job_traceparent = (
+            state.get("traceparent")
+            or desired.get("traceparent")
+            or arguments.get("traceparent")
+            or current_traceparent()
+        )
+        job_trace_id = (
+            state.get("trace_id")
+            or desired.get("trace_id")
+            or extract_trace_id(job_traceparent)
+        )
+        trace_obs = (
+            {"traceparent": job_traceparent, "trace_id": job_trace_id}
+            if job_traceparent
+            else {}
+        )
         prompt_metadata = desired["input_artifact"]
         prompt = self.artifacts.read(prompt_metadata).decode("utf-8")
         policy = ExecutionPolicy(**desired["policy"])
@@ -1180,26 +1515,55 @@ class ExecutionService:
             if route.recommendation and route.recommendation.get("refused"):
                 refusal = route.recommendation.get("refusal") or "missing capability"
                 raise ExecutionServiceError(f"policy_refusal: {refusal}")
-            provider, routed_by, occupancy = self._select_for_route(
-                load_pool(), route, payload_bytes, max_tokens=policy.max_tokens
-            )
-            routed_by = route.label(routed_by)
-            # Which routed_by the Invocation (and therefore execute_sync's
-            # compatibility projection) reports. The primitive is handed
-            # `backend=<provider>` below, so it always answers `pinned:<provider>`
-            # -- an echo of the service's own pin, which says nothing about WHY
-            # that rung was chosen. For a family-routed job the service's label
-            # wins; with no family the primitive's string stands, byte-identical
-            # to every door result before this repair.
-            family_routed_by = routed_by if route.family_prefix is not None else None
-            model = route.resolve_model(provider)
-            if model is None:
-                raise ExecutionServiceError(
-                    f"provider {provider.name!r} declares no default model"
-                )
-            # Capacity belongs to the provider endpoint, not to a model label:
-            # multiple aliases/models on one llama.cpp process share slots.
-            scope = f"provider:{provider.name}"
+            binding = desired.get("discovery") if isinstance(desired.get("discovery"), dict) else None
+            enforce_binding = binding is not None and binding.get("mode") == "enforce"
+            with self._route_lock:
+                if enforce_binding and arguments.get("procedure") == "think_then_emit":
+                    raise ExecutionServiceError(
+                        "seat_lost_before_dispatch: think_then_emit is not supported under discovery=enforce")
+                if enforce_binding:
+                    # Selected once, at admission (M2): dispatch never re-picks a seat.
+                    provider = load_pool().by_name(binding["backend"])
+                    if provider is None:
+                        raise ExecutionServiceError(
+                            f"seat_lost_before_dispatch: bound backend {binding['backend']!r} no longer declared")
+                    enforce_payload = payload_bytes + len((arguments.get("system") or "").encode("utf-8"))
+                    provider = self._discovery_recheck(binding, route, enforce_payload)["provider"]
+                    routed_by, occupancy = f"discovery:bound:{binding['seat_id']}", {"occupancy": "bound"}
+                else:
+                    provider, routed_by, occupancy = self._select_for_route(
+                        load_pool(), route, payload_bytes, max_tokens=policy.max_tokens,
+                        exclude_job_id=job_id,
+                    )
+                routed_by = route.label(routed_by)
+                # Which routed_by the Invocation (and therefore execute_sync's
+                # compatibility projection) reports. The primitive is handed
+                # `backend=<provider>` below, so it always answers `pinned:<provider>`
+                # -- an echo of the service's own pin, which says nothing about WHY
+                # that rung was chosen. For a family-routed job the service's label
+                # wins; with no family the primitive's string stands, byte-identical
+                # to every door result before this repair.
+                family_routed_by = routed_by if route.family_prefix is not None else None
+                model = route.resolve_model(provider)
+                if model is None:
+                    raise ExecutionServiceError(
+                        f"provider {provider.name!r} declares no default model"
+                    )
+                # Capacity belongs to the provider endpoint, not to a model label:
+                # multiple aliases/models on one llama.cpp process share slots.
+                scope = f"provider:{provider.name}"
+                remaining = deadline - time.monotonic()
+                if not self._is_cancelled(job_id) and remaining > 0:
+                    try:
+                        lease_id = self.leases.acquire(
+                            scope=scope,
+                            job_id=job_id,
+                            invocation_id=invocation_id,
+                            limit=self._parallel_slots(provider),
+                            ttl_seconds=max(30, remaining + 30),
+                        )
+                    except CapacityUnavailable:
+                        lease_id = None
             while lease_id is None:
                 if self._is_cancelled(job_id):
                     self._append("job.cancelled", state, reason="cancelled while queued")
@@ -1247,6 +1611,16 @@ class ExecutionService:
                 dispatch_observed["lane_status"] = "lane_not_live"
             if occupancy.get("fallback_from"):
                 dispatch_observed["fallback_from"] = occupancy["fallback_from"]
+            if trace_obs:
+                dispatch_observed.update(trace_obs)
+            if enforce_binding:
+                # The lease is held; this is the dispatch moment. Re-check the bound
+                # instance once more so a seat lost while queued is refused, not called.
+                check = self._discovery_recheck(binding, route, enforce_payload)
+                provider = check.pop("provider")   # the freshly validated object; transport uses its endpoint
+                dispatch_observed["discovery"] = {**binding, "dispatch_check": check}
+            elif binding is not None:
+                dispatch_observed["discovery"] = binding
             self._append("job.dispatched", state, observed=dispatch_observed)
             self._append(
                 "invocation.started",
@@ -1254,12 +1628,16 @@ class ExecutionService:
                 invocation_id=invocation_id,
                 observed=dispatch_observed,
             )
-            self._append("job.running", state)
+            self._append("job.running", state, observed=trace_obs or None)
             call_arguments = {
                 "prompt": prompt,
                 "model": model,
                 "backend": provider.name,
-                "max_tokens": policy.max_tokens,
+                # Enforce: the exact budget validated against Consul capacity (R3-M2).
+                "max_tokens": binding["reserve_tokens"] if enforce_binding else policy.max_tokens,
+                # Enforce: the primitive's strict bound-target path (backend AND the Consul-approved
+                # endpoint, validated together at transport; no fallback, no escalation) — R2-B2, R4-M1.
+                **({"bound_endpoint": binding["route"]} if enforce_binding else {}),
                 "timeout_s": max(1, int(deadline - time.monotonic())),
             }
             if deliberate:
@@ -1288,7 +1666,8 @@ class ExecutionService:
                 if arguments.get(optional) is not None:
                     call_arguments[optional] = arguments[optional]
             call_started = time.monotonic()
-            result = self._generate_call(**call_arguments)
+            with trace_context(job_traceparent):
+                result = self._generate_call(**call_arguments)
             observed = self._result_observed(
                 result, routed_by=family_routed_by, deliberate=deliberate,
                 requested=policy.max_tokens)
@@ -1380,6 +1759,7 @@ class ExecutionService:
                 observed={
                     "summary": summary,
                     "result_artifact_id": output_artifact["artifact_id"],
+                    **trace_obs,
                 },
             )
         except Exception as exc:
@@ -1543,7 +1923,15 @@ class ExecutionService:
         return observed
 
     def get_job(self, job_id: str) -> Optional[dict[str, Any]]:
-        return self.ledger.get_job(job_id)
+        state = self.ledger.get_job(job_id)
+        if state is None:
+            return None
+        desired = state.get("desired") or {}
+        tp = state.get("traceparent") or desired.get("traceparent") or (desired.get("arguments") or {}).get("traceparent")
+        if tp:
+            state["traceparent"] = tp
+            state["trace_id"] = state.get("trace_id") or desired.get("trace_id") or extract_trace_id(tp)
+        return state
 
     def cancel(self, job_id: str, *, reason: str = "cancelled by caller") -> dict[str, Any]:
         state = self.ledger.get_job(job_id)

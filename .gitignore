@@ -36,3 +36,13 @@ CURRENT.json
 
 # Mutable local-work admission coordination, outside immutable run records
 /local-work-admission.sqlite*
+
+# Door- and timer-written state (CUTOVER-PLAN Phase 1.2, 2026-11-09): backed up by restic, not git.
+# The tracked historical artifacts under runs/ are unaffected (ignore rules never apply to tracked files).
+knowledge/labels.json
+knowledge/offload.json
+knowledge/precursor_accuracy.json
+knowledge/precursor_index.json
+runs/operator/
+runs/hearth-offload-*/
+runs/hearth-drain/

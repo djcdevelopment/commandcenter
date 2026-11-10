@@ -90,7 +90,7 @@ class Tests(unittest.TestCase):
     def run_args(self):
         path=Path('/home/derek/work/lab-rnd/research/evidence/bench27-am4-recipe-20261005/Nauto90-prepared/manifest.json')
         return SimpleNamespace(helper=Path(str(Path(__file__).with_name('bench27_am4_probe.py'))),
-            workload=Path('/home/derek/work/worktrees/bench27-routing/docs/bench27-fp8-open-prepared/admission.workload.json'),
+            workload=Path(__file__).with_name('fixtures') / 'bench27' / 'admission.workload.json',
             workload_sha256=report.WORKLOAD_SHA,
             recipe_manifest=path,recipe_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
             out=self.root/'run',port=self.server.server_port,timeout=20,coordination_db=self.db,guard_log=self.log,trip=self.trip)

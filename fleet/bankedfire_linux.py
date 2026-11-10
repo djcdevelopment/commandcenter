@@ -59,6 +59,7 @@ from fleet import bankedfire_drain as drain  # noqa: E402
 from hearth.execution.lab_config import AM4_PROFILE_PATH  # noqa: E402
 from hearth.backlog import select as backlog_select  # noqa: E402
 from hearth.backlog import sources as backlog_sources  # noqa: E402
+from hearth.operator import paths as operator_paths  # noqa: E402
 from hearth.toolsurface import occupancy as occ_mod  # noqa: E402
 
 DOOR_URL = os.environ.get("HEARTH_DOOR_URL", "http://127.0.0.1:8710/mcp")
@@ -107,7 +108,7 @@ def _seat_loads(backend: str) -> dict[str, int]:
         os.environ.get("HEARTH_ROOT", str(Path.home() / "hearth-production")), "var", "execution", "coordination.sqlite")
     leases = CapacityLeaseStore(db).active_count(f"provider:{backend}")
     outstanding = 0
-    for m in (_REPO_ROOT / "runs" / "operator").glob("work_*/work-manifest.json"):
+    for m in operator_paths.runs_dir().glob("work_*/work-manifest.json"):
         m_str = str(m)
         try:
             mtime_ns = m.stat().st_mtime_ns
@@ -393,7 +394,7 @@ def delivery_args_from_brief(fields: dict[str, Any], intent: str, idempotency_ke
 # --- the three injected functions ----------------------------------------------------------
 
 def manifest_path(work_id: str) -> Path:
-    return _REPO_ROOT / "runs" / "operator" / work_id / "work-manifest.json"
+    return operator_paths.run_dir(work_id) / "work-manifest.json"
 
 
 def experiment_spec_from_brief(body: str, exp_id: str) -> dict[str, Any]:
@@ -711,7 +712,7 @@ def queue_status() -> dict[str, Any]:
     from fleet import environment as envmod
     running = 0
     drain_running = 0
-    root = _REPO_ROOT / "runs" / "operator"
+    root = operator_paths.runs_dir()
     try:
         for m in root.glob("work_*/work-manifest.json"):
             m_str = str(m)
@@ -793,7 +794,7 @@ def in_use_by_lane(slots: list[dict[str, Any]]) -> dict[str, int]:
     for rec in slots:
         counts[rec.get("lane", "deep")] = counts.get(rec.get("lane", "deep"), 0) + 1
         seen.add(rec.get("plan_id"))
-    for m in (_REPO_ROOT / "runs" / "operator").glob("work_*/work-manifest.json"):
+    for m in operator_paths.runs_dir().glob("work_*/work-manifest.json"):
         m_str = str(m)
         try:
             mtime_ns = m.stat().st_mtime_ns

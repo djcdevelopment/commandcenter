@@ -39,6 +39,20 @@ LANES = {"door": "http://127.0.0.1:8710/healthz", "omen-vllm :18090": "http://12
          "omen-dense-27b :18095": "http://127.0.0.1:18095/health", "seat0 :18091": "http://127.0.0.1:18091/health",
          "seat1 :18092": "http://127.0.0.1:18092/health", "fx99 :18093": "http://192.168.12.220:18093/health"}
 
+sys.path.insert(0, str(REPO))
+try:
+    from hearth.operator import paths as _operator_paths
+except ImportError:  # REPO isn't a hearth checkout from here; keep reading the old path
+    _operator_paths = None
+
+
+def _runs_operator_dir() -> Path:
+    """Operator run records, through hearth.operator.paths (HEARTH_OPERATOR_HOME) so this report does not keep
+    reading REPO/runs/operator once Phase 3 moves operator state out of the checkout. REPO itself stays: it is
+    genuinely repository content (the source tree `_reader()` imports hearth/fleet from)."""
+    if _operator_paths is not None:
+        return _operator_paths.runs_dir()
+    return REPO / "runs" / "operator"
 
 
 _READER = None
@@ -145,7 +159,7 @@ def build(hours: int) -> str:
 
     # 1. candidates
     rows = []
-    for m in sorted((REPO / "runs" / "operator").glob("work_*/work-manifest.json")):
+    for m in sorted(_runs_operator_dir().glob("work_*/work-manifest.json")):
         try:
             d = json.loads(m.read_text())
         except Exception:  # noqa: BLE001

@@ -199,10 +199,36 @@ class HumanWaitsTests(unittest.TestCase):
                 d = root / wid; d.mkdir(parents=True)
                 (d / "work-manifest.json").write_text(json.dumps({"work_id": wid, "status": st, "caller": {"submitted_by": who},
                                                                    "route": {"selected_lane": "fast"}}))
-            with mock.patch.object(lane, "_REPO_ROOT", Path(tmp)), \
-                 mock.patch.dict("os.environ", {"HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment"}):
+            with mock.patch.dict("os.environ", {"HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment",
+                                                 "HEARTH_OPERATOR_HOME": tmp}):
                 self.assertEqual(lane.queue_status()["running"], 1)
                 self.assertEqual(lane.in_use_by_lane([]), {"fast": 1})
+
+    def test_run_record_reads_follow_hearth_operator_home_not_the_checkout(self) -> None:
+        """Phase 3 moves operator state out of the checkout (HEARTH_OPERATOR_HOME set to somewhere that is NOT
+        lane._REPO_ROOT): manifest_path, queue_status and in_use_by_lane must all follow the env var, not the
+        module's own checkout path, or they would keep reading a stale copy after the move."""
+        import json, tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmp:
+            operator_home = Path(tmp) / "elsewhere" / "operator-home"   # deliberately not lane._REPO_ROOT
+            human_wid = "work_" + "4" * 32
+            drain_wid = "work_" + "5" * 32
+            root = operator_home / "runs" / "operator"
+            human_d = root / human_wid; human_d.mkdir(parents=True)
+            human_d.joinpath("work-manifest.json").write_text(json.dumps(
+                {"work_id": human_wid, "status": "running", "caller": {"submitted_by": "claude-frontier"},
+                 "route": {"selected_lane": "deep"}}))
+            drain_d = root / drain_wid; drain_d.mkdir(parents=True)
+            drain_d.joinpath("work-manifest.json").write_text(json.dumps(
+                {"work_id": drain_wid, "status": "running", "caller": {"submitted_by": lane.DRAIN_CALLER_ID},
+                 "route": {"selected_lane": "deep"}}))
+            with mock.patch.dict("os.environ", {"HEARTH_ENVIRONMENT_FILE": "/nonexistent/environment",
+                                                 "HEARTH_OPERATOR_HOME": str(operator_home)}):
+                self.assertNotEqual(operator_home, lane._REPO_ROOT)  # the move this guards against
+                self.assertEqual(lane.manifest_path(human_wid), human_d / "work-manifest.json")
+                self.assertEqual(lane.queue_status()["running"], 1)         # the human-submitted one
+                self.assertEqual(lane.in_use_by_lane([]), {"deep": 1})      # the drain-submitted one
 
 
 class DeepAgentsLaneTests(unittest.TestCase):

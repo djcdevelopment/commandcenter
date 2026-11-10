@@ -49,7 +49,8 @@ class MorningReportTests(unittest.TestCase):
         self.tmp = Path(tmp.name)
         self.hearth_root = self.tmp / "hearth-production"
         (self.tmp / "repo" / "runs" / "operator").mkdir(parents=True)
-        env = mock.patch.dict(os.environ, {"HEARTH_ROOT": str(self.hearth_root), "HEARTH_BACKLOG_ROOT": str(self.hearth_root / "var" / "backlog")})
+        env = mock.patch.dict(os.environ, {"HEARTH_ROOT": str(self.hearth_root), "HEARTH_BACKLOG_ROOT": str(self.hearth_root / "var" / "backlog"),
+                                           "HEARTH_OPERATOR_HOME": str(self.tmp / "repo")})
         env.start()
         self.addCleanup(env.stop)
         saved_path = list(sys.path)   # build() puts REPO first on sys.path

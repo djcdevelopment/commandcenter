@@ -1,0 +1,177 @@
+{
+  "schema": "thinking-workload.v1",
+  "id": "bench27-fp8-open-admission",
+  "origin": "make_thinking_workload.py brief admission.brief.v2.json",
+  "source_commit": "85cf67dafcd433de143c8a65e5576bb13189fd3e",
+  "brief": {
+    "schema": "brief.v2",
+    "builders": [
+      "omen-local-work"
+    ],
+    "task_class": "local-work",
+    "est_tokens": 5000,
+    "requires": [
+      "candidate"
+    ],
+    "max_age_s": 172800,
+    "substance": [
+      {
+        "id": "s1-card-order",
+        "statement": "The report states how choose_target_bdf ranks the cards that fit: every element of its sort key in order, how free VRAM is compared, whether the inferring flag or the temperature is consulted first, how an unknown temperature is treated, and the final tie-break."
+      },
+      {
+        "id": "s2-refusals",
+        "statement": "The report states the checks admit_load makes before it chooses a card, in order, with the reason code each refusal returns; which cards the two VRAM-temperature checks look at; and what the temperature_resume_below_c threshold does."
+      },
+      {
+        "id": "s3-eviction",
+        "statement": "The report states how eviction_advice chooses the models it lists for a card that is short of VRAM: which models are eligible, the order in which they are taken, when it stops, whether the result is the smallest set that frees enough, and what it returns when the eligible models cannot cover the deficit."
+      }
+    ],
+    "form": {
+      "words": {
+        "min": 0,
+        "max": 450,
+        "enforce": "measure"
+      },
+      "citations": "quote",
+      "sections": [],
+      "style": "markdown"
+    },
+    "sources": [
+      {
+        "path": "hearth/rotation/admission.py",
+        "commit": "85cf67dafcd433de143c8a65e5576bb13189fd3e"
+      }
+    ],
+    "aids": [
+      "source_map",
+      "quote_renderer",
+      "constrained_output"
+    ]
+  },
+  "work_request": {
+    "model": "qwen3.8-27b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are auditing source files in order to write a short report. You work in steps inside this one conversation: you keep working notes, check them, and only then write. Say only what the source shows."
+      },
+      {
+        "role": "user",
+        "content": "REQUEST\nINTENT: [goal:G-bench27] Report the behavior of hearth/rotation/admission.py, covering every supplied substance criterion with source evidence.\n\nSUBSTANCE (the report must show each):\n- The report states how choose_target_bdf ranks the cards that fit: every element of its sort key in order, how free VRAM is compared, whether the inferring flag or the temperature is consulted first, how an unknown temperature is treated, and the final tie-break.\n- The report states the checks admit_load makes before it chooses a card, in order, with the reason code each refusal returns; which cards the two VRAM-temperature checks look at; and what the temperature_resume_below_c threshold does.\n- The report states how eviction_advice chooses the models it lists for a card that is short of VRAM: which models are eligible, the order in which they are taken, when it stops, whether the result is the smallest set that frees enough, and what it returns when the eligible models cannot cover the deficit.\n\nFORM:\n- At most 450 words in total.\n\nSOURCE FILES (commit 85cf67dafcd4):\n=== FILE hearth/rotation/admission.py (sha256 c38174a3d86a, 164 lines) ===\nCODE:\n001| \"\"\"Bytes-per-card admission for a model load (ADR-0040 \u00a74 'HEARTH builds only the verified\n002| absences'; ADR-0045 P4). Pure.\n003| \n004| Gates ported from ``campaign/qwen38/scripts/server-control.ps1`` (commit floor before/during/after a\n005| load; VRAM-temperature abort) with the campaign's values in ``campaign/qwen38/config/campaign.json``:\n006| ``commit_min_free_gb 6.0``, ``vram_temperature_abort_c 95``, ``shared_growth_abort_gb 2.0``; the\n007| scheduler's ``_VRAM_HEADROOM_GB 0.5`` per card. **Fail closed:** any gated quantity that is unknown\n008| (``None``) refuses -- a load is an actuation, and \"unmeasured\" is not \"fine\".\n009| \n010| Card choice (``choose_target_bdf``): the card with the most free VRAM, ties broken by the cooler\n011| card -- the enforceable form of the rotation program's \"the hot card gets the lighter model\",\n012| which ADR-0042 made unenforceable as an index rule. The choice is ADVICE for the sibling-entry\n013| order; placement is still asserted after the load.\n014| \n015| Co-residency numbers (ADR-0041 W-B 'during'): a resident-but-idle neighbour costs the incumbent 0%;\n016| an actively inferring one on the same card ~8% while it infers. Reported, not gated.\n017| \"\"\"\n018| from __future__ import annotations\n019| \n020| from dataclasses import dataclass, field\n021| from typing import Iterable, Optional\n022| \n023| \n024| @dataclass(frozen=True)\n025| class AdmissionGates:\n026|     commit_min_free_gb: float = 6.0\n027|     vram_headroom_gb: float = 0.5\n028|     vram_temperature_abort_c: float = 95.0\n029|     temperature_resume_below_c: float = 80.0\n030|     shared_growth_abort_gb: float = 2.0\n031|     card_vram_gb: float = 32.5\n032| \n033| \n034| @dataclass(frozen=True)\n035| class CardState:\n036|     bdf: str\n037|     vram_gb: float\n038|     resident_gb: float                 # per-card GB already held (production 14.52 / 15.44)\n039|     temp_c: Optional[float] = None\n040|     inferring: bool = False            # an actively inferring tenant on this card (~8% cost)\n041| \n042|     def free_gb(self, headroom_gb: float) -> float:\n043|         return round(self.vram_gb - self.resident_gb - headroom_gb, 3)\n044| \n045| \n046| @dataclass(frozen=True)\n047| class Admission:\n048|     ok: bool\n049|     reason_code: str                   # ok | commit_floor | vram_fit | thermal | telemetry_unknown | cards_missing | model_unknown\n050|     card_bdf: Optional[str]\n051|     reasons: tuple = ()\n052|     numbers: dict = field(default_factory=dict)\n053| \n054| \n055| @dataclass(frozen=True)\n056| class EvictionCandidate:\n057|     model_id: str\n058|     bdf: str\n059|     gb: float\n060|     reason: str\n061| \n062| \n063| def _per_card_need(per_card_gb: Optional[float], vram_gb: Optional[float], placement: str) -> Optional[float]:\n064|     if per_card_gb is not None:\n065|         return float(per_card_gb)\n066|     if vram_gb is not None:\n067|         return float(vram_gb) / (2.0 if placement == \"dual\" else 1.0)\n068|     return None\n069| \n070| \n071| def choose_target_bdf(cards: Iterable[CardState], need_gb: float, gates: AdmissionGates) -> Optional[str]:\n072|     \"\"\"Freest card that fits; ties within 0.25 GB go to the cooler (or non-inferring) card.\"\"\"\n073|     fitting = [c for c in cards if c.free_gb(gates.vram_headroom_gb) >= need_gb]\n074|     if not fitting:\n075|         return None\n076| \n077|     def key(card: CardState):\n078|         temp = card.temp_c if card.temp_c is not None else 999.0\n079|         return (-round(card.free_gb(gates.vram_headroom_gb) / 0.25), card.inferring, temp, card.bdf)\n080| \n081|     return sorted(fitting, key=key)[0].bdf\n082| \n083| \n084| def admit_load(*, per_card_gb: Optional[float], vram_gb: Optional[float], placement: str,\n085|                cards: Iterable[CardState], commit_free_gb: Optional[float],\n086|                gates: AdmissionGates = AdmissionGates(), model_id: str = \"\") -> Admission:\n087|     \"\"\"May this model be loaded now, and onto which card (single) or both (dual)?\"\"\"\n088|     cards = tuple(cards)\n089|     reasons: list = []\n090|     numbers: dict = {\"commit_free_gb\": commit_free_gb, \"placement\": placement,\n091|                      \"cards\": {c.bdf: {\"free_gb\": c.free_gb(gates.vram_headroom_gb),\n092|                                        \"temp_c\": c.temp_c, \"inferring\": c.inferring} for c in cards}}\n093|     need = _per_card_need(per_card_gb, vram_gb, placement)\n094|     numbers[\"per_card_need_gb\"] = need\n095| \n096|     if not cards:\n097|         return Admission(False, \"cards_missing\", None, (\"no B70 telemetry -- nothing to admit onto\",), numbers)\n098|     if need is None:\n099|         return Admission(False, \"model_unknown\", None,\n100|                          (f\"{model_id or 'model'} has no measured per-card or total VRAM (nullable stays null; \"\n101|                           \"an unmeasured model is not admitted onto a production card)\",), numbers)\n102|     if commit_free_gb is None:\n103|         return Admission(False, \"telemetry_unknown\", None, (\"commit headroom unknown -- refusing (fail closed)\",), numbers)\n104|     if commit_free_gb < gates.commit_min_free_gb:\n105|         return Admission(False, \"commit_floor\", None,\n106|                          (f\"commit free {commit_free_gb:.1f} GB < floor {gates.commit_min_free_gb:.1f} GB\",), numbers)\n107|     unknown_temp = [c.bdf for c in cards if c.temp_c is None]\n108|     if unknown_temp:\n109|         return Admission(False, \"telemetry_unknown\", None,\n110|                          (f\"VRAM temperature unknown on {', '.join(unknown_temp)} -- refusing (fail closed)\",), numbers)\n111|     hot = [c for c in cards if c.temp_c is not None and c.temp_c >= gates.vram_temperature_abort_c]\n112|     if hot:\n113|         return Admission(False, \"thermal\", None,\n114|                          tuple(f\"{c.bdf} at {c.temp_c:.0f} C >= abort {gates.vram_temperature_abort_c:.0f} C\" for c in hot), numbers)\n115| \n116|     if placement == \"dual\":\n117|         short = [c for c in cards if c.free_gb(gates.vram_headroom_gb) < need]\n118|         if len(cards) < 2:\n119|             return Admission(False, \"cards_missing\", None, (\"dual placement needs two B70s\",), numbers)\n120|         if short:\n121|             return Admission(False, \"vram_fit\", None,\n122|                              tuple(f\"{c.bdf}: free {c.free_gb(gates.vram_headroom_gb):.2f} GB < need {need:.2f} GB\" for c in short), numbers)\n123|         warm = [c for c in cards if c.temp_c is not None and c.temp_c >= gates.temperature_resume_below_c]\n124|         if warm:\n125|             reasons.append(\"warm card(s): \" + \", \".join(f\"{c.bdf}@{c.temp_c:.0f}C\" for c in warm))\n126|         return Admission(True, \"ok\", None, tuple(reasons) or (\"fits both cards\",), numbers)\n127| \n128|     target = choose_target_bdf(cards, need, gates)\n129|     if target is None:\n130|         return Admission(False, \"vram_fit\", None,\n131|                          tuple(f\"{c.bdf}: free {c.free_gb(gates.vram_headroom_gb):.2f} GB < need {need:.2f} GB\" for c in cards), numbers)\n132|     chosen = next(c for c in cards if c.bdf == target)\n133|     if chosen.inferring:\n134|         reasons.append(f\"{target} hosts an actively inferring tenant (~8% while it infers, ADR-0041)\")\n135|     if chosen.temp_c is not None and chosen.temp_c >= gates.temperature_resume_below_c:\n136|         reasons.append(f\"{target} is warm ({chosen.temp_c:.0f} C)\")\n137|     return Admission(True, \"ok\", target, tuple(reasons) or (f\"fits {target}\",), numbers)\n138| \n139| \n140| def eviction_advice(*, resident: Iterable[tuple], need_gb: float, placement: str,\n141|                     cards: Iterable[CardState], gates: AdmissionGates = AdmissionGates(),\n142|                     protected: frozenset = frozenset({\"qwen3-30b-a3b\"}),\n143|                     in_flight: frozenset = frozenset()) -> list:\n144|     \"\"\"ADVICE only: which resident side models would have to go for ``need_gb`` to fit.\n145| \n146|     ``resident`` = ``(model_id, bdf, gb)`` tuples. Never lists a protected model (production) or one\n147|     with in-flight work (P7: swaps drain, they never cut). Smallest sufficient set per card.\n148|     \"\"\"\n149|     cards = {c.bdf: c for c in cards}\n150|     advice: list = []\n151|     for bdf, card in cards.items():\n152|         free = card.free_gb(gates.vram_headroom_gb)\n153|         if free >= need_gb:\n154|             continue\n155|         deficit = need_gb - free\n156|         candidates = sorted((r for r in resident if r[1] == bdf and r[0] not in protected and r[0] not in in_flight),\n157|                             key=lambda r: r[2])\n158|         freed = 0.0\n159|         for model_id, _bdf, gb in candidates:\n160|             if freed >= deficit:\n161|                 break\n162|             advice.append(EvictionCandidate(model_id, bdf, gb, f\"frees {gb:.1f} GB toward a {deficit:.1f} GB deficit on {bdf}\"))\n163|             freed += gb\n164|     return advice\n=== END hearth/rotation/admission.py ===\n\n\nSTEP: work. Take all the room you need to think. Make working notes with line numbers for everything the SUBSTANCE statements need; wherever a statement asks you to compare or check something, trace it through the code and say exactly what the code reads and what it compares it with, and if the code does not do something a statement presumes, say so as a finding. Verify each note against the source. Then write the report as plain prose, covering each SUBSTANCE statement within the FORM limits, re-read it against the source and fix anything the source does not exactly support. Output the verified notes, then the report."
+      }
+    ],
+    "max_tokens": 24000,
+    "temperature": 0.0,
+    "stream": false,
+    "chat_template_kwargs": {
+      "enable_thinking": true
+    },
+    "top_p": 0.95,
+    "seed": 42
+  },
+  "final_request_template": {
+    "model": "qwen3.8-27b",
+    "max_tokens": 4096,
+    "temperature": 0.0,
+    "stream": false,
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+        "name": "delivery_output_v1",
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "summary",
+            "sections"
+          ],
+          "properties": {
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1200
+            },
+            "sections": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "heading",
+                  "paragraphs"
+                ],
+                "properties": {
+                  "heading": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "paragraphs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 24,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "text",
+                        "quotes"
+                      ],
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2400
+                        },
+                        "quotes": {
+                          "type": "array",
+                          "maxItems": 8,
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "strict": true
+      }
+    },
+    "seed": 42
+  },
+  "final_user_message": {
+    "role": "user",
+    "content": "STEP: final answer. Now give the report in the required form, from your corrected draft.\n\nYou are writing a short prose report about the source files below. Return only one JSON object that matches the delivery-output.v1 shape: `summary` (a short paragraph) and `sections`, a list of `{heading, paragraphs}`, where each paragraph is `{text, quotes}`. Use no markdown fence and no extra field.\n\nRules:\n- Write plain prose in `text`. Every claim you make must be backed by the quotes in the same paragraph.\n- Quotes come only from the SOURCE FILES block, never from the INTENT, SUBSTANCE or FORM text.\n- Each quote is one whole source line, copied exactly: same spelling, spacing and punctuation, without the line-number prefix. Never join lines, never shorten a line (no ellipsis) or rewrite it (keep `True` as `True`, keep a dict as written), never quote a single word.\n- When a source line contains double quotes, write each of them as a single quote (') inside your quote, and change nothing else in the line. Never stop a quote early and never write &quot;.\n- Do not write line numbers, file:line references, citation markers or word counts anywhere. The system resolves quotes to locations and measures length itself.\n- Cover every SUBSTANCE statement in the request. Stay within the word limit given under FORM.\n- Say only what the source shows. If the source does not show something, leave it out. Do not claim that tests ran. The report is review-only.\n\n\nThe SOURCE FILES are the ones at the start of this conversation. Quote whole source lines without the line-number prefix."
+  },
+  "conversation_rule": "append only the new work response content as assistant, then final_user_message; do not copy the historical draft or reasoning into a new request",
+  "aids": [
+    "numbered source",
+    "generic comparison tracing instruction",
+    "24K working allowance",
+    "schema-constrained finalization",
+    "quote renderer"
+  ],
+  "intent": "[goal:G-bench27] Report the behavior of hearth/rotation/admission.py, covering every supplied substance criterion with source evidence.",
+  "metrics_contract": {
+    "work_budget": 24000,
+    "final_budget": 4096,
+    "context": 65536,
+    "work_thinking": true,
+    "final_thinking": false,
+    "score_work_and_final_separately": true,
+    "truncation_is_completed_task": false
+  }
+}

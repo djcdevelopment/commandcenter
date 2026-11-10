@@ -128,9 +128,12 @@ quietly.
    owned by `operator inspect --refresh`; `knowledge/capability_catalog.json` by
    `operator catalog`; `runs/operator/_system/history.ndjson` by the operator
    history writer. One writer per mutable surface.
-2. **Work in your own worktree**, on your own branch. Never edit another
-   writer's worktree, and never commit on the control-plane checkout's branch on
-   behalf of a work item.
+2. **Work in `/home/derek/work/commandcenter` on your own branch** (or in your own
+   worktree created from it under `/home/derek/work/worktrees/`, removed once merged).
+   Never edit another writer's worktree. The deployment checkout
+   `/home/derek/work/commandcenter-linux-flash` is pull-only: never edit, branch or
+   commit there; deploy = push to fx99, then `git pull --ff-only` there and restart
+   only what changed (docs, tests and timer-run tools need no restart).
 3. **Never hand-edit a generated file.** Run its renderer instead
    (`operator catalog`, `python tools/ops/sizing_map.py --render`).
    A file whose header says it is generated means it.

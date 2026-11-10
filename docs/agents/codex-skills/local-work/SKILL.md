@@ -30,15 +30,10 @@ The candidate is never authoritative and is never applied by HEARTH.
 4a. Review by the HEARTH method: lead with what the candidate gets right, and put
    each miss in a named bucket (form: repair and count it; setup: change one
    lever and rerun; substance: the only verdict against the model).
-4b. Inside amux (`$AMUX_SESSION` is set), put the candidate on the board so it is
-   visible from every device. Use the card you were given, or create one with
-   `/home/derek/work/amux/upstream/amux/amux board add "local work: <short intent>"`, then
-   `.../amux board artifact <CARD> hearth:work/<work_id> --kind implementation
-   --state submitted --description "awaiting_review: <seat>, <family>, <artifact id>, <sha256>"`
-   (the board's kinds: implementation, verification, design, doc, screenshot, config; states: created,
-   submitted, merged, deployed, invalid, superseded). A refusal or failure is registered with
-   `--state invalid` and its reason: never hidden, never replaced by a cloud call.
-   When an accepted candidate is applied, commit it with the trailer
+4b. The HEARTH ledger is the record: the candidate's `awaiting_review` state, the verdict and the
+   applied label all live there (the amux board is retired, 2026-11-07; register nothing on it).
+   A refusal or failure is recorded in the verdict with its reason: never hidden, never replaced by
+   a cloud call. When an accepted candidate is applied, commit it with the trailer
    `Local-Work: work_<id>` so the applied label is read from git, not reported by hand.
 5. Call `mcp__hearth__record_local_work_verdict` with `accepted`, `rejected`, or
    `superseded`. Acceptance requires one passed row with concrete evidence for

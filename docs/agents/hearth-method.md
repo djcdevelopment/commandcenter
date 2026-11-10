@@ -40,12 +40,10 @@ setup miss: change one lever and rerun once. Do the work yourself only after a s
 fair setup, and record it. A refused local lane is terminal: never substitute cloud inference.
 
 **5. Record.** Verdicts carry evidence per criterion; a receipt names the family, the regime and the job id.
-Inside amux (`$AMUX_SESSION` is set), put the result on the board, visible from every device:
-`/home/derek/work/amux/upstream/amux/amux board add "<title>"`, then `... board artifact <CARD> hearth:job/<job_id>
---kind verification --state submitted --description "<seat>, <family>, <regime>, <artifact id>"` (a code candidate is
-`--kind implementation`; a refusal is `--state invalid` with the reason). Inside a Codex sandbox the CLI needs
-`AMUX_API=https://127.0.0.1:18824` and loopback network (an escalation).
+The HEARTH ledgers are the record (`record_local_work_verdict`, `record_event`); the amux board is retired
+(2026-11-07) and nothing is registered there. When the Argon board (`irc-message-board`) is live it takes the
+board role. A refusal or failure goes into the receipt with its reason: never hidden, never replaced by a cloud call.
 
-**6. Attribute (Codex).** Stamp every HEARTH call with task_id='cx-<lane name>' (the AMUX lane you run in; `cx-adhoc` outside a lane). Claude Code sessions get their `cc-` id from the user-level hook; this is the Codex counterpart, so the session census can join Codex work to the ledger.
+**6. Attribute (Codex).** Stamp every HEARTH call with task_id='cx-adhoc' (or `cx-<name>` when Derek names the session). Claude Code sessions get their `cc-` id from the user-level hook; this is the Codex counterpart, so the session census can join Codex work to the ledger.
 
 <!-- source: docs/agents/hearth-method.md in commandcenter-linux-flash; synced by tools/ops/sync-offload-block.mjs --marker hearth-method --manifest docs/agents/method-block-targets.json; edit the source -->
